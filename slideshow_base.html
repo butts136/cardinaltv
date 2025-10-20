@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cardinal TV · Mode Diaporama</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    <script>
+      window.__browserCssConfig = window.__browserCssConfig || {};
+      window.__browserCssConfig.silk = "{{ url_for('static', filename='css/silk.css') }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/browser-css.js') }}"></script>
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body class="slideshow-body">
+    {% block slideshow_content %}{% endblock %}
+
+    {% block body_scripts %}
+      <!-- Clock and overlay now managed by slideshow.js -->
+    {% endblock %}
+  </body>
+</html>

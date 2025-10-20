@@ -1,0 +1,61 @@
+{% extends "slideshow_base.html" %}
+
+{% block head_extra %}
+    <script>
+      (function () {
+        try {
+          var autoFlag = false;
+          if (sessionStorage.getItem("cardinal_auto_slideshow") === "1") {
+            autoFlag = true;
+          }
+          var params = new URLSearchParams(window.location.search);
+          if (params.get("auto") === "1") {
+            autoFlag = true;
+          }
+          if (autoFlag) {
+            document.documentElement.classList.add("auto-slideshow");
+          }
+        } catch (error) {
+          /* stockage indisponible : ignorer */
+        }
+      })();
+    </script>
+{% endblock %}
+
+{% block slideshow_content %}
+    <div id="slideshow-container">
+      <div id="slideshow-placeholder">
+        <h1>Mode diaporama</h1>
+        <p>
+          Cliquez sur le bouton ci-dessous pour lancer la lecture en plein écran. Les médias se chargeront
+          automatiquement et défileront en boucle.
+        </p>
+        <button id="start-slideshow" class="primary-button">
+          Démarrer le diaporama
+        </button>
+        <p class="hint">
+          Pour arrêter le diaporama, appuyez sur le bouton retour de la manette Fire TV ou utilisez la touche Échap.
+        </p>
+      </div>
+      
+      <!-- Bande d'information (logo + horloge) EN PREMIER dans le flux -->
+      <div id="slideshow-brand">
+        <div id="overlay-content">
+          <span id="slideshow-clock" class="clock-text"></span>
+        </div>
+      </div>
+      
+      <!-- Stage du slideshow EN SECOND - prend la hauteur restante -->
+      <div id="slideshow-stage" hidden>
+        <div id="media-wrapper"></div>
+        <div id="slideshow-overlay" hidden>
+          <span id="slideshow-status"></span>
+        </div>
+      </div>
+    </div>
+{% endblock %}
+
+{% block body_scripts %}
+    {{ super() }}
+    <script src="{{ url_for('static', filename='js/slideshow.js') }}"></script>
+{% endblock %}
