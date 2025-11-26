@@ -4,17 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cardinal TV · Mode Diaporama</title>
-<<<<<<< HEAD
     <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
-=======
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
-    <script>
-      window.__browserCssConfig = window.__browserCssConfig || {};
-      window.__browserCssConfig.silk = "{{ url_for('static', filename='css/silk.css') }}";
-    </script>
-    <script src="{{ url_for('static', filename='js/browser-css.js') }}"></script>
->>>>>>> 32ed2256021277d832bf4e4fa3f026e9f03f644f
     {% block head_extra %}{% endblock %}
   </head>
   <body class="slideshow-body">
@@ -22,7 +13,6 @@
 
     {% block body_scripts %}
       <!-- Clock and overlay now managed by slideshow.js -->
-<<<<<<< HEAD
       <script>
         if ("serviceWorker" in navigator) {
           window.addEventListener("load", () => {
@@ -32,8 +22,6 @@
           });
         }
       </script>
-=======
->>>>>>> 32ed2256021277d832bf4e4fa3f026e9f03f644f
     {% endblock %}
   </body>
 </html>
