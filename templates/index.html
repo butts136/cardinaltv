@@ -4,8 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cardinal TV • Gestion du diaporama</title>
+<<<<<<< HEAD
     <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+=======
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    <script>
+      window.__browserCssConfig = window.__browserCssConfig || {};
+      window.__browserCssConfig.silk = "{{ url_for('static', filename='css/silk.css') }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/browser-css.js') }}"></script>
+>>>>>>> 32ed2256021277d832bf4e4fa3f026e9f03f644f
   </head>
   <body>
     <header class="page-header">
@@ -14,10 +23,18 @@
       </div>
       <div class="header-controls">
         <div class="time-display" id="quebec-time" aria-live="polite"></div>
+<<<<<<< HEAD
+=======
+        <button id="settings-button" class="secondary-button">Configurer la bande</button>
+        <button id="slideshow-button" class="primary-button">
+          Lancer le mode Diaporama
+        </button>
+>>>>>>> 32ed2256021277d832bf4e4fa3f026e9f03f644f
       </div>
     </header>
 
     <main class="layout">
+<<<<<<< HEAD
       <section class="card diaporama-card">
         <div class="section-header">
           <div>
@@ -43,15 +60,119 @@
         <div class="card-body">
           <div id="ppt-list" class="media-grid">
             <!-- Les présentations seront listées ici par JS -->
+=======
+      <section class="card upload-card">
+        <div class="section-header">
+          <div>
+            <h2>Téléversement</h2>
+            <p class="playlist-subtitle">Ajoutez des fichiers à la playlist en un seul geste.</p>
+          </div>
+        </div>
+
+        <form id="upload-form" class="upload-inline">
+          <label for="file-input" id="drop-zone">
+            <span class="drop-zone-title">Cliquez ou déposez vos fichiers ici</span>
+            <span class="drop-zone-subtitle">
+              Images, vidéos, PDF, documents et autres formats sont acceptés.
+            </span>
+          </label>
+          <input id="file-input" name="files" type="file" multiple />
+          <div class="actions upload-actions">
+            <button type="submit" class="primary-button">Téléverser</button>
+            <span id="upload-feedback" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card playlist-card">
+        <div class="section-header playlist-header">
+          <div>
+            <h2>Playlist des médias</h2>
+            <p class="playlist-subtitle">
+              Organisez vos médias et ajustez leurs paramètres d’affichage.
+            </p>
+          </div>
+          <div class="header-actions">
+            <button id="refresh-button" class="secondary-button">Actualiser</button>
+          </div>
+        </div>
+
+        <div id="media-list" class="media-list" aria-live="polite">
+          <div class="empty-state">
+            Aucun média pour le moment. Téléversez des fichiers pour construire la playlist.
+>>>>>>> 32ed2256021277d832bf4e4fa3f026e9f03f644f
           </div>
         </div>
       </section>
     </main>
 
+<<<<<<< HEAD
+=======
+    <div id="settings-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-modal-close></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="overlay-modal-title">
+        <header class="modal-header">
+          <h2 id="overlay-modal-title">Paramètres de la bande d'information</h2>
+          <button class="icon-button close-button" type="button" data-modal-close aria-label="Fermer">×</button>
+        </header>
+        <form id="overlay-form" class="modal-body">
+          <section class="modal-section">
+            <label class="toggle">
+              <input type="checkbox" id="overlay-enabled" />
+              Activer la bande
+            </label>
+            <label class="field-group">
+              <span>Mode d'affichage</span>
+              <select id="overlay-mode">
+                <option value="clock">Date et heure</option>
+                <option value="ticker">Texte défilant</option>
+              </select>
+            </label>
+            <div class="field-inline">
+              <label class="field-group">
+                <span>Hauteur (% écran)</span>
+                <input type="range" id="overlay-height" min="3" max="15" step="0.5" />
+              </label>
+              <span id="overlay-height-value" class="range-value">5</span>
+            </div>
+          </section>
+
+          <section class="modal-section">
+            <label class="field-group">
+              <span>Couleur de fond</span>
+              <input type="color" id="overlay-bg" value="#f0f0f0" />
+            </label>
+            <label class="field-group">
+              <span>Couleur du texte</span>
+              <input type="color" id="overlay-text" value="#111111" />
+            </label>
+            <label class="field-group">
+              <span>Logo (chemin ou URL)</span>
+              <input type="text" id="overlay-logo" placeholder="static/img/logo-groupe-cardinal.png" />
+            </label>
+          </section>
+
+          <section class="modal-section ticker-only hidden">
+            <label class="field-group">
+              <span>Texte défilant</span>
+              <textarea id="overlay-ticker-text" rows="3" placeholder="Votre message d'information"></textarea>
+            </label>
+          </section>
+
+          <footer class="modal-footer">
+            <button type="button" class="secondary-button" data-modal-close>Annuler</button>
+            <button type="submit" class="primary-button">Enregistrer</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+
+>>>>>>> 32ed2256021277d832bf4e4fa3f026e9f03f644f
     <footer class="page-footer">
       <small>Serveur local sur le port 39010 — Cardinal TV</small>
     </footer>
 
+<<<<<<< HEAD
     <!-- Powerpoint upload modal -->
     <div id="ppt-modal" class="modal hidden" aria-hidden="true">
       <div class="modal-overlay" data-modal-close="true"></div>
@@ -80,6 +201,8 @@
       </div>
     </div>
 
+=======
+>>>>>>> 32ed2256021277d832bf4e4fa3f026e9f03f644f
     <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
   </body>
 </html>
