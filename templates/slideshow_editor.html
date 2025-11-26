@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>&Eacute;diteur des m&eacute;dias &middot; Cardinal TV</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/media_editor.css') }}" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="brand">
+        <img src="{{ url_for('static', filename='img/logo-1.png') }}" alt="Cardinal TV" class="brand-logo" />
+      </div>
+      <div class="header-controls">
+        <a href="{{ url_for('main.index') }}" class="secondary-button">Retour &agrave; l'accueil</a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card upload-section collapsed">
+        <div class="section-header">
+          <div>
+            <h2>T&eacute;l&eacute;versement</h2>
+            <p class="playlist-subtitle">Ajoutez des fichiers &agrave; la playlist.</p>
+          </div>
+          <button id="upload-toggle" class="section-toggle" aria-label="Basculer la section de téléversement">
+            <span class="toggle-icon">▼</span>
+          </button>
+        </div>
+        <div class="section-content">
+          <form id="upload-form" class="upload-inline">
+            <label for="file-input" id="drop-zone">
+              <span class="drop-zone-title">Cliquez ou d&eacute;posez vos fichiers</span>
+              <span class="drop-zone-subtitle">Images, vid&eacute;os, PDF, documents, etc.</span>
+            </label>
+            <input id="file-input" name="files" type="file" multiple />
+            <div class="actions upload-actions">
+              <button type="submit" class="primary-button">T&eacute;l&eacute;verser</button>
+              <span id="upload-feedback" role="status" aria-live="polite"></span>
+            </div>
+          </form>
+        </div>
+      </section>
+
+  <section class="card playlist-card compact playlist-section collapsed">
+        <div class="section-header playlist-header">
+          <div>
+            <h2>Playlist des m&eacute;dias</h2>
+            <p class="playlist-subtitle">Organisez vos m&eacute;dias et ajustez leurs param&egrave;tres.</p>
+          </div>
+          <div class="header-actions">
+            <button id="playlist-toggle" class="section-toggle" aria-label="Basculer la section playlist">
+              <span class="toggle-icon">▼</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="section-content">
+          <div class="playlist-actions">
+            <button id="hide-all-button" class="secondary-button">Masquer tout</button>
+            <button id="show-all-button" class="secondary-button">Afficher tout</button>
+            <button id="slideshow-button" class="primary-button">Lancer le diaporama</button>
+            <button id="refresh-button" class="secondary-button">Actualiser</button>
+          </div>
+          <div id="media-list" class="media-list" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="card employees-section collapsed" id="employees-section">
+        <div class="section-header">
+          <div>
+            <h2>Employ&eacute;s</h2>
+            <p class="playlist-subtitle">Cette section sera utilis&eacute;e pour g&eacute;rer les employ&eacute;s.</p>
+          </div>
+          <button id="employees-toggle" class="section-toggle" aria-label="Basculer la section employ&eacute;s">
+            <span class="toggle-icon">▼</span>
+          </button>
+        </div>
+        <div class="section-content">
+          <div class="employees-layout">
+            <div class="employees-list-column">
+              <div class="employees-list-header">
+                <h3>Liste des employ&eacute;s</h3>
+                <button id="employees-add-button" class="primary-button" type="button">+ Ajouter un employ&eacute;</button>
+              </div>
+              <ul id="employees-list" class="employees-list" aria-live="polite"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card team-section collapsed" id="team-section">
+        <div class="section-header">
+          <div>
+            <h2>Notre &Eacute;quipe</h2>
+            <p class="playlist-subtitle">
+              Cette section permet d'activer ou de d&eacute;sactiver la diapositive auto-g&eacute;n&eacute;r&eacute;e et interactive.
+            </p>
+          </div>
+          <button id="team-toggle" class="section-toggle" aria-label="Basculer la section Notre &Eacute;quipe">
+            <span class="toggle-icon">▼</span>
+          </button>
+        </div>
+        <div class="section-content">
+          <div class="team-settings">
+            <div class="team-toggle-row">
+              <h3>Diapositive &laquo; Notre &Eacute;quipe &raquo;</h3>
+              <div class="team-toggle-control">
+                <span class="team-toggle-text">Statut&nbsp;:</span>
+                <label class="visibility-toggle">
+                  <span class="visibility-toggle-label visibility-toggle-label-on">Activ&eacute;e</span>
+                  <div class="visibility-toggle-switch">
+                    <input
+                      id="team-enabled"
+                      class="visibility-toggle-checkbox"
+                      type="checkbox"
+                      aria-label="Activer ou d&eacute;sactiver la diapositive Notre &Eacute;quipe"
+                    />
+                    <span class="visibility-toggle-slider"></span>
+                  </div>
+                  <span class="visibility-toggle-label visibility-toggle-label-off">D&eacute;sactiv&eacute;e</span>
+                </label>
+              </div>
+            </div>
+            <div class="team-background">
+              <h3>Arri&egrave;re-plan</h3>
+              <p class="playlist-subtitle">
+                Choisissez une image ou une vid&eacute;o qui sera affich&eacute;e en boucle en fond d'&eacute;cran.
+              </p>
+              <div class="team-background-upload">
+                <input
+                  type="file"
+                  id="team-background-input"
+                  accept="image/*,video/*"
+                />
+                <button type="button" class="secondary-button" id="team-background-upload-button">
+                  T&eacute;l&eacute;verser un fichier
+                </button>
+                <span
+                  id="team-background-status"
+                  class="upload-feedback"
+                  aria-live="polite"
+                ></span>
+              </div>
+              <div class="team-background-list-wrapper">
+                <h4>Arri&egrave;re-plans disponibles</h4>
+                <div id="team-background-list" class="team-background-list"></div>
+              </div>
+            </div>
+
+            <div class="team-card-settings">
+              <label for="team-card-duration">Dur&eacute;e approximative d'affichage d'une carte (s)</label>
+              <input
+                type="number"
+                id="team-card-duration"
+                min="0.5"
+                max="120"
+                step="0.1"
+                value="6"
+              />
+              <p class="field-hint">
+                Indiquez combien de secondes une carte reste visible, du moment o&ugrave; elle entre dans l'&eacute;cran jusqu'&agrave; sa sortie.
+              </p>
+            </div>
+
+            <div class="team-title">
+              <div class="team-title-header">
+                <h3>Titre</h3>
+                <label class="visibility-toggle">
+                  <span class="visibility-toggle-label visibility-toggle-label-on">Activ&eacute;</span>
+                  <div class="visibility-toggle-switch">
+                    <input
+                      id="team-title-enabled"
+                      class="visibility-toggle-checkbox"
+                      type="checkbox"
+                      aria-label="Activer ou d&eacute;sactiver le titre"
+                    />
+                    <span class="visibility-toggle-slider"></span>
+                  </div>
+                  <span class="visibility-toggle-label visibility-toggle-label-off">D&eacute;sactiv&eacute;</span>
+                </label>
+              </div>
+
+              <div class="team-title-options collapsed" id="team-title-options">
+                <button
+                  type="button"
+                  class="team-title-options-toggle"
+                  id="team-title-options-toggle"
+                  aria-expanded="false"
+                >
+                  <span>Options du titre</span>
+                  <span class="toggle-icon">▼</span>
+                </button>
+                <div class="team-title-options-body">
+                  <div class="form-row">
+                    <label for="team-title-text">Texte du titre</label>
+                    <input
+                      type="text"
+                      id="team-title-text"
+                      placeholder="Ex. Notre &eacute;quipe en vedette"
+                    />
+                  </div>
+                  <div class="form-row dual">
+                    <div>
+                      <label for="team-title-position">Emplacement</label>
+                      <select id="team-title-position">
+                        <option value="top-left">Haut gauche</option>
+                        <option value="top-center">Haut centre</option>
+                        <option value="top-right">Haut droite</option>
+                        <option value="center">Centre</option>
+                        <option value="bottom-left">Bas gauche</option>
+                        <option value="bottom-center">Bas centre</option>
+                        <option value="bottom-right">Bas droite</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="team-title-font-size">Taille du texte (px)</label>
+                      <input
+                        type="number"
+                        id="team-title-font-size"
+                        min="8"
+                        max="200"
+                        step="1"
+                      />
+                    </div>
+                  </div>
+                  <div class="form-row dual">
+                    <div>
+                      <label for="team-title-color">Couleur du texte</label>
+                      <input type="color" id="team-title-color" />
+                    </div>
+                    <div>
+                      <label for="team-title-background-color">Fond du titre</label>
+                      <input type="color" id="team-title-background-color" />
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <label class="checkbox-row">
+                      <input type="checkbox" id="team-title-underline" />
+                      <span>Soulign&eacute;</span>
+                    </label>
+                  </div>
+                  <div class="form-row dual">
+                    <div>
+                      <label for="team-title-angle">Angle du texte (&deg;)</label>
+                      <input
+                        type="number"
+                        id="team-title-angle"
+                        min="-360"
+                        max="360"
+                        step="1"
+                      />
+                    </div>
+                    <div>
+                      <label for="team-title-width">Largeur du texte (%)</label>
+                      <input
+                        type="number"
+                        id="team-title-width"
+                        min="10"
+                        max="100"
+                        step="1"
+                      />
+                    </div>
+                  </div>
+                  <div class="form-row dual">
+                    <div>
+                      <label for="team-title-height">Hauteur du texte (%)</label>
+                      <input
+                        type="number"
+                        id="team-title-height"
+                        min="5"
+                        max="100"
+                        step="1"
+                      />
+                    </div>
+                    <div>
+                      <label for="team-title-offset-x">D&eacute;calage horizontal (%)</label>
+                      <input
+                        type="number"
+                        id="team-title-offset-x"
+                        min="-50"
+                        max="50"
+                        step="1"
+                      />
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <label for="team-title-offset-y">D&eacute;calage vertical (%)</label>
+                    <input
+                      type="number"
+                      id="team-title-offset-y"
+                      min="-50"
+                      max="50"
+                      step="1"
+                    />
+                  </div>
+                  <!-- La courbure du texte et d'autres options pourront être ajoutées ici plus tard -->
+                </div>
+              </div>
+            </div>
+
+            <div class="team-preview">
+              <h3>Aper&ccedil;u en direct</h3>
+              <p class="playlist-subtitle">
+                Aper&ccedil;u de la diapositive &laquo; Notre &Eacute;quipe &raquo; telle qu'elle appara&icirc;tra dans le diaporama.
+              </p>
+              <div class="team-preview-actions">
+                <button type="button" class="secondary-button" id="team-preview-refresh">
+                  Rafra&icirc;chir l'aper&ccedil;u
+                </button>
+              </div>
+              <div class="team-preview-stage" id="team-preview-stage">
+                <!-- Aper&ccedil;u g&eacute;n&eacute;r&eacute; par JavaScript -->
+              </div>
+              <div class="team-actions">
+                <button type="button" class="primary-button" id="team-save-button">
+                  Enregistrer les modifications
+                </button>
+                <span
+                  id="team-save-status"
+                  class="upload-feedback"
+                  aria-live="polite"
+                ></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card birthday-section collapsed" id="birthday-section">
+        <div class="section-header">
+          <div>
+            <h2>Anniversaire</h2>
+            <p class="playlist-subtitle">Activez la diapositive et choisissez un arrière-plan.</p>
+          </div>
+          <button id="birthday-toggle" class="section-toggle" aria-label="Basculer la section Anniversaire">
+            <span class="toggle-icon">▼</span>
+          </button>
+        </div>
+        <div class="section-content">
+          <div class="birthday-settings">
+            <div class="birthday-toggle-row">
+              <h3>Diapositive &laquo; Anniversaire &raquo;</h3>
+              <div class="birthday-toggle-control">
+                <span class="birthday-toggle-text">Statut&nbsp;:</span>
+                <label class="visibility-toggle">
+                  <span class="visibility-toggle-label visibility-toggle-label-on">Activ&eacute;e</span>
+                  <div class="visibility-toggle-switch">
+                    <input
+                      id="birthday-enabled"
+                      class="visibility-toggle-checkbox"
+                      type="checkbox"
+                      aria-label="Activer ou d&eacute;sactiver la diapositive Anniversaire"
+                    />
+                    <span class="visibility-toggle-slider"></span>
+                  </div>
+                  <span class="visibility-toggle-label visibility-toggle-label-off">D&eacute;sactiv&eacute;e</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="birthday-background">
+              <div class="birthday-background-header">
+                <div>
+                  <h3>Arri&egrave;re-plan</h3>
+                  <p class="playlist-subtitle">
+                    Importez une image ou une vid&eacute;o dédiée dans le dossier Anniversaire.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="birthday-background-toggle"
+                  id="birthday-background-toggle"
+                  aria-label="Basculer les options d'arrière-plan"
+                >
+                  <span class="toggle-icon">▼</span>
+                </button>
+              </div>
+
+              <div class="birthday-background-body">
+                <div class="birthday-background-upload">
+                  <label for="birthday-background-input" id="birthday-drop-zone" class="birthday-drop-zone">
+                    <span class="drop-zone-title">Cliquez ou d&eacute;posez votre image/vid&eacute;o</span>
+                    <span class="drop-zone-subtitle">Format image ou vid&eacute;o (fond Anniversaire)</span>
+                  </label>
+                  <input type="file" id="birthday-background-input" accept="image/*,video/*" />
+                  <div class="upload-progress" id="birthday-upload-progress" aria-hidden="true">
+                    <div class="upload-progress-bar" id="birthday-upload-progress-bar"></div>
+                    <span class="upload-progress-text" id="birthday-upload-progress-text">0%</span>
+                  </div>
+                  <span
+                    id="birthday-background-status"
+                    class="upload-feedback"
+                    aria-live="polite"
+                  ></span>
+                </div>
+                <div class="birthday-background-list-wrapper">
+                  <h4>Arri&egrave;re-plans disponibles</h4>
+                  <div id="birthday-background-list" class="team-background-list birthday-background-list"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="birthday-preview">
+              <h3>Aper&ccedil;u en direct</h3>
+              <p class="playlist-subtitle">Visualisez la diapositive Anniversaire telle qu'elle appara&icirc;t dans le diaporama.</p>
+              <div class="birthday-preview-stage" id="birthday-preview-stage"></div>
+              <div class="birthday-preview-actions">
+                <button type="button" class="secondary-button" id="birthday-preview-refresh">Rafra&icirc;chir l'aper&ccedil;u</button>
+              </div>
+            </div>
+
+            <div class="birthday-variant-select">
+              <label for="birthday-variant-select-input">Type de diapositive</label>
+              <select id="birthday-variant-select-input">
+                <option value="before" selected>Jours avant l'anniversaire</option>
+                <option value="day">Jour de l'anniversaire</option>
+                <option value="weekend">Anniversaire hors jours ouvrables</option>
+              </select>
+            </div>
+
+            <div class="birthday-variant-background">
+              <label for="birthday-variant-background-select">Fond pour cette diapositive</label>
+              <select id="birthday-variant-background-select">
+                <option value="">Aucun fond spécifique (utilise le fond global)</option>
+              </select>
+            </div>
+
+            <div class="birthday-title-settings">
+              <h3>Titre</h3>
+              <div class="form-row">
+                <label for="birthday-title-text">Texte du titre</label>
+                <input type="text" id="birthday-title-text" placeholder="Anniversaire" />
+              </div>
+              <div class="form-row dual">
+                <div>
+                  <label for="birthday-title-size">Taille (px)</label>
+                  <input type="number" id="birthday-title-size" min="8" max="200" step="1" />
+                </div>
+                <div>
+                  <label for="birthday-title-color">Couleur</label>
+                  <input type="color" id="birthday-title-color" />
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="birthday-title-y">Position verticale (%)</label>
+                <input type="range" id="birthday-title-y" min="0" max="100" step="1" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card temp-card" id="temporary-slides">
+        <div class="section-header">
+          <div>
+            <h2>Messages temporaires</h2>
+            <p class="playlist-subtitle">Cr&eacute;ez des diapos auto-destructibles avec texte, images ou vid&eacute;o.</p>
+          </div>
+          <div class="header-actions">
+            <button id="temp-slide-new" class="primary-button" type="button">Nouvelle diapositive</button>
+            <button id="temp-slide-save" class="secondary-button" type="button">Enregistrer la diapositive</button>
+          </div>
+        </div>
+        <div class="temp-layout">
+          <aside class="temp-sidebar">
+            <h3>Diapositives programm&eacute;es</h3>
+            <ul id="temp-slide-list" class="temp-slide-list" aria-live="polite"></ul>
+            <div class="temp-sidebar-actions">
+              <button id="temp-slide-duplicate" class="secondary-button" type="button">Dupliquer</button>
+              <button id="temp-slide-delete" class="secondary-button danger" type="button">Supprimer</button>
+            </div>
+          </aside>
+          <div class="temp-editor">
+            <form id="temp-slide-form" autocomplete="off">
+              <input type="hidden" id="temp-slide-id" />
+              <div class="form-row">
+                <label for="temp-slide-label">Titre interne</label>
+                <input type="text" id="temp-slide-label" placeholder="Ex. Rencontre dans la caf&eacute;t&eacute;ria" />
+              </div>
+              <div class="form-row dual">
+                <div>
+                  <label for="temp-slide-start">D&eacute;but</label>
+                  <input type="datetime-local" id="temp-slide-start" />
+                </div>
+                <div>
+                  <label for="temp-slide-end">Fin</label>
+                  <input type="datetime-local" id="temp-slide-end" />
+                </div>
+              </div>
+              <div class="form-row dual">
+                <div>
+                  <label for="temp-slide-duration">Dur&eacute;e (s)</label>
+                  <input type="number" id="temp-slide-duration" min="3" max="180" step="1" />
+                </div>
+                <div>
+                  <label class="checkbox-row">
+                    <input type="checkbox" id="temp-slide-muted" />
+                    <span>Forcer la lecture muette</span>
+                  </label>
+                </div>
+              </div>
+              <fieldset class="temp-background-fieldset">
+                <legend>Arri&egrave;re-plan</legend>
+                <div class="form-row dual">
+                  <div>
+                    <label for="temp-background-color">Couleur</label>
+                    <input type="color" id="temp-background-color" />
+                  </div>
+                  <div>
+                    <label for="temp-background-overlay">Voile (opacit&eacute;)</label>
+                    <input type="range" id="temp-background-overlay" min="0" max="0.9" step="0.05" />
+                  </div>
+                </div>
+                <label for="temp-background-upload">Image ou vid&eacute;o</label>
+                <input type="file" id="temp-background-upload" accept="image/*,video/*" />
+                <div class="temp-background-actions">
+                  <button type="button" class="secondary-button" id="temp-background-remove">Retirer</button>
+                  <span id="temp-background-status" class="upload-feedback" aria-live="polite"></span>
+                </div>
+              </fieldset>
+              <div class="temp-elements-toolbar">
+                <h3>Contenu</h3>
+                <div class="toolbar-buttons">
+                  <button type="button" class="secondary-button" id="temp-add-text">Ajouter un texte</button>
+                  <button type="button" class="secondary-button" id="temp-add-image">Ajouter une image</button>
+                  <button type="button" class="secondary-button" id="temp-add-video">Ajouter une vid&eacute;o</button>
+                </div>
+              </div>
+              <div id="temp-elements-list" class="temp-elements-list"></div>
+            </form>
+            <div class="temp-preview">
+              <div class="temp-preview-stage" id="temp-preview-stage">
+                <video id="temp-preview-video" class="temp-preview-video" muted loop playsinline></video>
+                <img id="temp-preview-image" class="temp-preview-image" alt="" hidden />
+                <div id="temp-preview-overlay" class="temp-preview-overlay"></div>
+              </div>
+              <p class="temp-preview-hint">
+                Glissez les &eacute;l&eacute;ments directement dans l'aper&ccedil;u pour ajuster la position ou utilisez les valeurs num&eacute;riques.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <small>Cardinal TV &middot; &Eacute;diteur des m&eacute;dias</small>
+    </footer>
+    <!-- Media preview modal (opens when clicking a thumbnail) -->
+    <div id="media-modal" class="media-modal hidden" aria-hidden="true" role="dialog" aria-modal="true">
+      <div class="media-modal-backdrop" data-modal-close></div>
+      <div class="media-modal-content">
+        <button type="button" class="media-modal-close" aria-label="Fermer">&times;</button>
+        <div class="media-modal-inner" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <!-- Employee edit/create modal -->
+    <div id="employee-modal" class="media-modal hidden" aria-hidden="true" role="dialog" aria-modal="true">
+      <div class="media-modal-backdrop" data-employee-modal-close></div>
+      <div class="media-modal-content employee-modal-content">
+        <button type="button" class="media-modal-close" aria-label="Fermer" data-employee-modal-close>&times;</button>
+        <div class="media-modal-inner employee-modal-inner">
+          <form id="employee-form" class="employee-form" autocomplete="off">
+            <input type="hidden" id="employee-id" />
+            <h2 id="employee-modal-title">Nouvel employ&eacute;</h2>
+            <div class="section-stack">
+              <div class="form-row">
+                <label for="employee-name">Nom complet *</label>
+                <input type="text" id="employee-name" required />
+              </div>
+
+              <div class="form-row">
+                <label for="employee-role">Poste</label>
+                <input type="text" id="employee-role" />
+              </div>
+
+              <div class="form-row">
+                <label for="employee-description">Description des t&acirc;ches</label>
+                <textarea id="employee-description" rows="3"></textarea>
+              </div>
+
+              <div class="form-row">
+                <label for="employee-birthday-day">Date d'anniversaire</label>
+                <div class="birthday-fields stacked-fields">
+                  <select id="employee-birthday-year">
+                    <option value="">Année (optionnel)</option>
+                  </select>
+                  <select id="employee-birthday-month">
+                    <option value="">Mois</option>
+                  </select>
+                  <select id="employee-birthday-day">
+                    <option value="">Jour</option>
+                  </select>
+                </div>
+                <p class="hint">Optionnel, pour calculer l'ancienneté et les anniversaires.</p>
+              </div>
+
+              <div class="form-row">
+                <label>Embauche</label>
+                <div class="hire-fields stacked-fields">
+                  <select id="employee-hire-year">
+                    <option value="">Année</option>
+                  </select>
+                  <select id="employee-hire-month">
+                    <option value="">Mois</option>
+                  </select>
+                  <select id="employee-hire-day">
+                    <option value="">Jour</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label for="employee-avatar">Avatar</label>
+                <div class="employee-avatar-preview-wrapper">
+                  <img id="employee-avatar-preview" class="hidden" alt="Avatar actuel de l'employé" />
+                  <input type="file" id="employee-avatar" accept="image/*" />
+                  <button type="button" class="secondary-button danger" id="employee-avatar-remove">
+                    Supprimer l'avatar
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="primary-button">Enregistrer</button>
+                <button type="button" class="secondary-button" id="employee-cancel">Annuler</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/editor_toggles.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>

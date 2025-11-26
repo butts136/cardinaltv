@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cardinal TV · Mode Diaporama</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body class="slideshow-body">
+    {% block slideshow_content %}{% endblock %}
+
+    {% block body_scripts %}
+      <!-- Clock and overlay now managed by slideshow.js -->
+      <script>
+        if ("serviceWorker" in navigator) {
+          window.addEventListener("load", () => {
+            navigator.serviceWorker
+              .register("{{ url_for('main.service_worker') }}")
+              .catch((err) => console.warn("SW registration failed:", err));
+          });
+        }
+      </script>
+    {% endblock %}
+  </body>
+</html>

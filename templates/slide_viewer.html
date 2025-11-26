@@ -1,0 +1,32 @@
+{% extends "slideshow_base.html" %}
+
+{% block head_extra %}
+  {{ super() }}
+  <title>Redirection vers le diaporama</title>
+{% endblock %}
+
+{% block slideshow_content %}
+  <div class="redirecting-slide-viewer">
+    <noscript>
+      <p>Redirection vers le diaporama. Si la redirection automatique ne fonctionne pas, <a href="{{ url_for('main.slideshow', _external=False) }}">cliquez ici</a>.</p>
+    </noscript>
+    <script>
+      (function () {
+        try {
+          var pptId = "{{ presentation.id if presentation is defined else '' }}";
+          var base = "{{ url_for('main.slideshow', _external=False) }}";
+          if (pptId) {
+            var url = base + "?ppt=" + encodeURIComponent(pptId) + "&auto=1";
+            try { sessionStorage.setItem("cardinal_auto_slideshow", "1"); } catch (e) {}
+            window.location.href = url;
+          } else {
+            window.location.href = base;
+          }
+        } catch (err) {
+          // Fallback: go to slideshow index
+          window.location.href = "{{ url_for('main.slideshow', _external=False) }}";
+        }
+      })();
+    </script>
+  </div>
+{% endblock %}

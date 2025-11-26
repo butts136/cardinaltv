@@ -1,0 +1,38 @@
+{% extends "slideshow_base.html" %}
+
+{% block head_extra %}
+  {{ super() }}
+  <title>Cardinal TV · Lecture PowerPoint</title>
+{% endblock %}
+
+{% block slideshow_content %}
+  <div
+    id="ppt-player"
+    class="ppt-player"
+    data-powerpoint-id="{{ powerpoint.id }}"
+    data-details-url="{{ url_for('main.get_powerpoint', powerpoint_id=powerpoint.id, _external=False) }}"
+    data-return-url="{{ url_for('main.index', _external=False) }}"
+  >
+    <main class="ppt-stage" id="ppt-stage" aria-live="polite">
+      <div class="ppt-slide-wrapper" id="ppt-slide-wrapper">
+        <img id="ppt-slide-image" alt="Diapositive en cours" hidden />
+        <div class="ppt-empty-state" id="ppt-empty-state">
+          Préparation de la présentation...
+        </div>
+      </div>
+    </main>
+    <footer class="ppt-bottom-bar" id="ppt-controls">
+      <button type="button" class="secondary-button" data-action="back"><span>Quitter</span></button>
+      <div class="ppt-bottom-actions">
+        <button type="button" class="secondary-button" data-action="prev" aria-label="Diapositive précédente"><span aria-hidden="true">◀</span></button>
+        <span class="ppt-status" id="ppt-status"></span>
+        <button type="button" class="secondary-button" data-action="next" aria-label="Diapositive suivante"><span aria-hidden="true">▶</span></button>
+      </div>
+    </footer>
+  </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script type="module" src="{{ url_for('static', filename='js/powerpoint_player.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,28 @@
+# Python cache and build outputs
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+build/
+dist/
+
+# Local virtual environments and env files
+.venv/
+.env
+.env.*
+*.env
+
+# Editor/OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local instance data (uploads, generated slides, state, logs)
+data/*
+!data/.gitignore
+
+# Logs
+*.log

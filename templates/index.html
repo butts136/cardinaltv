@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cardinal TV • Gestion du diaporama</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="brand">
+        <img src="{{ url_for('static', filename='img/logo-1.png') }}" alt="Cardinal TV" class="brand-logo" />
+      </div>
+      <div class="header-controls">
+        <div class="time-display" id="quebec-time" aria-live="polite"></div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card diaporama-card">
+        <div class="section-header">
+          <div>
+            <h2>Diaporama</h2>
+            <p class="playlist-subtitle">Commandes rapides pour gérer le diaporama.</p>
+          </div>
+          <div class="header-actions">
+            <button id="slideshow-button" class="primary-button">Lancer le diaporama</button>
+            <a href="{{ url_for('main.slideshow_editor') }}" class="secondary-button">Modifier les médias</a>
+          </div>
+        </div>
+      </section>
+      <section class="card powerpoint-card">
+        <div class="section-header">
+          <div>
+            <h2>Powerpoint</h2>
+            <p class="playlist-subtitle">Téléversez des présentations PowerPoint (.ppt, .pptx).</p>
+          </div>
+          <div class="header-actions">
+            <button id="ppt-upload-button" class="secondary-button">Téléverser</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="ppt-list" class="media-grid">
+            <!-- Les présentations seront listées ici par JS -->
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <small>Serveur local sur le port 39010 — Cardinal TV</small>
+    </footer>
+
+    <!-- Powerpoint upload modal -->
+    <div id="ppt-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-overlay" data-modal-close="true"></div>
+      <div class="modal-content">
+        <header class="modal-header">
+          <h3>Téléverser une présentation PowerPoint</h3>
+          <button class="modal-close" data-modal-close="true" aria-label="Fermer">✕</button>
+        </header>
+        <div class="modal-body">
+          <form id="ppt-upload-form" enctype="multipart/form-data">
+            <label for="ppt-file-input">Fichiers (ppt, pptx, pps, ppsx)</label>
+            <input id="ppt-file-input" name="files" type="file" accept=".ppt,.pptx,.pps,.ppsx" multiple />
+            <div id="ppt-upload-feedback" class="upload-feedback" aria-live="polite"></div>
+            <div id="ppt-upload-progress" class="upload-progress hidden" aria-live="polite">
+              <div class="upload-progress-track">
+                <div class="upload-progress-bar" id="ppt-upload-progress-bar"></div>
+              </div>
+              <div class="upload-progress-status" id="ppt-upload-progress-text"></div>
+            </div>
+            <div class="modal-actions">
+              <button type="submit" class="primary-button">Téléverser</button>
+              <button type="button" class="secondary-button" data-modal-close="true">Annuler</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
