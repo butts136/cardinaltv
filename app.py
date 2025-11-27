@@ -120,6 +120,16 @@ DEFAULT_SETTINGS = {
         "title_color": "#ffffff",
         # Position verticale du bloc titre+description (en % de la hauteur).
         "title_y_percent": 50.0,
+        # Jours d'ouverture de la compagnie (pour déplacer les anniversaires tombant un jour fermé).
+        "open_days": {
+            "monday": True,
+            "tuesday": True,
+            "wednesday": True,
+            "thursday": True,
+            "friday": True,
+            "saturday": False,
+            "sunday": False,
+        },
     },
 }
 
@@ -185,10 +195,28 @@ BIRTHDAY_SLIDE_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_ROUTE_PREFIX = "static"
 
 BIRTHDAY_VARIANTS = {"before", "day", "weekend"}
+BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
+    "font_size": 48.0,
+    "font_family": "",
+    "width_percent": 100.0,
+    "height_percent": 0.0,
+    "color": "#ffffff",
+    "underline": False,
+    "offset_x_percent": 0.0,
+    "offset_y_percent": 0.0,
+    "curve": 0.0,
+    "angle": 0.0,
+}
 BIRTHDAY_CONFIG_DEFAULT = {
     "title": "Anniversaire à venir",
     "subtitle": "Dans [days] jours, ce sera la fête",
     "body": "Saurez vous deviner qui est-ce ?",
+    "text1": "(Texte 1)",
+    "text2": "(Texte 2)",
+    "text3": "(Texte 3)",
+    "text1_options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT),
+    "text2_options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT),
+    "text3_options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT),
     "background_path": None,
     "background_mimetype": None,
 }
@@ -239,6 +267,31 @@ def _read_birthday_config(variant: str) -> Dict[str, Any]:
     config_path = BIRTHDAY_SLIDE_CONFIG_DIR / f"{variant}.json"
     if not config_path.exists():
         return copy.deepcopy(BIRTHDAY_CONFIG_DEFAULT)
+
+    def normalize_text_options(raw: Any) -> Dict[str, Any]:
+        options = copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT)
+        if isinstance(raw, dict):
+            if isinstance(raw.get("font_size"), (int, float)):
+                options["font_size"] = float(raw["font_size"])
+            if isinstance(raw.get("font_family"), str):
+                options["font_family"] = raw["font_family"]
+            if isinstance(raw.get("width_percent"), (int, float)):
+                options["width_percent"] = float(raw["width_percent"])
+            if isinstance(raw.get("height_percent"), (int, float)):
+                options["height_percent"] = float(raw["height_percent"])
+            if isinstance(raw.get("color"), str):
+                options["color"] = raw["color"]
+            if isinstance(raw.get("underline"), bool):
+                options["underline"] = raw["underline"]
+            if isinstance(raw.get("offset_x_percent"), (int, float)):
+                options["offset_x_percent"] = float(raw["offset_x_percent"])
+            if isinstance(raw.get("offset_y_percent"), (int, float)):
+                options["offset_y_percent"] = float(raw["offset_y_percent"])
+            if isinstance(raw.get("curve"), (int, float)):
+                options["curve"] = float(raw["curve"])
+            if isinstance(raw.get("angle"), (int, float)):
+                options["angle"] = float(raw["angle"])
+        return options
     try:
         with config_path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
@@ -251,10 +304,27 @@ def _read_birthday_config(variant: str) -> Dict[str, Any]:
             merged["subtitle"] = data["subtitle"]
         if isinstance(data.get("body"), str):
             merged["body"] = data["body"]
+        if isinstance(data.get("text1"), str):
+            merged["text1"] = data["text1"]
+        if isinstance(data.get("text2"), str):
+            merged["text2"] = data["text2"]
+        if isinstance(data.get("text3"), str):
+            merged["text3"] = data["text3"]
+        merged["text1_options"] = normalize_text_options(data.get("text1_options"))
+        merged["text2_options"] = normalize_text_options(data.get("text2_options"))
+        merged["text3_options"] = normalize_text_options(data.get("text3_options"))
         if isinstance(data.get("background_path"), str):
             merged["background_path"] = data["background_path"] or None
         if isinstance(data.get("background_mimetype"), str):
             merged["background_mimetype"] = data["background_mimetype"] or None
+        # Retro-compatibilité : si les nouveaux champs ne sont pas présents,
+        # réutiliser les anciens titres/sous-titres.
+        if merged.get("text1") == BIRTHDAY_CONFIG_DEFAULT["text1"] and isinstance(data.get("title"), str):
+            merged["text1"] = data["title"]
+        if merged.get("text2") == BIRTHDAY_CONFIG_DEFAULT["text2"] and isinstance(data.get("subtitle"), str):
+            merged["text2"] = data["subtitle"]
+        if merged.get("text3") == BIRTHDAY_CONFIG_DEFAULT["text3"] and isinstance(data.get("body"), str):
+            merged["text3"] = data["body"]
         return merged
     except (json.JSONDecodeError, OSError):
         return copy.deepcopy(BIRTHDAY_CONFIG_DEFAULT)
@@ -263,6 +333,32 @@ def _read_birthday_config(variant: str) -> Dict[str, Any]:
 def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, Any]:
     if variant not in BIRTHDAY_VARIANTS:
         raise ValueError("Type de diapositive anniversaire invalide.")
+
+    def normalize_text_options(raw: Any) -> Dict[str, Any]:
+        options = copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT)
+        if isinstance(raw, dict):
+            if isinstance(raw.get("font_size"), (int, float)):
+                options["font_size"] = float(raw["font_size"])
+            if isinstance(raw.get("font_family"), str):
+                options["font_family"] = raw["font_family"]
+            if isinstance(raw.get("width_percent"), (int, float)):
+                options["width_percent"] = float(raw["width_percent"])
+            if isinstance(raw.get("height_percent"), (int, float)):
+                options["height_percent"] = float(raw["height_percent"])
+            if isinstance(raw.get("color"), str):
+                options["color"] = raw["color"]
+            if isinstance(raw.get("underline"), bool):
+                options["underline"] = raw["underline"]
+            if isinstance(raw.get("offset_x_percent"), (int, float)):
+                options["offset_x_percent"] = float(raw["offset_x_percent"])
+            if isinstance(raw.get("offset_y_percent"), (int, float)):
+                options["offset_y_percent"] = float(raw["offset_y_percent"])
+            if isinstance(raw.get("curve"), (int, float)):
+                options["curve"] = float(raw["curve"])
+            if isinstance(raw.get("angle"), (int, float)):
+                options["angle"] = float(raw["angle"])
+        return options
+
     normalized = copy.deepcopy(BIRTHDAY_CONFIG_DEFAULT)
     if isinstance(config.get("title"), str):
         normalized["title"] = config["title"]
@@ -270,6 +366,25 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
         normalized["subtitle"] = config["subtitle"]
     if isinstance(config.get("body"), str):
         normalized["body"] = config["body"]
+    if isinstance(config.get("text1"), str):
+        normalized["text1"] = config["text1"]
+        # Conserver l'ancien champ pour compatibilité
+        normalized["title"] = config["text1"]
+    if isinstance(config.get("text2"), str):
+        normalized["text2"] = config["text2"]
+        normalized["subtitle"] = config.get("subtitle", config["text2"])
+    if isinstance(config.get("text3"), str):
+        normalized["text3"] = config["text3"]
+        normalized["body"] = config.get("body", config["text3"])
+    if isinstance(config.get("text1"), str):
+        normalized["text1"] = config["text1"]
+    if isinstance(config.get("text2"), str):
+        normalized["text2"] = config["text2"]
+    if isinstance(config.get("text3"), str):
+        normalized["text3"] = config["text3"]
+    normalized["text1_options"] = normalize_text_options(config.get("text1_options"))
+    normalized["text2_options"] = normalize_text_options(config.get("text2_options"))
+    normalized["text3_options"] = normalize_text_options(config.get("text3_options"))
     if "background_path" in config:
         if config["background_path"] is None:
             normalized["background_path"] = None
@@ -995,6 +1110,20 @@ class MediaStore:
                 if pos > 100.0:
                     pos = 100.0
                 result["title_y_percent"] = pos
+            elif key == "open_days":
+                if isinstance(value, dict):
+                    normalized_open = dict(result.get("open_days") or {})
+                    for day in (
+                        "monday",
+                        "tuesday",
+                        "wednesday",
+                        "thursday",
+                        "friday",
+                        "saturday",
+                        "sunday",
+                    ):
+                        normalized_open[day] = bool(value.get(day, normalized_open.get(day, False)))
+                    result["open_days"] = normalized_open
         return result
 
     def _ensure_settings(self) -> bool:

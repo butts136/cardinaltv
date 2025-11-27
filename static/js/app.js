@@ -71,16 +71,21 @@ const birthdayDropZone = document.querySelector("#birthday-drop-zone");
 const birthdayUploadProgress = document.querySelector("#birthday-upload-progress");
 const birthdayUploadProgressBar = document.querySelector("#birthday-upload-progress-bar");
 const birthdayUploadProgressText = document.querySelector("#birthday-upload-progress-text");
-const birthdayVariantSelect = document.querySelector("#birthday-variant-select-input");
-const birthdayVariantBackgroundSelect = document.querySelector("#birthday-variant-background-select");
-const birthdayBodyInput = document.querySelector("#birthday-body-text");
+const birthdayVariantPills = document.querySelectorAll(".birthday-variant-pill");
+const birthdayOpeningBlock = document.querySelector(".birthday-opening");
+const birthdayOpeningBody = document.querySelector(".birthday-opening-body");
+const birthdayOpeningToggle = document.querySelector("#birthday-opening-toggle");
+const birthdayText1Input = document.querySelector("#birthday-variant-text1");
+const birthdayText2Input = document.querySelector("#birthday-variant-text2");
+const birthdayText3Input = document.querySelector("#birthday-variant-text3");
+const birthdayTextOptionToggles = document.querySelectorAll(".text-options-toggle");
+const birthdayTextOptionsPanels = document.querySelectorAll(".birthday-text-options");
 const birthdayTitleTextInput = document.querySelector("#birthday-title-text");
 const birthdayTitleSizeInput = document.querySelector("#birthday-title-size");
 const birthdayTitleColorInput = document.querySelector("#birthday-title-color");
 const birthdayTitleYInput = document.querySelector("#birthday-title-y");
-const birthdayVariantTitleInput = document.querySelector("#birthday-variant-title");
-const birthdayVariantSubtitleInput = document.querySelector("#birthday-variant-subtitle");
 const birthdayVariantSaveButton = document.querySelector("#birthday-variant-save");
+const birthdayOpenDayButtons = document.querySelectorAll("[data-open-day]");
 
 // Section "Notre Équipe" (éditeur)
 const teamEnabledInput = document.querySelector("#team-enabled");
@@ -136,6 +141,45 @@ let birthdayPreviewRenderedSource = null;
 let birthdayCurrentVariant = "before";
 const birthdayVariantConfigs = {};
 let birthdayBackgroundOptions = [];
+let birthdayBackgroundCurrent = {};
+const birthdayTextOptionsInputs = {
+  1: {
+    size: document.querySelector("#text1-size"),
+    color: document.querySelector("#text1-color"),
+    font: document.querySelector("#text1-font"),
+    underline: document.querySelector("#text1-underline"),
+    width: document.querySelector("#text1-width"),
+    height: document.querySelector("#text1-height"),
+    offsetX: document.querySelector("#text1-offset-x"),
+    offsetY: document.querySelector("#text1-offset-y"),
+    curve: document.querySelector("#text1-curve"),
+    angle: document.querySelector("#text1-angle"),
+  },
+  2: {
+    size: document.querySelector("#text2-size"),
+    color: document.querySelector("#text2-color"),
+    font: document.querySelector("#text2-font"),
+    underline: document.querySelector("#text2-underline"),
+    width: document.querySelector("#text2-width"),
+    height: document.querySelector("#text2-height"),
+    offsetX: document.querySelector("#text2-offset-x"),
+    offsetY: document.querySelector("#text2-offset-y"),
+    curve: document.querySelector("#text2-curve"),
+    angle: document.querySelector("#text2-angle"),
+  },
+  3: {
+    size: document.querySelector("#text3-size"),
+    color: document.querySelector("#text3-color"),
+    font: document.querySelector("#text3-font"),
+    underline: document.querySelector("#text3-underline"),
+    width: document.querySelector("#text3-width"),
+    height: document.querySelector("#text3-height"),
+    offsetX: document.querySelector("#text3-offset-x"),
+    offsetY: document.querySelector("#text3-offset-y"),
+    curve: document.querySelector("#text3-curve"),
+    angle: document.querySelector("#text3-angle"),
+  },
+};
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -171,6 +215,16 @@ const DEFAULT_TEAM_SLIDE_SETTINGS = {
   title_offset_y_percent: 0,
 };
 
+const DEFAULT_OPEN_DAYS = {
+  monday: true,
+  tuesday: true,
+  wednesday: true,
+  thursday: true,
+  friday: true,
+  saturday: false,
+  sunday: false,
+};
+
 const DEFAULT_BIRTHDAY_SLIDE_SETTINGS = {
   enabled: false,
   order_index: 0,
@@ -185,12 +239,32 @@ const DEFAULT_BIRTHDAY_SLIDE_SETTINGS = {
   title_font_size: 64,
   title_color: "#ffffff",
   title_y_percent: 50,
+  open_days: { ...DEFAULT_OPEN_DAYS },
+};
+
+const BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
+  font_size: 48,
+  font_family: "",
+  width_percent: 100,
+  height_percent: 0,
+  color: "#ffffff",
+  underline: false,
+  offset_x_percent: 0,
+  offset_y_percent: 0,
+  curve: 0,
+  angle: 0,
 };
 
 const BIRTHDAY_CONFIG_DEFAULT = {
   title: "Anniversaire à venir",
   subtitle: "Dans [days] jours, ce sera la fête",
   body: "Saurez vous deviner qui est-ce ?",
+  text1: "(Texte 1)",
+  text2: "(Texte 2)",
+  text3: "(Texte 3)",
+  text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+  text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+  text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
   background_path: null,
   background_mimetype: null,
   background_url: null,
@@ -198,21 +272,30 @@ const BIRTHDAY_CONFIG_DEFAULT = {
 
 const BIRTHDAY_FIXED_COPY = {
   before: {
-    title: "Anniversaire à venir",
-    subtitle: "Dans [days] jours, ce sera la fête",
-    body: "Saurez vous deviner qui est-ce ?",
+    text1: "(Texte 1)",
+    text2: "(Texte 2)",
+    text3: "(Texte 3)",
+    text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
     background_path: null,
   },
   day: {
-    title: "Joyeux anniversaire",
-    subtitle: "C'est aujourd'hui !",
-    body: "Faisons la fête ensemble.",
+    text1: "(Texte 1)",
+    text2: "(Texte 2)",
+    text3: "(Texte 3)",
+    text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
     background_path: null,
   },
   weekend: {
-    title: "Anniversaire célébré",
-    subtitle: "Fêté hors jours ouvrables",
-    body: "On n'oublie pas les souhaits et les sourires.",
+    text1: "(Texte 1)",
+    text2: "(Texte 2)",
+    text3: "(Texte 3)",
+    text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
     background_path: null,
   },
 };
@@ -422,6 +505,17 @@ const normalizeTeamSlideSettings = (raw) => {
   return result;
 };
 
+const normalizeOpenDays = (raw = {}) => {
+  const base = { ...DEFAULT_OPEN_DAYS };
+  if (!raw || typeof raw !== "object") {
+    return base;
+  }
+  return Object.keys(base).reduce((acc, day) => {
+    acc[day] = raw[day] === undefined ? base[day] : Boolean(raw[day]);
+    return acc;
+  }, {});
+};
+
 const normalizeBirthdaySlideSettings = (raw) => {
   const base = { ...DEFAULT_BIRTHDAY_SLIDE_SETTINGS };
   if (!raw || typeof raw !== "object") {
@@ -479,6 +573,7 @@ const normalizeBirthdaySlideSettings = (raw) => {
       result.title_y_percent = val;
     }
   }
+  result.open_days = normalizeOpenDays(raw.open_days);
   return result;
 };
 
@@ -1254,10 +1349,33 @@ const performUpload = async () => {
 // Section "Anniversaire" – formulaire & arrière-plans
 // ---------------------------------------------------------------------------
 
+const setBirthdayVariantUI = (variant) => {
+  birthdayCurrentVariant = variant;
+  birthdayVariantPills.forEach((pill) => {
+    const isActive = pill.dataset.variant === variant;
+    pill.classList.toggle("is-active", isActive);
+    pill.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+  if (birthdayOpeningBlock) {
+    const visible = variant === "weekend";
+    birthdayOpeningBlock.hidden = !visible;
+    birthdayOpeningBlock.setAttribute("aria-hidden", visible ? "false" : "true");
+    if (birthdayOpeningBody && birthdayOpeningToggle) {
+      const isCollapsed = birthdayOpeningBody.classList.contains("collapsed");
+      birthdayOpeningToggle.setAttribute("aria-expanded", (!visible || isCollapsed) ? "false" : "true");
+    }
+  }
+};
+
 const setBirthdayBackgroundStatus = (message, status = "info") => {
   if (!birthdayBackgroundStatus) return;
   birthdayBackgroundStatus.textContent = message;
   birthdayBackgroundStatus.dataset.status = status;
+};
+
+const getCurrentVariantBackgroundPath = () => {
+  const cfg = birthdayVariantConfigs[birthdayCurrentVariant];
+  return cfg && cfg.background_path ? cfg.background_path : null;
 };
 
 const setBirthdayUploadProgress = (percent, { active = true } = {}) => {
@@ -1271,61 +1389,131 @@ const setBirthdayUploadProgress = (percent, { active = true } = {}) => {
   birthdayUploadProgress.classList.toggle("visible", active);
 };
 
+const applyOpenDaysToUI = (openDays) => {
+  const normalized = normalizeOpenDays(openDays);
+  birthdayOpenDayButtons.forEach((button) => {
+    const day = button.dataset.openDay;
+    if (!day) return;
+    const isOpen = normalized[day];
+    button.dataset.state = isOpen ? "open" : "closed";
+    button.setAttribute("aria-pressed", isOpen ? "true" : "false");
+    button.setAttribute("aria-checked", isOpen ? "true" : "false");
+    const label = button.querySelector(".opening-state-text");
+    if (label) {
+      label.textContent = isOpen ? "Ouvert" : "Fermé";
+    }
+  });
+};
+
 const populateBirthdayVariantForm = (config) => {
-  if (birthdayVariantTitleInput) {
-    birthdayVariantTitleInput.value = (config && config.title) || "";
-    birthdayVariantTitleInput.disabled = false;
+  const hasKey = (obj, key) => obj && Object.prototype.hasOwnProperty.call(obj, key);
+  const normalizeOptions = (raw = {}) => ({
+    ...BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+    ...(typeof raw === "object" && raw ? raw : {}),
+  });
+  const opts1 = normalizeOptions(config?.text1_options);
+  const opts2 = normalizeOptions(config?.text2_options);
+  const opts3 = normalizeOptions(config?.text3_options);
+  if (birthdayText1Input) {
+    birthdayText1Input.value = hasKey(config, "text1") ? config.text1 ?? "" : "(Texte 1)";
+    birthdayText1Input.disabled = false;
   }
-  if (birthdayVariantSubtitleInput) {
-    birthdayVariantSubtitleInput.value = (config && config.subtitle) || "";
-    birthdayVariantSubtitleInput.disabled = false;
+  if (birthdayText2Input) {
+    birthdayText2Input.value = hasKey(config, "text2") ? config.text2 ?? "" : "(Texte 2)";
+    birthdayText2Input.disabled = false;
   }
-  if (birthdayBodyInput) {
-    birthdayBodyInput.value = (config && config.body) || "";
-    birthdayBodyInput.disabled = false;
+  if (birthdayText3Input) {
+    birthdayText3Input.value = hasKey(config, "text3") ? config.text3 ?? "" : "(Texte 3)";
+    birthdayText3Input.disabled = false;
   }
+  const applyOpts = (line, opts) => {
+    const inputs = birthdayTextOptionsInputs[line];
+    if (!inputs) return;
+    inputs.size && (inputs.size.value = opts.font_size ?? BIRTHDAY_TEXT_OPTIONS_DEFAULT.font_size);
+    inputs.color && (inputs.color.value = opts.color ?? BIRTHDAY_TEXT_OPTIONS_DEFAULT.color);
+    inputs.font && (inputs.font.value = opts.font_family ?? "");
+    inputs.underline && (inputs.underline.checked = Boolean(opts.underline));
+    inputs.width && (inputs.width.value = opts.width_percent ?? BIRTHDAY_TEXT_OPTIONS_DEFAULT.width_percent);
+    inputs.height &&
+      (inputs.height.value = opts.height_percent ?? BIRTHDAY_TEXT_OPTIONS_DEFAULT.height_percent);
+    inputs.offsetX &&
+      (inputs.offsetX.value = opts.offset_x_percent ?? BIRTHDAY_TEXT_OPTIONS_DEFAULT.offset_x_percent);
+    inputs.offsetY &&
+      (inputs.offsetY.value = opts.offset_y_percent ?? BIRTHDAY_TEXT_OPTIONS_DEFAULT.offset_y_percent);
+    inputs.curve && (inputs.curve.value = opts.curve ?? BIRTHDAY_TEXT_OPTIONS_DEFAULT.curve);
+    inputs.angle && (inputs.angle.value = opts.angle ?? BIRTHDAY_TEXT_OPTIONS_DEFAULT.angle);
+  };
+  applyOpts(1, opts1);
+  applyOpts(2, opts2);
+  applyOpts(3, opts3);
   if (birthdayVariantSaveButton) {
     birthdayVariantSaveButton.disabled = false;
   }
-  if (birthdayVariantSelect) {
-    birthdayVariantSelect.value = birthdayCurrentVariant;
-  }
+  setBirthdayVariantUI(birthdayCurrentVariant || "before");
 };
 
 const loadBirthdayVariantConfig = async (variant) => {
-  birthdayCurrentVariant = variant;
-  if (birthdayVariantSelect) {
-    birthdayVariantSelect.value = variant;
-  }
+  setBirthdayVariantUI(variant);
   try {
     const data = await fetchJSON(`api/birthday-slide/config/${variant}`);
     const cfg = (data && data.config) || {};
-    birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant], ...cfg };
+    const normalized = { ...BIRTHDAY_FIXED_COPY[variant], ...cfg };
+    if (!cfg.text1 && cfg.title) normalized.text1 = cfg.title;
+    if (!cfg.text2 && cfg.subtitle) normalized.text2 = cfg.subtitle;
+    if (!cfg.text3 && cfg.body) normalized.text3 = cfg.body;
+    normalized.text1_options = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...cfg.text1_options };
+    normalized.text2_options = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...cfg.text2_options };
+    normalized.text3_options = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...cfg.text3_options };
+    birthdayVariantConfigs[variant] = normalized;
     populateBirthdayVariantForm(birthdayVariantConfigs[variant]);
-    if (birthdayVariantBackgroundSelect) {
-      birthdayVariantBackgroundSelect.value = cfg.background_path || "";
-    }
   } catch (error) {
     console.error("Erreur lors du chargement de la config anniversaire:", error);
     birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant] };
     populateBirthdayVariantForm(birthdayVariantConfigs[variant]);
-    if (birthdayVariantBackgroundSelect) {
-      birthdayVariantBackgroundSelect.value = "";
-    }
   }
   renderBirthdayPreview();
+  renderBirthdayBackgroundOptions();
 };
 
-const saveBirthdayVariantConfig = async () => {
+const saveBirthdayVariantConfig = async ({ successMessage = "Textes enregistrés.", overrides = {} } = {}) => {
   const variant = birthdayCurrentVariant || "before";
+  const existing = birthdayVariantConfigs[variant] || { ...BIRTHDAY_FIXED_COPY[variant] };
+  const chosenPath =
+    overrides.background_path !== undefined
+      ? overrides.background_path
+      : existing.background_path || null;
+  const chosenMime =
+    overrides.background_mimetype !== undefined
+      ? overrides.background_mimetype
+      : birthdayBackgroundOptions.find((opt) => opt.filename === chosenPath)?.mimetype ||
+        existing.background_mimetype ||
+        null;
+  const buildTextOptionsPayload = (line) => {
+    const inputs = birthdayTextOptionsInputs[line];
+    const base = BIRTHDAY_TEXT_OPTIONS_DEFAULT;
+    if (!inputs) return { ...base };
+    return {
+      font_size: Number(inputs.size?.value) || base.font_size,
+      font_family: inputs.font?.value || "",
+      width_percent: Number(inputs.width?.value) || base.width_percent,
+      height_percent: Number(inputs.height?.value) || base.height_percent,
+      color: inputs.color?.value || base.color,
+      underline: Boolean(inputs.underline?.checked),
+      offset_x_percent: Number(inputs.offsetX?.value) || base.offset_x_percent,
+      offset_y_percent: Number(inputs.offsetY?.value) || base.offset_y_percent,
+      curve: Number(inputs.curve?.value) || base.curve,
+      angle: Number(inputs.angle?.value) || base.angle,
+    };
+  };
   const payload = {
-    title: birthdayVariantTitleInput?.value || "",
-    subtitle: birthdayVariantSubtitleInput?.value || "",
-    body: birthdayBodyInput?.value || "",
-    background_path: birthdayVariantBackgroundSelect?.value || null,
-    background_mimetype:
-      birthdayBackgroundOptions.find((opt) => opt.filename === birthdayVariantBackgroundSelect?.value)
-        ?.mimetype || null,
+    text1: birthdayText1Input?.value ?? "",
+    text2: birthdayText2Input?.value ?? "",
+    text3: birthdayText3Input?.value ?? "",
+    text1_options: buildTextOptionsPayload(1),
+    text2_options: buildTextOptionsPayload(2),
+    text3_options: buildTextOptionsPayload(3),
+    background_path: chosenPath,
+    background_mimetype: chosenMime,
   };
   try {
     const data = await fetchJSON(`api/birthday-slide/config/${variant}`, {
@@ -1334,9 +1522,21 @@ const saveBirthdayVariantConfig = async () => {
       body: JSON.stringify(payload),
     });
     const cfg = (data && data.config) || payload;
-    birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant], ...cfg };
-    setBirthdayBackgroundStatus("Textes enregistrés.", "success");
+    const merged = { ...BIRTHDAY_FIXED_COPY[variant], ...cfg };
+    const selected = birthdayBackgroundOptions.find((opt) => opt.filename === merged.background_path);
+    if (selected || overrides.background_url) {
+      merged.background_url = overrides.background_url || selected?.url || merged.background_url || null;
+      merged.background_mimetype = overrides.background_mimetype || selected?.mimetype || merged.background_mimetype || null;
+    } else if (
+      birthdayVariantConfigs[variant]?.background_url &&
+      merged.background_path === birthdayVariantConfigs[variant].background_path
+    ) {
+      merged.background_url = birthdayVariantConfigs[variant].background_url;
+    }
+    birthdayVariantConfigs[variant] = merged;
+    setBirthdayBackgroundStatus(successMessage, "success");
     renderBirthdayPreview();
+    renderBirthdayBackgroundOptions();
   } catch (error) {
     console.error("Erreur lors de l'enregistrement de la variante anniversaire:", error);
     setBirthdayBackgroundStatus("Impossible d'enregistrer les textes.", "error");
@@ -1363,13 +1563,19 @@ const populateBirthdayForm = (settings) => {
         : DEFAULT_BIRTHDAY_SLIDE_SETTINGS.title_y_percent,
     );
   }
+  applyOpenDaysToUI(normalized.open_days);
 };
 
-const buildBirthdaySettingsPayload = (overrides = {}) => ({
-  ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS),
-  enabled: birthdayEnabledInput ? birthdayEnabledInput.checked : false,
-  ...overrides,
-});
+const buildBirthdaySettingsPayload = (overrides = {}) => {
+  const base = birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS;
+  const merged = {
+    ...base,
+    enabled: birthdayEnabledInput ? birthdayEnabledInput.checked : false,
+    ...overrides,
+  };
+  merged.open_days = normalizeOpenDays(overrides.open_days || base.open_days);
+  return merged;
+};
 
 const saveBirthdaySettings = async (overrides = {}, { localLabel = null } = {}) => {
   const prevSettings = birthdaySlideSettings || {};
@@ -1407,8 +1613,33 @@ const saveBirthdaySettings = async (overrides = {}, { localLabel = null } = {}) 
   }
 };
 
+const toggleOpenDay = async (day) => {
+  const previous = normalizeOpenDays(birthdaySlideSettings?.open_days);
+  const next = { ...previous, [day]: !previous[day] };
+  applyOpenDaysToUI(next);
+  birthdaySlideSettings = {
+    ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS),
+    open_days: next,
+  };
+  try {
+    const updated = await saveBirthdaySettings({ open_days: next });
+    applyOpenDaysToUI(updated.open_days);
+  } catch (error) {
+    console.error("Impossible de mettre à jour le jour d'ouverture:", error);
+    birthdaySlideSettings = {
+      ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS),
+      open_days: previous,
+    };
+    applyOpenDaysToUI(previous);
+  }
+};
+
 const isBirthdayBackgroundActive = (item, current) => {
-  if (!current || typeof current !== "object") return false;
+  if (!current) return false;
+  if (typeof current === "string") {
+    return item.filename === current;
+  }
+  if (typeof current !== "object") return false;
   if (item.type === "upload" && current.type === "upload") {
     return current.filename === item.filename;
   }
@@ -1418,19 +1649,41 @@ const isBirthdayBackgroundActive = (item, current) => {
   return false;
 };
 
-const renderBirthdayBackgroundItem = (item, current) => {
+const renderBirthdayBackgroundItem = (item, active = {}) => {
   const wrapper = document.createElement("div");
   wrapper.className = "team-background-item birthday-background-item";
-  const active = isBirthdayBackgroundActive(item, current);
-  if (active) {
+  const isGlobalActive = isBirthdayBackgroundActive(item, active.global);
+  const isVariantActive = isBirthdayBackgroundActive(item, active.variant);
+  if (isGlobalActive) {
     wrapper.classList.add("team-background-item--active");
+  }
+  if (isVariantActive) {
+    wrapper.classList.add("birthday-background-item--variant");
   }
   wrapper.tabIndex = 0;
   wrapper.setAttribute("role", "button");
 
+  const chipRow = document.createElement("div");
+  chipRow.className = "background-chip-row";
+
   const chip = document.createElement("div");
   chip.className = "background-chip";
   chip.textContent = "Fond importé";
+  chipRow.appendChild(chip);
+
+  if (isGlobalActive) {
+    const globalChip = document.createElement("div");
+    globalChip.className = "background-chip background-chip--global";
+    globalChip.textContent = "Fond global";
+    chipRow.appendChild(globalChip);
+  }
+
+  if (isVariantActive) {
+    const variantChip = document.createElement("div");
+    variantChip.className = "background-chip background-chip--variant";
+    variantChip.textContent = "Fond du modèle sélectionné";
+    chipRow.appendChild(variantChip);
+  }
 
   const mediaWrapper = document.createElement("div");
   mediaWrapper.className = "team-background-item-media";
@@ -1457,10 +1710,11 @@ const renderBirthdayBackgroundItem = (item, current) => {
   const selectButton = document.createElement("button");
   selectButton.type = "button";
   selectButton.className = "secondary-button";
-  selectButton.textContent = active ? "Sélectionné" : "Utiliser";
+  selectButton.textContent = isGlobalActive ? "Fond global actif" : "Définir comme fond global";
+  selectButton.disabled = isGlobalActive;
 
   const selectBackground = async () => {
-    if (active) return;
+    if (isGlobalActive) return;
     setBirthdayBackgroundStatus("Mise à jour...", "info");
     const patch = {
       background_path: item.filename,
@@ -1482,6 +1736,40 @@ const renderBirthdayBackgroundItem = (item, current) => {
     }
   };
 
+  const assignVariantBackground = async () => {
+    const variant = birthdayCurrentVariant || "before";
+    if (!birthdayVariantConfigs[variant]) {
+      birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant] };
+    }
+    birthdayVariantConfigs[variant].background_path = item.filename;
+    birthdayVariantConfigs[variant].background_mimetype = item.mimetype || null;
+    birthdayVariantConfigs[variant].background_url = item.url || null;
+    renderBirthdayPreview();
+    try {
+      await saveBirthdayVariantConfig({
+        successMessage: "Fond appliqué à ce modèle.",
+        overrides: {
+          background_path: item.filename,
+          background_mimetype: item.mimetype || null,
+          background_url: item.url || null,
+        },
+      });
+      renderBirthdayBackgroundOptions();
+    } catch (error) {
+      console.error("Erreur lors de l'application du fond à la variante Anniversaire:", error);
+      setBirthdayBackgroundStatus("Impossible d'appliquer ce fond à ce modèle.", "error");
+    }
+  };
+
+  const actionBar = document.createElement("div");
+  actionBar.className = "birthday-background-actions";
+
+  const variantButton = document.createElement("button");
+  variantButton.type = "button";
+  variantButton.className = "secondary-button";
+  variantButton.textContent = isVariantActive ? "Fond du modèle actif" : "Appliquer au modèle sélectionné";
+  variantButton.disabled = isVariantActive;
+
   wrapper.addEventListener("click", selectBackground);
   wrapper.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -1494,8 +1782,38 @@ const renderBirthdayBackgroundItem = (item, current) => {
     void selectBackground();
   });
 
-  wrapper.append(chip, mediaWrapper, label, selectButton);
+  variantButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void assignVariantBackground();
+  });
+
+  actionBar.append(selectButton, variantButton);
+
+  wrapper.append(chipRow, mediaWrapper, label, actionBar);
   return wrapper;
+};
+
+const renderBirthdayBackgroundOptions = () => {
+  if (!birthdayBackgroundList) return;
+  birthdayBackgroundList.innerHTML = "";
+  if (!birthdayBackgroundOptions.length) {
+    const empty = document.createElement("p");
+    empty.className = "field-hint";
+    empty.textContent = "Aucun arrière-plan disponible pour le moment.";
+    birthdayBackgroundList.appendChild(empty);
+    return;
+  }
+
+  const activeVariantPath = getCurrentVariantBackgroundPath();
+  const active = {
+    global: birthdayBackgroundCurrent,
+    variant: activeVariantPath,
+  };
+
+  birthdayBackgroundOptions.forEach((item) => {
+    const enriched = { ...item, type: "upload", label: item.label || item.filename };
+    birthdayBackgroundList.appendChild(renderBirthdayBackgroundItem(enriched, active));
+  });
 };
 
 const loadBirthdayBackgroundList = async () => {
@@ -1504,43 +1822,13 @@ const loadBirthdayBackgroundList = async () => {
     const data = await fetchJSON("api/birthday-slide/backgrounds");
     const items = Array.isArray(data.items) ? data.items : [];
     birthdayBackgroundOptions = items;
-    const current = data.current || {};
-
-    birthdayBackgroundList.innerHTML = "";
-    if (!items.length) {
-      const empty = document.createElement("p");
-      empty.className = "field-hint";
-      empty.textContent = "Aucun arrière-plan disponible pour le moment.";
-      birthdayBackgroundList.appendChild(empty);
-      return;
-    }
-
-    items.forEach((item) => {
-      const enriched = { ...item, type: "upload", label: item.label || item.filename };
-      birthdayBackgroundList.appendChild(renderBirthdayBackgroundItem(enriched, current));
-    });
-    if (birthdayVariantBackgroundSelect) {
-      birthdayVariantBackgroundSelect.innerHTML = "";
-      const noneOpt = document.createElement("option");
-      noneOpt.value = "";
-      noneOpt.textContent = "Aucun fond spécifique (fond global)";
-      birthdayVariantBackgroundSelect.appendChild(noneOpt);
-      items.forEach((item) => {
-        const opt = document.createElement("option");
-        opt.value = item.filename;
-        opt.textContent = item.filename;
-        opt.dataset.mimetype = item.mimetype || "";
-        opt.dataset.url = item.url || "";
-        birthdayVariantBackgroundSelect.appendChild(opt);
-      });
-      const activeConfig = birthdayVariantConfigs[birthdayCurrentVariant];
-      if (activeConfig && activeConfig.background_path) {
-        birthdayVariantBackgroundSelect.value = activeConfig.background_path;
-      }
-    }
+    birthdayBackgroundCurrent = data.current || {};
+    renderBirthdayBackgroundOptions();
     renderBirthdayPreview();
   } catch (error) {
     console.error("Erreur lors du chargement des fonds Anniversaire:", error);
+    birthdayBackgroundOptions = [];
+    birthdayBackgroundCurrent = {};
     birthdayBackgroundList.innerHTML = "";
     const message = document.createElement("p");
     message.className = "field-hint error";
@@ -1629,36 +1917,56 @@ const getExtensionLower = (name) => {
 
 const updateBirthdayOverlayText = (root, settings) => {
   if (!root) return;
-  const title = root.querySelector(".birthday-slide-title");
-  const subtitle = root.querySelector(".birthday-slide-subtitle");
-  if (title) {
-    title.textContent = settings.title_text || "Anniversaire à venir";
-    if (settings.title_font_size) {
-      title.style.fontSize = `${settings.title_font_size}px`;
+  const overlay =
+    root.classList?.contains("birthday-slide-overlay") && !root.querySelector
+      ? root
+      : root.querySelector?.(".birthday-slide-overlay") || root;
+  if (!overlay) return;
+  const lines = overlay.querySelectorAll(".birthday-slide-line");
+  const texts = [settings.text1 ?? "", settings.text2 ?? "", settings.text3 ?? ""];
+  const optionsList = [
+    settings.text1_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+    settings.text2_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+    settings.text3_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+  ];
+  lines.forEach((line, idx) => {
+    if (!line) return;
+    const text = texts[idx] || "";
+    line.textContent = text;
+    const opts = optionsList[idx] || BIRTHDAY_TEXT_OPTIONS_DEFAULT;
+    const color = opts.color || settings.title_color;
+    if (color) {
+      line.style.color = color;
     }
-    if (settings.title_color) {
-      title.style.color = settings.title_color;
+    if (opts.font_size) {
+      line.style.fontSize = `${opts.font_size}px`;
+    } else if (idx === 0 && settings.title_font_size) {
+      line.style.fontSize = `${settings.title_font_size}px`;
     }
-  }
-  if (subtitle) {
-    if (!settings.enabled) {
-      subtitle.textContent = "Diapositive désactivée";
-    } else if (settings.subtitle_text) {
-      subtitle.textContent = settings.subtitle_text;
-    } else {
-      subtitle.textContent = "";
+    line.style.fontFamily = opts.font_family || "";
+    line.style.textDecoration = opts.underline ? "underline" : "none";
+    line.style.maxWidth = "none";
+    if (opts.height_percent) {
+      line.style.minHeight = `${opts.height_percent}%`;
     }
-  }
-  const body = root.querySelector(".birthday-slide-body");
-  if (body) {
-    body.textContent = settings.body_text || "";
-    body.hidden = !settings.enabled;
-  }
+    line.style.whiteSpace = "pre";
+    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+    const left = Math.min(100, Math.max(0, 50 + offsetX / 2));
+    const top = Math.min(100, Math.max(0, 50 + offsetY / 2));
+    line.style.left = `${left}%`;
+    line.style.top = `${top}%`;
+    const rotation = `rotate(${opts.angle || 0}deg)`;
+    line.style.transform = `translate(-50%, -50%) ${rotation}`;
+  });
 };
 
 const updateBirthdayOverlayLayout = (root, settings) => {
   if (!root) return;
-  const overlay = root.querySelector(".birthday-slide-overlay");
+  const overlay =
+    root.classList?.contains("birthday-slide-overlay") && !root.querySelector
+      ? root
+      : root.querySelector?.(".birthday-slide-overlay") || root;
   if (!overlay) return;
   const pos = Number.isFinite(Number(settings.title_y_percent))
     ? Math.min(100, Math.max(0, Number(settings.title_y_percent)))
@@ -1683,9 +1991,12 @@ const renderBirthdayPreview = () => {
   const variantCfg = birthdayVariantConfigs[birthdayCurrentVariant] || BIRTHDAY_CONFIG_DEFAULT;
   const effective = {
     ...settings,
-    title_text: variantCfg.title || settings.title_text,
-    subtitle_text: variantCfg.subtitle || "",
-    body_text: variantCfg.body || "",
+    text1: variantCfg.text1 ?? settings.title_text ?? "",
+    text2: variantCfg.text2 ?? variantCfg.subtitle ?? "",
+    text3: variantCfg.text3 ?? variantCfg.body ?? "",
+    text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...variantCfg.text1_options },
+    text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...variantCfg.text2_options },
+    text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...variantCfg.text3_options },
     background_path: variantCfg.background_path || settings.background_path,
     background_mimetype: variantCfg.background_mimetype || settings.background_mimetype,
     background_url: variantCfg.background_url || settings.background_url,
@@ -1742,20 +2053,18 @@ const renderBirthdayPreview = () => {
 
   const overlay = document.createElement("div");
   overlay.className = "birthday-slide-overlay";
-  const title = document.createElement("div");
-  title.className = "birthday-slide-title";
-  const subtitle = document.createElement("div");
-  subtitle.className = "birthday-slide-subtitle";
-  overlay.append(title, subtitle);
+  const linesWrapper = document.createElement("div");
+  linesWrapper.className = "birthday-slide-lines";
+  const line1 = document.createElement("div");
+  line1.className = "birthday-slide-line birthday-slide-line--primary";
+  const line2 = document.createElement("div");
+  line2.className = "birthday-slide-line";
+  const line3 = document.createElement("div");
+  line3.className = "birthday-slide-line";
+  linesWrapper.append(line1, line2, line3);
+  overlay.append(linesWrapper);
   updateBirthdayOverlayText(overlay, effective);
   updateBirthdayOverlayLayout(canvas, effective);
-
-  if (effective.body_text) {
-    const body = document.createElement("div");
-    body.className = "birthday-slide-body";
-    body.textContent = effective.body_text;
-    overlay.appendChild(body);
-  }
 
   frame.append(backdrop, overlay);
   canvas.appendChild(frame);
@@ -3095,6 +3404,20 @@ birthdayBackgroundToggleButton?.addEventListener("click", () => {
   birthdayBackgroundToggleButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
 });
 
+birthdayOpenDayButtons.forEach((button) => {
+  button?.addEventListener("click", () => {
+    const day = button.dataset.openDay;
+    if (!day) return;
+    void toggleOpenDay(day);
+  });
+});
+
+birthdayOpeningToggle?.addEventListener("click", () => {
+  if (!birthdayOpeningBody) return;
+  const collapsed = birthdayOpeningBody.classList.toggle("collapsed");
+  birthdayOpeningToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+});
+
 // Mise à jour en direct des réglages de titre
 [birthdayTitleTextInput, birthdayTitleSizeInput, birthdayTitleColorInput, birthdayTitleYInput].forEach(
   (input) => {
@@ -3105,22 +3428,76 @@ birthdayBackgroundToggleButton?.addEventListener("click", () => {
   }
 );
 
-// Variantes d'anniversaire
-birthdayVariantSelect?.addEventListener("change", () => {
-  const variant = birthdayVariantSelect.value || "before";
-  void loadBirthdayVariantConfig(variant);
+// Textes des variantes (3 lignes)
+[birthdayText1Input, birthdayText2Input, birthdayText3Input].forEach((input, idx) => {
+  input?.addEventListener("input", () => {
+    const variant = birthdayCurrentVariant || "before";
+    if (!birthdayVariantConfigs[variant]) {
+      birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant] };
+    }
+    birthdayVariantConfigs[variant][`text${idx + 1}`] = input.value;
+    renderBirthdayPreview();
+  });
 });
 
-birthdayVariantBackgroundSelect?.addEventListener("change", () => {
-  const variant = birthdayCurrentVariant || "before";
-  const selected = birthdayBackgroundOptions.find((opt) => opt.filename === birthdayVariantBackgroundSelect.value);
-  if (!birthdayVariantConfigs[variant]) {
-    birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant] };
-  }
-  birthdayVariantConfigs[variant].background_path = selected ? selected.filename : null;
-  birthdayVariantConfigs[variant].background_mimetype = selected ? selected.mimetype : null;
-  birthdayVariantConfigs[variant].background_url = selected ? selected.url : null;
-  renderBirthdayPreview();
+birthdayTextOptionToggles.forEach((toggle) => {
+  toggle?.addEventListener("click", () => {
+    const line = toggle.dataset.line;
+    if (!line) return;
+    const panel = document.querySelector(`.birthday-text-options[data-line="${line}"]`);
+    if (!panel) return;
+    const isHidden = panel.hasAttribute("hidden") || panel.getAttribute("aria-hidden") === "true";
+    panel.toggleAttribute("hidden", !isHidden);
+    panel.setAttribute("aria-hidden", isHidden ? "false" : "true");
+    toggle.setAttribute("aria-expanded", isHidden ? "true" : "false");
+  });
+});
+
+birthdayTextOptionsPanels.forEach((panel) => panel.setAttribute("aria-hidden", "true"));
+
+birthdayTextOptionsPanels.forEach((panel) => {
+  const line = panel.dataset.line;
+  if (!line || !birthdayTextOptionsInputs[line]) return;
+  const inputs = birthdayTextOptionsInputs[line];
+  Object.entries(inputs).forEach(([key, element]) => {
+    element?.addEventListener("input", () => {
+      const variant = birthdayCurrentVariant || "before";
+      if (!birthdayVariantConfigs[variant]) {
+        birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant] };
+      }
+      const optsKey = `text${line}_options`;
+      birthdayVariantConfigs[variant][optsKey] = {
+        ...BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+        ...(birthdayVariantConfigs[variant][optsKey] || {}),
+        font_size: Number(inputs.size?.value) || BIRTHDAY_TEXT_OPTIONS_DEFAULT.font_size,
+        color: inputs.color?.value || BIRTHDAY_TEXT_OPTIONS_DEFAULT.color,
+        font_family: inputs.font?.value || "",
+        underline: Boolean(inputs.underline?.checked),
+        width_percent: Number(inputs.width?.value) || BIRTHDAY_TEXT_OPTIONS_DEFAULT.width_percent,
+        height_percent: Number(inputs.height?.value) || BIRTHDAY_TEXT_OPTIONS_DEFAULT.height_percent,
+        offset_x_percent:
+          Number(inputs.offsetX?.value) || BIRTHDAY_TEXT_OPTIONS_DEFAULT.offset_x_percent,
+        offset_y_percent:
+          Number(inputs.offsetY?.value) || BIRTHDAY_TEXT_OPTIONS_DEFAULT.offset_y_percent,
+        curve: Number(inputs.curve?.value) || BIRTHDAY_TEXT_OPTIONS_DEFAULT.curve,
+        angle: Number(inputs.angle?.value) || BIRTHDAY_TEXT_OPTIONS_DEFAULT.angle,
+      };
+      renderBirthdayPreview();
+    });
+  });
+});
+
+// Variantes d'anniversaire
+birthdayVariantPills.forEach((pill) => {
+  pill?.addEventListener("click", () => {
+    const variant = pill.dataset.variant || "before";
+    if (variant === birthdayCurrentVariant) return;
+    void loadBirthdayVariantConfig(variant);
+  });
+});
+
+birthdayVariantSaveButton?.addEventListener("click", () => {
+  void saveBirthdayVariantConfig({ successMessage: "Textes enregistrés pour ce modèle." });
 });
 
 // Notre Équipe: interactions

@@ -361,93 +361,433 @@
               </div>
             </div>
 
-            <div class="birthday-background">
-              <div class="birthday-background-header">
-                <div>
-                  <h3>Arri&egrave;re-plan</h3>
-                  <p class="playlist-subtitle">
-                    Importez une image ou une vid&eacute;o dédiée dans le dossier Anniversaire.
-                  </p>
-                </div>
+            <div class="birthday-variant-select">
+              <div class="birthday-variant-select-header">
+                <p class="birthday-variant-title">Type de diapositive</p>
+                <p class="birthday-variant-hint">Basculez entre les 3 gabarits auto-générés.</p>
+              </div>
+              <div class="birthday-variant-switch" role="group" aria-label="Types de diapositive anniversaire">
                 <button
                   type="button"
-                  class="birthday-background-toggle"
-                  id="birthday-background-toggle"
-                  aria-label="Basculer les options d'arrière-plan"
+                  class="birthday-variant-pill is-active"
+                  data-variant="before"
+                  aria-pressed="true"
                 >
-                  <span class="toggle-icon">▼</span>
+                  <span class="pill-kicker">J-quelques jours</span>
+                  <span class="pill-title">Avant l'anniversaire</span>
+                  <span class="pill-subtitle">Compte &agrave; rebours et teasing</span>
+                </button>
+                <button type="button" class="birthday-variant-pill" data-variant="day" aria-pressed="false">
+                  <span class="pill-kicker">Jour J</span>
+                  <span class="pill-title">Le grand jour</span>
+                  <span class="pill-subtitle">Souhaitez l'anniversaire aujourd'hui</span>
+                </button>
+                <button type="button" class="birthday-variant-pill" data-variant="weekend" aria-pressed="false">
+                  <span class="pill-kicker">Week-end</span>
+                  <span class="pill-title">F&ecirc;te hors jours ouvrables</span>
+                  <span class="pill-subtitle">Annoncer la f&ecirc;te le dernier jour ouvert</span>
                 </button>
               </div>
+            </div>
 
-              <div class="birthday-background-body">
-                <div class="birthday-background-upload">
-                  <label for="birthday-background-input" id="birthday-drop-zone" class="birthday-drop-zone">
-                    <span class="drop-zone-title">Cliquez ou d&eacute;posez votre image/vid&eacute;o</span>
-                    <span class="drop-zone-subtitle">Format image ou vid&eacute;o (fond Anniversaire)</span>
-                  </label>
-                  <input type="file" id="birthday-background-input" accept="image/*,video/*" />
-                  <div class="upload-progress" id="birthday-upload-progress" aria-hidden="true">
-                    <div class="upload-progress-bar" id="birthday-upload-progress-bar"></div>
-                    <span class="upload-progress-text" id="birthday-upload-progress-text">0%</span>
+            <div class="birthday-opening" hidden aria-hidden="true">
+              <div class="birthday-opening-header">
+                <div>
+                  <p class="birthday-opening-title">Jours d'ouverture</p>
+                  <p class="birthday-opening-hint">
+                    Les anniversaires pr&eacute;vus un jour ferm&eacute; seront annonc&eacute;s le dernier jour ouvert choisi.
+                  </p>
+                </div>
+                <div class="birthday-opening-actions">
+                  <span class="birthday-opening-chip">Ouvert / Ferm&eacute;</span>
+                  <button
+                    type="button"
+                    id="birthday-opening-toggle"
+                    class="opening-toggle"
+                    aria-label="Basculer la liste des jours d'ouverture"
+                    aria-expanded="false"
+                  >
+                    ▼
+                  </button>
+                </div>
+              </div>
+              <div class="birthday-opening-body collapsed">
+                <div class="birthday-opening-grid">
+                  <button
+                    type="button"
+                    class="opening-day-card"
+                    data-open-day="monday"
+                    data-state="open"
+                  role="switch"
+                  aria-pressed="true"
+                  aria-checked="true"
+                    aria-label="Basculer l'ouverture du lundi"
+                  >
+                    <span class="opening-day-name">Lundi</span>
+                    <span class="opening-day-state">
+                      <span class="opening-dot" aria-hidden="true"></span>
+                      <span class="opening-state-text">Ouvert</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="opening-day-card"
+                    data-open-day="tuesday"
+                  data-state="open"
+                  role="switch"
+                  aria-pressed="true"
+                  aria-checked="true"
+                    aria-label="Basculer l'ouverture du mardi"
+                  >
+                    <span class="opening-day-name">Mardi</span>
+                    <span class="opening-day-state">
+                      <span class="opening-dot" aria-hidden="true"></span>
+                      <span class="opening-state-text">Ouvert</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="opening-day-card"
+                    data-open-day="wednesday"
+                  data-state="open"
+                  role="switch"
+                  aria-pressed="true"
+                  aria-checked="true"
+                    aria-label="Basculer l'ouverture du mercredi"
+                  >
+                    <span class="opening-day-name">Mercredi</span>
+                    <span class="opening-day-state">
+                      <span class="opening-dot" aria-hidden="true"></span>
+                      <span class="opening-state-text">Ouvert</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="opening-day-card"
+                    data-open-day="thursday"
+                  data-state="open"
+                  role="switch"
+                  aria-pressed="true"
+                  aria-checked="true"
+                    aria-label="Basculer l'ouverture du jeudi"
+                  >
+                    <span class="opening-day-name">Jeudi</span>
+                    <span class="opening-day-state">
+                      <span class="opening-dot" aria-hidden="true"></span>
+                      <span class="opening-state-text">Ouvert</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="opening-day-card"
+                    data-open-day="friday"
+                  data-state="open"
+                  role="switch"
+                  aria-pressed="true"
+                  aria-checked="true"
+                    aria-label="Basculer l'ouverture du vendredi"
+                  >
+                    <span class="opening-day-name">Vendredi</span>
+                    <span class="opening-day-state">
+                      <span class="opening-dot" aria-hidden="true"></span>
+                      <span class="opening-state-text">Ouvert</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="opening-day-card"
+                    data-open-day="saturday"
+                  data-state="closed"
+                  role="switch"
+                  aria-pressed="false"
+                  aria-checked="false"
+                    aria-label="Basculer l'ouverture du samedi"
+                  >
+                    <span class="opening-day-name">Samedi</span>
+                    <span class="opening-day-state">
+                      <span class="opening-dot" aria-hidden="true"></span>
+                      <span class="opening-state-text">Ferm&eacute;</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="opening-day-card"
+                    data-open-day="sunday"
+                  data-state="closed"
+                  role="switch"
+                  aria-pressed="false"
+                  aria-checked="false"
+                    aria-label="Basculer l'ouverture du dimanche"
+                  >
+                    <span class="opening-day-name">Dimanche</span>
+                    <span class="opening-day-state">
+                      <span class="opening-dot" aria-hidden="true"></span>
+                      <span class="opening-state-text">Ferm&eacute;</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="birthday-core-panel">
+              <div class="birthday-grid">
+                <div class="birthday-preview">
+                  <h3>Aper&ccedil;u en direct</h3>
+                  <p class="playlist-subtitle">Visualisez la diapositive Anniversaire telle qu'elle appara&icirc;t dans le diaporama.</p>
+                  <div class="birthday-preview-stage" id="birthday-preview-stage"></div>
+                  <div class="birthday-preview-actions">
+                    <button type="button" class="secondary-button" id="birthday-preview-refresh">Rafra&icirc;chir l'aper&ccedil;u</button>
+                    <button type="button" class="primary-button" id="birthday-variant-save">Sauvegarder le mod&egrave;le</button>
                   </div>
-                  <span
-                    id="birthday-background-status"
-                    class="upload-feedback"
-                    aria-live="polite"
-                  ></span>
-                </div>
-                <div class="birthday-background-list-wrapper">
-                  <h4>Arri&egrave;re-plans disponibles</h4>
-                  <div id="birthday-background-list" class="team-background-list birthday-background-list"></div>
+                  <div class="birthday-variant-fields">
+                    <div class="birthday-legend">
+                      <p class="birthday-legend-title">Variables disponibles :</p>
+                      <ul>
+                        <li><code>[name]</code> : Pr&eacute;nom/nom de la personne</li>
+                        <li><code>[days]</code> : Jours restants avant l'anniversaire</li>
+                        <li><code>[day_label]</code> : "jour" ou "jours" selon le compte</li>
+                        <li><code>[birthday_weekday]</code> : Jour de l'anniversaire (ex. Dimanche)</li>
+                        <li><code>[date]</code> : Date de l'anniversaire (ex. 4 juin 2025)</li>
+                      </ul>
+                    </div>
+                    <div class="birthday-text-block" data-line="1">
+                      <div class="birthday-text-header">
+                        <label for="birthday-variant-text1">Texte 1</label>
+                        <button type="button" class="text-options-toggle" data-line="1" aria-expanded="false" aria-controls="birthday-text-options-1" title="Options du texte 1">
+                          ⚙
+                        </button>
+                      </div>
+                      <textarea id="birthday-variant-text1" placeholder="(Texte 1)" rows="2"></textarea>
+                      <div class="birthday-text-options" id="birthday-text-options-1" data-line="1" hidden>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text1-size">Taille (px)</label>
+                          <input type="number" id="text1-size" min="8" max="150" step="1" />
+                        </div>
+                        <div>
+                          <label for="text1-color">Couleur</label>
+                          <input type="color" id="text1-color" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text1-font">Police</label>
+                          <input type="text" id="text1-font" placeholder="Ex. Poppins, sans-serif" />
+                        </div>
+                        <div>
+                          <label for="text1-underline" class="checkbox-row">
+                            <input type="checkbox" id="text1-underline" />
+                            <span>Souligné</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text1-width">Largeur (%)</label>
+                          <input type="number" id="text1-width" min="10" max="100" step="1" />
+                        </div>
+                        <div>
+                          <label for="text1-height">Hauteur (%)</label>
+                          <input type="number" id="text1-height" min="0" max="100" step="1" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text1-offset-x">Emplacement X (%)</label>
+                          <input type="number" id="text1-offset-x" min="-200" max="200" step="1" />
+                        </div>
+                        <div>
+                          <label for="text1-offset-y">Emplacement Y (%)</label>
+                          <input type="number" id="text1-offset-y" min="-200" max="200" step="1" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text1-curve">Courbure</label>
+                          <input type="number" id="text1-curve" min="0" max="100" step="1" />
+                        </div>
+                        <div>
+                          <label for="text1-angle">Angle (deg)</label>
+                          <input type="number" id="text1-angle" min="-180" max="180" step="1" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="birthday-text-block" data-line="2">
+                    <div class="birthday-text-header">
+                      <label for="birthday-variant-text2">Texte 2</label>
+                      <button type="button" class="text-options-toggle" data-line="2" aria-expanded="false" aria-controls="birthday-text-options-2" title="Options du texte 2">
+                        ⚙
+                      </button>
+                    </div>
+                    <textarea id="birthday-variant-text2" placeholder="(Texte 2)" rows="2"></textarea>
+                    <div class="birthday-text-options" id="birthday-text-options-2" data-line="2" hidden>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text2-size">Taille (px)</label>
+                          <input type="number" id="text2-size" min="8" max="150" step="1" />
+                        </div>
+                        <div>
+                          <label for="text2-color">Couleur</label>
+                          <input type="color" id="text2-color" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text2-font">Police</label>
+                          <input type="text" id="text2-font" placeholder="Ex. Poppins, sans-serif" />
+                        </div>
+                        <div>
+                          <label for="text2-underline" class="checkbox-row">
+                            <input type="checkbox" id="text2-underline" />
+                            <span>Souligné</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text2-width">Largeur (%)</label>
+                          <input type="number" id="text2-width" min="10" max="100" step="1" />
+                        </div>
+                        <div>
+                          <label for="text2-height">Hauteur (%)</label>
+                          <input type="number" id="text2-height" min="0" max="100" step="1" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text2-offset-x">Emplacement X (%)</label>
+                          <input type="number" id="text2-offset-x" min="-200" max="200" step="1" />
+                        </div>
+                        <div>
+                          <label for="text2-offset-y">Emplacement Y (%)</label>
+                          <input type="number" id="text2-offset-y" min="-200" max="200" step="1" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text2-curve">Courbure</label>
+                          <input type="number" id="text2-curve" min="0" max="100" step="1" />
+                        </div>
+                        <div>
+                          <label for="text2-angle">Angle (deg)</label>
+                          <input type="number" id="text2-angle" min="-180" max="180" step="1" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="birthday-text-block" data-line="3">
+                    <div class="birthday-text-header">
+                      <label for="birthday-variant-text3">Texte 3</label>
+                      <button type="button" class="text-options-toggle" data-line="3" aria-expanded="false" aria-controls="birthday-text-options-3" title="Options du texte 3">
+                        ⚙
+                      </button>
+                    </div>
+                    <textarea id="birthday-variant-text3" placeholder="(Texte 3)" rows="2"></textarea>
+                    <div class="birthday-text-options" id="birthday-text-options-3" data-line="3" hidden>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text3-size">Taille (px)</label>
+                          <input type="number" id="text3-size" min="8" max="150" step="1" />
+                        </div>
+                        <div>
+                          <label for="text3-color">Couleur</label>
+                          <input type="color" id="text3-color" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text3-font">Police</label>
+                          <input type="text" id="text3-font" placeholder="Ex. Poppins, sans-serif" />
+                        </div>
+                        <div>
+                          <label for="text3-underline" class="checkbox-row">
+                            <input type="checkbox" id="text3-underline" />
+                            <span>Souligné</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text3-width">Largeur (%)</label>
+                          <input type="number" id="text3-width" min="10" max="100" step="1" />
+                        </div>
+                        <div>
+                          <label for="text3-height">Hauteur (%)</label>
+                          <input type="number" id="text3-height" min="0" max="100" step="1" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text3-offset-x">Emplacement X (%)</label>
+                          <input type="number" id="text3-offset-x" min="-200" max="200" step="1" />
+                        </div>
+                        <div>
+                          <label for="text3-offset-y">Emplacement Y (%)</label>
+                          <input type="number" id="text3-offset-y" min="-200" max="200" step="1" />
+                        </div>
+                      </div>
+                      <div class="form-row dual">
+                        <div>
+                          <label for="text3-curve">Courbure</label>
+                          <input type="number" id="text3-curve" min="0" max="100" step="1" />
+                        </div>
+                        <div>
+                          <label for="text3-angle">Angle (deg)</label>
+                          <input type="number" id="text3-angle" min="-180" max="180" step="1" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="birthday-preview">
-              <h3>Aper&ccedil;u en direct</h3>
-              <p class="playlist-subtitle">Visualisez la diapositive Anniversaire telle qu'elle appara&icirc;t dans le diaporama.</p>
-              <div class="birthday-preview-stage" id="birthday-preview-stage"></div>
-              <div class="birthday-preview-actions">
-                <button type="button" class="secondary-button" id="birthday-preview-refresh">Rafra&icirc;chir l'aper&ccedil;u</button>
+              <div class="birthday-background">
+                <div class="birthday-background-header">
+                  <div>
+                    <h3>Arri&egrave;re-plans</h3>
+                    <p class="playlist-subtitle">
+                      Importez un fond ou choisissez-en un dans la biblioth&egrave;que.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="birthday-background-toggle"
+                    id="birthday-background-toggle"
+                    aria-label="Basculer les options d'arrière-plan"
+                  >
+                    <span class="toggle-icon">▼</span>
+                  </button>
+                </div>
+
+                <div class="birthday-background-body">
+                  <div class="birthday-background-upload">
+                    <label for="birthday-background-input" id="birthday-drop-zone" class="birthday-drop-zone">
+                      <span class="drop-zone-title">Cliquez ou d&eacute;posez votre image/vid&eacute;o</span>
+                      <span class="drop-zone-subtitle">Format image ou vid&eacute;o (fond Anniversaire)</span>
+                    </label>
+                    <input type="file" id="birthday-background-input" accept="image/*,video/*" />
+                    <div class="upload-progress" id="birthday-upload-progress" aria-hidden="true">
+                      <div class="upload-progress-bar" id="birthday-upload-progress-bar"></div>
+                      <span class="upload-progress-text" id="birthday-upload-progress-text">0%</span>
+                    </div>
+                    <span
+                      id="birthday-background-status"
+                      class="upload-feedback"
+                      aria-live="polite"
+                    ></span>
+                  </div>
+                  <div class="birthday-background-list-wrapper">
+                    <p class="playlist-subtitle small">Biblioth&egrave;que des fonds</p>
+                    <div id="birthday-background-list" class="team-background-list birthday-background-list"></div>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            <div class="birthday-variant-select">
-              <label for="birthday-variant-select-input">Type de diapositive</label>
-              <select id="birthday-variant-select-input">
-                <option value="before" selected>Jours avant l'anniversaire</option>
-                <option value="day">Jour de l'anniversaire</option>
-                <option value="weekend">Anniversaire hors jours ouvrables</option>
-              </select>
-            </div>
-
-            <div class="birthday-variant-background">
-              <label for="birthday-variant-background-select">Fond pour cette diapositive</label>
-              <select id="birthday-variant-background-select">
-                <option value="">Aucun fond spécifique (utilise le fond global)</option>
-              </select>
             </div>
 
             <div class="birthday-title-settings">
-              <h3>Titre</h3>
-              <div class="form-row">
-                <label for="birthday-title-text">Texte du titre</label>
-                <input type="text" id="birthday-title-text" placeholder="Anniversaire" />
-              </div>
-              <div class="form-row dual">
-                <div>
-                  <label for="birthday-title-size">Taille (px)</label>
-                  <input type="number" id="birthday-title-size" min="8" max="200" step="1" />
-                </div>
-                <div>
-                  <label for="birthday-title-color">Couleur</label>
-                  <input type="color" id="birthday-title-color" />
-                </div>
-              </div>
-              <div class="form-row">
-                <label for="birthday-title-y">Position verticale (%)</label>
-                <input type="range" id="birthday-title-y" min="0" max="100" step="1" />
-              </div>
             </div>
           </div>
         </div>

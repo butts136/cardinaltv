@@ -28,6 +28,16 @@ const DEFAULT_TEAM_SLIDE = {
   card_min_duration: 6,
 };
 
+const DEFAULT_OPEN_DAYS = {
+  monday: true,
+  tuesday: true,
+  wednesday: true,
+  thursday: true,
+  friday: true,
+  saturday: false,
+  sunday: false,
+};
+
 const DEFAULT_BIRTHDAY_SLIDE = {
   enabled: false,
   order_index: 0,
@@ -39,20 +49,37 @@ const DEFAULT_BIRTHDAY_SLIDE = {
   title_font_size: 64,
   title_color: "#ffffff",
   title_y_percent: 50,
+  open_days: { ...DEFAULT_OPEN_DAYS },
+};
+
+const BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
+  font_size: 48,
+  font_family: "",
+  width_percent: 100,
+  height_percent: 0,
+  color: "#ffffff",
+  underline: false,
+  offset_x_percent: 0,
+  offset_y_percent: 0,
+  curve: 0,
+  angle: 0,
 };
 
 const BIRTHDAY_FIXED_COPY = {
   before: {
-    title: "Anniversaire à venir",
-    subtitle: "Dans [days] jours, ce sera la fête\nSaurez vous deviner qui est-ce ?",
+    text1: "(Texte 1)",
+    text2: "(Texte 2)",
+    text3: "(Texte 3)",
   },
   day: {
-    title: "Joyeux anniversaire",
-    subtitle: "",
+    text1: "(Texte 1)",
+    text2: "(Texte 2)",
+    text3: "(Texte 3)",
   },
   weekend: {
-    title: "Anniversaire célébré",
-    subtitle: "",
+    text1: "(Texte 1)",
+    text2: "(Texte 2)",
+    text3: "(Texte 3)",
   },
 };
 
@@ -68,6 +95,18 @@ const BASE_CANVAS_WIDTH = Number(canvas?.dataset.baseWidth) || 1920;
 const BASE_CANVAS_HEIGHT = Number(canvas?.dataset.baseHeight) || 1080;
 const OVERLAY_DISABLED = true;
 const TEAM_SCROLL_OVERRUN_PX = 48;
+const BIRTHDAY_VARIANTS = ["before", "day", "weekend"];
+const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const WEEKDAY_LABELS_FR = [
+  "Dimanche",
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+];
+const DAY_LABEL_PLURAL = { singular: "jour", plural: "jours" };
 
 const skipState = new Map();
 let playlist = [];
@@ -99,6 +138,7 @@ let teamScrollFrame = null;
 let teamScrollEndTimer = null;
 let teamScrollStartTimer = null;
 let birthdayEmployeesData = null;
+const birthdayVariantConfigs = {};
 let lastBirthdayFetch = 0;
 const BIRTHDAY_REFRESH_MS = 60_000;
 const BIRTHDAY_COUNTDOWN_DAYS = 3;
@@ -262,6 +302,68 @@ const fetchJSON = async (url, options = {}) => {
   return response.json();
 };
 
+const loadBirthdayVariantConfig = async (variant) => {
+  if (!variant) return null;
+  if (birthdayVariantConfigs[variant]) {
+    return birthdayVariantConfigs[variant];
+  }
+  try {
+    const data = await fetchJSON(`api/birthday-slide/config/${variant}`);
+    const cfg = (data && data.config) || {};
+    birthdayVariantConfigs[variant] = cfg;
+    return cfg;
+  } catch (error) {
+    console.error("Impossible de charger la configuration Anniversaire", variant, error);
+    birthdayVariantConfigs[variant] = null;
+    return null;
+  }
+};
+
+const preloadBirthdayVariants = async () => {
+  await Promise.all(BIRTHDAY_VARIANTS.map((variant) => loadBirthdayVariantConfig(variant)));
+};
+
+const normalizeOpenDays = (raw = {}) => {
+  const base = { ...DEFAULT_OPEN_DAYS };
+  if (!raw || typeof raw !== "object") {
+    return base;
+  }
+  return WEEKDAY_KEYS.reduce((acc, day) => {
+    acc[day] = raw[day] === undefined ? base[day] : Boolean(raw[day]);
+    return acc;
+  }, {});
+};
+
+const computeAnnounceDate = (targetDate, openDays) => {
+  const normalized = normalizeOpenDays(openDays);
+  if (!(targetDate instanceof Date) || Number.isNaN(targetDate)) {
+    return targetDate;
+  }
+  const candidate = new Date(targetDate.getTime());
+  for (let i = 0; i < 7; i += 1) {
+    const key = WEEKDAY_KEYS[candidate.getUTCDay()];
+    if (normalized[key]) {
+      return candidate;
+    }
+    candidate.setUTCDate(candidate.getUTCDate() - 1);
+  }
+  return targetDate;
+};
+
+const formatBirthdayMeta = (birthdayDate) => {
+  if (!(birthdayDate instanceof Date) || Number.isNaN(birthdayDate)) {
+    return { weekday: "", fullDate: "" };
+  }
+  const weekday = WEEKDAY_LABELS_FR[birthdayDate.getUTCDay()] || "";
+  const dateText = new Intl.DateTimeFormat("fr-CA", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(birthdayDate);
+  return { weekday, fullDate: dateText };
+};
+
 const refreshOverlaySettings = async () => {
   try {
     const data = await fetchJSON("api/settings");
@@ -275,11 +377,13 @@ const refreshOverlaySettings = async () => {
     birthdaySlideSettings = {
       ...DEFAULT_BIRTHDAY_SLIDE,
       ...(data && data.birthday_slide ? data.birthday_slide : {}),
+      open_days: normalizeOpenDays(data?.birthday_slide?.open_days),
     };
     teamSlideSettings = {
       ...DEFAULT_TEAM_SLIDE,
       ...(data && data.team_slide ? data.team_slide : {}),
     };
+    await preloadBirthdayVariants();
   } catch (error) {
     console.warn("Impossible de charger les paramètres:", error);
   }
@@ -887,41 +991,72 @@ const ensureBirthdayEmployeesData = async () => {
   const employees = await ensureTeamEmployeesData();
   const todayUtc = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const dayMs = 24 * 60 * 60 * 1000;
-  let closest = null;
-  let minDays = Infinity;
+  const groups = new Map();
 
   employees.forEach((emp) => {
     const next = computeNextBirthday(emp.birthday);
     if (!next) return;
-    const diffDays = Math.round((next - todayUtc) / dayMs);
-    if (diffDays < minDays) {
-      minDays = diffDays;
-      closest = [{ employee: emp, next }];
-    } else if (diffDays === minDays && closest) {
-      closest.push({ employee: emp, next });
+    const announce = computeAnnounceDate(next, birthdaySlideSettings?.open_days);
+    const daysToBirthday = Math.round((next - todayUtc) / dayMs);
+    const daysToAnnounce = Math.round((announce - todayUtc) / dayMs);
+    if (!Number.isFinite(daysToBirthday) || daysToBirthday < 0) return;
+    const shiftedForClosure = announce.getTime() !== next.getTime();
+    let variant = "before";
+    if (daysToBirthday === 0) {
+      variant = "day";
+    } else if (shiftedForClosure && daysToAnnounce === 0) {
+      variant = "weekend";
     }
+    const displayAllowed =
+      variant === "day" ||
+      (variant === "before" && daysToBirthday <= BIRTHDAY_COUNTDOWN_DAYS) ||
+      (variant === "weekend" && daysToAnnounce === 0);
+    if (!displayAllowed) return;
+    const key = next.getTime();
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push({
+      birthday: next,
+      announce,
+      variant,
+      daysUntilBirthday: daysToBirthday,
+      daysUntilAnnounce: Math.max(0, daysToAnnounce),
+      employees: [emp],
+    });
   });
 
-  if (!closest || !Number.isFinite(minDays)) {
+  const entries = Array.from(groups.values()).flat();
+  if (!entries.length) {
     birthdayEmployeesData = null;
     lastBirthdayFetch = now;
     return null;
   }
 
-  const sampleDate = closest[0].next;
-  const weekday = sampleDate.getUTCDay(); // 0 Sunday, 6 Saturday
-  let variant = "before";
-  if (minDays === 0) {
-    variant = "day";
-  } else if (weekday === 0 || weekday === 6) {
-    variant = "weekend";
+  const configCache = {};
+  for (const entry of entries) {
+    if (!configCache[entry.variant]) {
+      configCache[entry.variant] = await loadBirthdayVariantConfig(entry.variant);
+    }
+    const { weekday, fullDate } = formatBirthdayMeta(entry.birthday);
+    entry.config = configCache[entry.variant];
+    entry.birthday_weekday = weekday;
+    entry.birthday_date = fullDate;
   }
 
-  birthdayEmployeesData = {
-    variant,
-    daysUntil: minDays,
-    employees: closest.map((entry) => entry.employee),
-  };
+  entries.sort((a, b) => {
+    if (a.daysUntilBirthday === b.daysUntilBirthday) {
+      const nameA = (a.employees[0]?.name || "").toLowerCase();
+      const nameB = (b.employees[0]?.name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    }
+    return a.daysUntilBirthday - b.daysUntilBirthday;
+  });
+  entries.forEach((entry, idx) => {
+    entry.idSuffix = idx;
+  });
+
+  birthdayEmployeesData = entries;
   lastBirthdayFetch = now;
   return birthdayEmployeesData;
 };
@@ -1118,13 +1253,36 @@ const renderBirthdaySlide = (item) => {
   mediaWrapper.innerHTML = "";
   const settings = birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE;
   const variant = item.birthday_variant || "before";
-  const copy = BIRTHDAY_FIXED_COPY[variant] || BIRTHDAY_FIXED_COPY.before;
-  const daysUntil = Number.isFinite(Number(item.birthday_days_until))
+  const variantCfg =
+    item.birthday_variant_config ||
+    birthdayVariantConfigs[variant] ||
+    BIRTHDAY_FIXED_COPY[variant] ||
+    {};
+  const daysUntilBirthday = Number.isFinite(Number(item.birthday_days_until))
     ? Number(item.birthday_days_until)
     : null;
+  const birthdayWeekday = typeof item.birthday_weekday === "string" ? item.birthday_weekday : "";
+  const birthdayDateText = typeof item.birthday_date === "string" ? item.birthday_date : "";
+  const employees = Array.isArray(item.birthday_employees) ? item.birthday_employees : [];
+  const names = employees
+    .map((e) => (e && typeof e.name === "string" ? e.name.trim() : ""))
+    .filter(Boolean);
+  const namesText =
+    names.length === 0
+      ? ""
+      : names.length === 1
+        ? names[0]
+        : `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
   const replaceTokens = (text) => {
     if (!text) return "";
-    return text.replace("[days]", daysUntil != null ? String(daysUntil) : "");
+    const dayLabel =
+      daysUntilBirthday === 1 ? DAY_LABEL_PLURAL.singular : DAY_LABEL_PLURAL.plural;
+    return text
+      .replace("[days]", daysUntilBirthday != null ? String(daysUntilBirthday) : "")
+      .replace("[day_label]", dayLabel)
+      .replace("[birthday_weekday]", birthdayWeekday)
+      .replace("[date]", birthdayDateText)
+      .replace("[name]", namesText);
   };
 
   const durationSeconds = Math.max(
@@ -1136,8 +1294,13 @@ const renderBirthdaySlide = (item) => {
 
   const backdrop = document.createElement("div");
   backdrop.className = "birthday-slide-backdrop";
-  const bgUrl = item.background_url || settings.background_url;
-  const bgMime = (item.background_mimetype || settings.background_mimetype || "").toLowerCase();
+  const bgUrl = variantCfg.background_url || item.background_url || settings.background_url;
+  const bgMime = (
+    variantCfg.background_mimetype ||
+    item.background_mimetype ||
+    settings.background_mimetype ||
+    ""
+  ).toLowerCase();
   const bgExt = getExtension(bgUrl || "");
   const isVideo =
     bgMime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(bgExt);
@@ -1165,25 +1328,57 @@ const renderBirthdaySlide = (item) => {
 
   const overlay = document.createElement("div");
   overlay.className = "birthday-slide-overlay";
-  const title = document.createElement("div");
-  title.className = "birthday-slide-title";
-  title.textContent = replaceTokens(copy.title || settings.title_text || "Anniversaire à venir");
-  if (settings.title_font_size) {
-    title.style.fontSize = `${settings.title_font_size}px`;
-  }
-  if (settings.title_color) {
-    title.style.color = settings.title_color;
-  }
-  const subtitle = document.createElement("div");
-  subtitle.className = "birthday-slide-subtitle";
-  subtitle.textContent = replaceTokens(copy.subtitle || "");
+  const linesWrapper = document.createElement("div");
+  linesWrapper.className = "birthday-slide-lines";
+  const lines = [
+    replaceTokens(variantCfg.text1 ?? settings.title_text ?? ""),
+    replaceTokens(variantCfg.text2 ?? ""),
+    replaceTokens(variantCfg.text3 ?? ""),
+  ];
+  const optsList = [
+    variantCfg.text1_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+    variantCfg.text2_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+    variantCfg.text3_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+  ];
+  lines.forEach((text, idx) => {
+    const line = document.createElement("div");
+    line.className = "birthday-slide-line" + (idx === 0 ? " birthday-slide-line--primary" : "");
+    line.textContent = text;
+    const opts = optsList[idx] || BIRTHDAY_TEXT_OPTIONS_DEFAULT;
+    const color = opts.color || settings.title_color;
+    if (idx === 0 && settings.title_font_size) {
+      line.style.fontSize = `${settings.title_font_size}px`;
+    }
+    if (opts.font_size) {
+      line.style.fontSize = `${opts.font_size}px`;
+    }
+    if (color) {
+      line.style.color = color;
+    }
+    line.style.fontFamily = opts.font_family || "";
+    line.style.textDecoration = opts.underline ? "underline" : "none";
+    line.style.maxWidth = "none";
+    if (opts.height_percent) {
+      line.style.minHeight = `${opts.height_percent}%`;
+    }
+    line.style.whiteSpace = "pre";
+    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+    const left = Math.min(100, Math.max(0, 50 + offsetX / 2));
+    const top = Math.min(100, Math.max(0, 50 + offsetY / 2));
+    line.style.left = `${left}%`;
+    line.style.top = `${top}%`;
+    const rotation = `rotate(${opts.angle || 0}deg)`;
+    line.style.transform = `translate(-50%, -50%) ${rotation}`;
+    linesWrapper.appendChild(line);
+  });
   const pos = Number.isFinite(Number(settings.title_y_percent))
     ? Math.min(100, Math.max(0, Number(settings.title_y_percent)))
     : DEFAULT_BIRTHDAY_SLIDE.title_y_percent;
   overlay.style.justifyContent = "flex-start";
   overlay.style.paddingTop = `${pos}%`;
   overlay.style.alignItems = "center";
-  overlay.append(title, subtitle);
+  overlay.append(linesWrapper);
   frameEl.appendChild(overlay);
 
   mediaWrapper.appendChild(frameEl);
@@ -1214,8 +1409,12 @@ const buildBirthdaySlideItem = (birthdayData) => {
     birthdaySlideSettings.background_mimetype || "application/x-birthday-slide";
   const duration =
     Math.max(1, Number(birthdaySlideSettings.duration) || DEFAULT_BIRTHDAY_SLIDE.duration);
+  const itemId =
+    birthdayData && birthdayData.idSuffix != null
+      ? `${BIRTHDAY_SLIDE_ID}_${birthdayData.idSuffix}`
+      : BIRTHDAY_SLIDE_ID;
   return {
-    id: BIRTHDAY_SLIDE_ID,
+    id: itemId,
     birthday_slide: true,
     original_name: "Anniversaire",
     filename,
@@ -1229,10 +1428,14 @@ const buildBirthdaySlideItem = (birthdayData) => {
     background_label: birthdaySlideSettings.background_label,
     order: Number(birthdaySlideSettings.order_index) || 0,
     birthday_variant: birthdayData?.variant || "before",
-    birthday_days_until: birthdayData?.daysUntil,
+    birthday_days_until: birthdayData?.daysUntilBirthday,
+    birthday_days_until_announce: birthdayData?.daysUntilAnnounce,
+    birthday_weekday: birthdayData?.birthday_weekday,
+    birthday_date: birthdayData?.birthday_date,
     birthday_employees: Array.isArray(birthdayData?.employees)
       ? birthdayData.employees.map((e) => ({ id: e.id, name: e.name }))
       : [],
+    birthday_variant_config: birthdayData?.config || null,
   };
 };
 
@@ -1241,23 +1444,20 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
   const autoEntries = [];
 
   if (birthdaySlideSettings.enabled) {
-    const birthdayData = await ensureBirthdayEmployeesData();
-    const hasUpcoming =
-      birthdayData &&
-      Number.isFinite(Number(birthdayData.daysUntil)) &&
-      birthdayData.daysUntil >= 0 &&
-      (birthdayData.variant === "day" ||
-        (birthdayData.variant === "before" && birthdayData.daysUntil <= BIRTHDAY_COUNTDOWN_DAYS) ||
-        birthdayData.variant === "weekend");
-    if (hasUpcoming) {
-      const birthdayItem = buildBirthdaySlideItem(birthdayData);
-      autoEntries.push({
-        id: birthdayItem.id,
-        index: Math.min(
-          Math.max(0, Number.parseInt(birthdaySlideSettings.order_index, 10) || 0),
-          base.length
-        ),
-        item: birthdayItem,
+    const birthdayList = await ensureBirthdayEmployeesData();
+    if (Array.isArray(birthdayList) && birthdayList.length) {
+      const baseIndex = Math.min(
+        Math.max(0, Number.parseInt(birthdaySlideSettings.order_index, 10) || 0),
+        base.length
+      );
+      const birthdayStart = baseIndex;
+      birthdayList.forEach((data, idx) => {
+        const birthdayItem = buildBirthdaySlideItem(data);
+        autoEntries.push({
+          id: birthdayItem.id,
+          index: Math.min(birthdayStart + idx, base.length + autoEntries.length),
+          item: birthdayItem,
+        });
       });
     }
   }
@@ -1266,12 +1466,13 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     await ensureTeamEmployeesData();
     if (teamEmployeesData.length) {
       const teamItem = buildTeamSlideItem();
+      const teamBaseIndex = Math.min(
+        Math.max(0, Number.parseInt(teamSlideSettings.order_index, 10) || 0),
+        base.length
+      );
       autoEntries.push({
         id: teamItem.id,
-        index: Math.min(
-          Math.max(0, Number.parseInt(teamSlideSettings.order_index, 10) || 0),
-          base.length
-        ),
+        index: Math.min(teamBaseIndex, base.length + autoEntries.length),
         item: teamItem,
       });
     }
