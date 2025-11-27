@@ -1364,8 +1364,8 @@ const renderBirthdaySlide = (item) => {
     line.style.whiteSpace = "pre";
     const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-    const left = Math.min(100, Math.max(0, 50 + offsetX / 2));
-    const top = Math.min(100, Math.max(0, 50 - offsetY / 2));
+    const left = Math.min(100, Math.max(0, 50 + offsetX));
+    const top = Math.min(100, Math.max(0, 50 - offsetY));
     line.style.left = `${left}%`;
     line.style.top = `${top}%`;
     const rotation = `rotate(${opts.angle || 0}deg)`;
