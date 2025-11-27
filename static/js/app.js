@@ -1979,6 +1979,7 @@ const updateBirthdayOverlayLayout = (root, settings) => {
 const applyBirthdayPreviewScale = () => {
   if (!birthdayPreviewStage || !birthdayPreviewCanvas) return;
   const rect = birthdayPreviewStage.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
   const baseW = BIRTHDAY_PREVIEW_BASE_WIDTH;
   const baseH = BIRTHDAY_PREVIEW_BASE_HEIGHT;
   const scale = Math.min(rect.width / baseW, rect.height / baseH);
@@ -2040,12 +2041,15 @@ const renderBirthdayPreview = () => {
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     void video.play().catch(() => {});
+    video.addEventListener("loadedmetadata", applyBirthdayPreviewScale);
+    video.addEventListener("canplay", applyBirthdayPreviewScale);
     backdrop.appendChild(video);
   } else if (bgUrl) {
     const img = document.createElement("img");
     img.className = "birthday-slide-media birthday-slide-image";
     img.src = bgUrl;
     img.alt = "Arrière-plan Anniversaire";
+    img.addEventListener("load", applyBirthdayPreviewScale);
     backdrop.appendChild(img);
   } else {
     backdrop.classList.add("birthday-slide-backdrop--fallback");
