@@ -887,6 +887,7 @@ input[type="datetime-local"]:focus {
   margin: 0;
   text-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   white-space: pre;
+  overflow: visible;
 }
 
 .birthday-slide-line--primary {

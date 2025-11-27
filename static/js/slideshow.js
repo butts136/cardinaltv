@@ -1357,7 +1357,7 @@ const renderBirthdaySlide = (item) => {
     }
     line.style.fontFamily = opts.font_family || "";
     line.style.textDecoration = opts.underline ? "underline" : "none";
-    line.style.maxWidth = "none";
+    line.style.maxWidth = opts.width_percent ? `${opts.width_percent}%` : "none";
     if (opts.height_percent) {
       line.style.minHeight = `${opts.height_percent}%`;
     }
@@ -1365,7 +1365,7 @@ const renderBirthdaySlide = (item) => {
     const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
     const left = Math.min(100, Math.max(0, 50 + offsetX / 2));
-    const top = Math.min(100, Math.max(0, 50 + offsetY / 2));
+    const top = Math.min(100, Math.max(0, 50 - offsetY / 2));
     line.style.left = `${left}%`;
     line.style.top = `${top}%`;
     const rotation = `rotate(${opts.angle || 0}deg)`;
