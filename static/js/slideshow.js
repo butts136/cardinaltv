@@ -1365,7 +1365,7 @@ const renderBirthdaySlide = (item) => {
     const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
     const left = Math.min(100, Math.max(0, 50 + offsetX));
-    const top = Math.min(100, Math.max(0, 50 - offsetY));
+    const top = Math.min(100, Math.max(0, 50 + offsetY));
     line.style.left = `${left}%`;
     line.style.top = `${top}%`;
     const rotation = `rotate(${opts.angle || 0}deg)`;
@@ -1375,8 +1375,8 @@ const renderBirthdaySlide = (item) => {
   const pos = Number.isFinite(Number(settings.title_y_percent))
     ? Math.min(100, Math.max(0, Number(settings.title_y_percent)))
     : DEFAULT_BIRTHDAY_SLIDE.title_y_percent;
-  overlay.style.justifyContent = "flex-start";
-  overlay.style.paddingTop = `${pos}%`;
+  overlay.style.justifyContent = "center";
+  overlay.style.paddingTop = "0";
   overlay.style.alignItems = "center";
   overlay.append(linesWrapper);
   frameEl.appendChild(overlay);
