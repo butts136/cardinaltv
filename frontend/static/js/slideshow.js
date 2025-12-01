@@ -64,6 +64,8 @@ const BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
   curve: 0,
   angle: 0,
 };
+const BIRTHDAY_MAX_LINES = 50;
+const birthdayCustomFonts = [];
 
 const TIME_CHANGE_TEXT_OPTIONS_DEFAULT = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" };
 const clampPercent = (value) => Math.min(100, Math.max(0, value));
@@ -99,16 +101,40 @@ const BIRTHDAY_FIXED_COPY = {
     text1: "(Texte 1)",
     text2: "(Texte 2)",
     text3: "(Texte 3)",
+    text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    lines: [
+      { text: "(Texte 1)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+      { text: "(Texte 2)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+      { text: "(Texte 3)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+    ],
   },
   day: {
     text1: "(Texte 1)",
     text2: "(Texte 2)",
     text3: "(Texte 3)",
+    text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    lines: [
+      { text: "(Texte 1)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+      { text: "(Texte 2)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+      { text: "(Texte 3)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+    ],
   },
   weekend: {
     text1: "(Texte 1)",
     text2: "(Texte 2)",
     text3: "(Texte 3)",
+    text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    lines: [
+      { text: "(Texte 1)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+      { text: "(Texte 2)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+      { text: "(Texte 3)", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+    ],
   },
 };
 
@@ -173,23 +199,101 @@ let teamScrollEndTimer = null;
 let teamScrollStartTimer = null;
 let birthdayEmployeesData = null;
 const birthdayVariantConfigs = {};
+const birthdayFontRegistry = new Map();
+
+const loadBirthdayCustomFonts = async () => {
+  try {
+    const data = await fetchJSON("api/birthday-slide/fonts");
+    const items = Array.isArray(data?.items) ? data.items : [];
+    items.forEach((item, idx) => {
+      const safeName = item?.family || item?.filename || `Police ${idx + 1}`;
+      const family = `CustomFont_${safeName.replace(/\s+/g, "_")}`;
+      const url = item?.url;
+      if (!url) return;
+      if (birthdayFontRegistry.has(family)) return;
+      const style = document.createElement("style");
+      style.id = `custom-font-${family}`;
+      style.textContent = `
+@font-face {
+  font-family: "${family}";
+  src: url("${url}");
+  font-display: swap;
+}
+`;
+      document.head.appendChild(style);
+      birthdayFontRegistry.set(family, url);
+    });
+  } catch (error) {
+    console.warn("Impossible de charger les polices Anniversaire:", error);
+  }
+};
+
+const normalizeBirthdayLines = (config = {}) => {
+  const normalizeLine = (entry = {}) => ({
+    text: typeof entry.text === "string" ? entry.text : "",
+    options: {
+      ...BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+      ...(entry.options && typeof entry.options === "object" ? entry.options : {}),
+    },
+  });
+
+  let lines = [];
+  if (Array.isArray(config.lines)) {
+    lines = config.lines
+      .filter((entry) => entry && typeof entry === "object")
+      .slice(0, BIRTHDAY_MAX_LINES)
+      .map((entry) => normalizeLine(entry));
+  }
+
+  if (!lines.length) {
+    const legacy = [
+      { text: config.text1 ?? "", options: config.text1_options },
+      { text: config.text2 ?? "", options: config.text2_options },
+      { text: config.text3 ?? "", options: config.text3_options },
+    ];
+    legacy.forEach((entry) => lines.push(normalizeLine(entry)));
+  }
+
+  if (!lines.length) {
+    lines = (BIRTHDAY_FIXED_COPY.before.lines || []).map((entry) => normalizeLine(entry));
+  }
+
+  return lines.slice(0, BIRTHDAY_MAX_LINES);
+};
+
+const normalizeBirthdayVariantConfig = (rawConfig = {}, variant = "before") => {
+  const base = { ...(BIRTHDAY_FIXED_COPY[variant] || BIRTHDAY_FIXED_COPY.before) };
+  const merged = { ...base, ...(rawConfig || {}) };
+  const lines = normalizeBirthdayLines(merged);
+  const [l1, l2, l3] = lines.concat(
+    { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+    { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+    { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
+  );
+  return {
+    ...merged,
+    lines,
+    text1: l1?.text ?? "",
+    text2: l2?.text ?? "",
+    text3: l3?.text ?? "",
+    text1_options: l1?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text2_options: l2?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    text3_options: l3?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+  };
+};
 
 const loadBirthdayVariantConfig = async (variant) => {
   if (birthdayVariantConfigs[variant]) return birthdayVariantConfigs[variant];
   try {
     const data = await fetchJSON(`api/birthday-slide/config/${variant}`);
     const cfg = (data && data.config) || {};
-    const normalized = {
-      ...BIRTHDAY_FIXED_COPY[variant],
-      ...cfg,
-      text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...(cfg.text1_options || {}) },
-      text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...(cfg.text2_options || {}) },
-      text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, ...(cfg.text3_options || {}) },
-    };
-    birthdayVariantConfigs[variant] = normalized;
+    birthdayVariantConfigs[variant] = normalizeBirthdayVariantConfig(cfg, variant);
   } catch (error) {
     console.warn("Impossible de charger le modèle Anniversaire:", error);
-    birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant] };
+    birthdayVariantConfigs[variant] = normalizeBirthdayVariantConfig(
+      { ...(BIRTHDAY_FIXED_COPY[variant] || {}) },
+      variant,
+    );
   }
   return birthdayVariantConfigs[variant];
 };
@@ -423,8 +527,15 @@ const formatTimeChangeMessage = (template, info) => {
     offset_from: change.offset_from || "",
     offset_to: change.offset_to || "",
     days_until: days != null ? days : "",
+    days_left: days != null ? days : "",
     days_label: days === 1 ? DAY_LABEL_PLURAL.singular : DAY_LABEL_PLURAL.plural,
     season_label: change.season_label || "",
+    seasons:
+      change.season === "winter"
+        ? "hiver"
+        : change.season === "summer"
+          ? "été"
+          : (change.season_label || "").replace("d'", "").replace("de ", "") || "",
   };
   return base.replace(/\[([^\]]+)\]/g, (match, key) =>
     replacements[key] !== undefined && replacements[key] !== null ? String(replacements[key]) : "",
@@ -1380,12 +1491,13 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   mediaWrapper.innerHTML = "";
   const settings = birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE;
   const variant = item.birthday_variant || "before";
-  const variantCfg =
+  const rawVariant =
     variantConfig ||
     item.birthday_variant_config ||
     birthdayVariantConfigs[variant] ||
     BIRTHDAY_FIXED_COPY[variant] ||
     {};
+  const variantCfg = normalizeBirthdayVariantConfig(rawVariant, variant);
   const daysUntilBirthday = Number.isFinite(Number(item.birthday_days_until))
     ? Number(item.birthday_days_until)
     : null;
@@ -1458,21 +1570,13 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   overlay.className = "birthday-slide-overlay";
   const linesWrapper = document.createElement("div");
   linesWrapper.className = "birthday-slide-lines";
-  const lines = [
-    replaceTokens(variantCfg.text1 ?? settings.title_text ?? ""),
-    replaceTokens(variantCfg.text2 ?? ""),
-    replaceTokens(variantCfg.text3 ?? ""),
-  ];
-  const optsList = [
-    variantCfg.text1_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
-    variantCfg.text2_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
-    variantCfg.text3_options || BIRTHDAY_TEXT_OPTIONS_DEFAULT,
-  ];
-  lines.forEach((text, idx) => {
+  const lines = normalizeBirthdayLines(variantCfg);
+  lines.forEach((entry, idx) => {
     const line = document.createElement("div");
     line.className = "birthday-slide-line" + (idx === 0 ? " birthday-slide-line--primary" : "");
+    const opts = entry.options || BIRTHDAY_TEXT_OPTIONS_DEFAULT;
+    const text = replaceTokens(entry.text ?? "");
     line.textContent = text;
-    const opts = optsList[idx] || BIRTHDAY_TEXT_OPTIONS_DEFAULT;
     const color = opts.color || settings.title_color;
     if (idx === 0 && settings.title_font_size) {
       line.style.fontSize = `${settings.title_font_size}px`;
@@ -1492,8 +1596,8 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     line.style.whiteSpace = "pre";
     const rawX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const rawY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-    const left = clampPercent(50 + rawX / 2);
-    const top = clampPercent(50 - rawY / 2);
+    const left = clampPercent(50 + rawX);
+    const top = clampPercent(50 - rawY);
     line.style.left = `${left}%`;
     line.style.top = `${top}%`;
     const rotation = `rotate(${opts.angle || 0}deg)`;
@@ -1562,14 +1666,6 @@ const renderTimeChangeSlide = (item) => {
   const overlay = document.createElement("div");
   overlay.className = "time-change-slide-overlay";
 
-  const badge = document.createElement("div");
-  badge.className = "time-change-slide-badge";
-  badge.textContent =
-    info && info.season_label ? `Heure ${info.season_label}` : "Changement d'heure";
-  if (settings.text_color) {
-    badge.style.color = settings.text_color;
-  }
-
   const replaceTokens = (text) => formatTimeChangeMessage(text, info);
   const makeLine = (text, options, extraClasses = "") => {
     const line = document.createElement("div");
@@ -1585,7 +1681,7 @@ const renderTimeChangeSlide = (item) => {
     const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
     const left = Math.min(100, Math.max(0, 50 + offsetX));
-    const top = Math.min(100, Math.max(0, 50 + offsetY));
+    const top = Math.min(100, Math.max(0, 50 - offsetY));
     line.style.left = `${left}%`;
     line.style.top = `${top}%`;
     const rotation = `rotate(${opts.angle || 0}deg)`;
@@ -1595,13 +1691,14 @@ const renderTimeChangeSlide = (item) => {
 
   const linesWrapper = document.createElement("div");
   linesWrapper.className = "time-change-lines";
-  linesWrapper.append(
-    makeLine(settings.text1 || settings.title_text, settings.text1_options, "time-change-line--primary"),
-    makeLine(settings.text2 || settings.message_template, settings.text2_options),
-    makeLine(settings.text3 || "", settings.text3_options),
-  );
+  const lines = normalizeTimeChangeLines(settings);
+  lines.forEach((line, idx) => {
+    linesWrapper.append(
+      makeLine(line.text, line.options, idx === 0 ? "time-change-line--primary" : ""),
+    );
+  });
 
-  overlay.append(badge, linesWrapper);
+  overlay.append(linesWrapper);
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
   mediaWrapper.appendChild(viewport);
@@ -1976,6 +2073,7 @@ const startPlaylistRefresh = () => {
 };
 
 const startSlideshow = async () => {
+  await loadBirthdayCustomFonts();
   await refreshOverlaySettings();
   await ensureTeamEmployeesData();
   const result = await refreshPlaylist();

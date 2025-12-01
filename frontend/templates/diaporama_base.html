@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/media_editor.css') }}" />
+  {{ super() }}
+{% endblock %}
+
+{% block body_class %}diaporama-page{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/editor_toggles.js') }}"></script>
+  {{ super() }}
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Diaporama · Vue générale{% endblock %}
+
+{% block page_title %}Diaporama{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Vue d'ensemble du diaporama. Accédez aux pages dédiées pour gérer chaque section.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.index') }}" class="secondary-button">Accueil</a>
+{% endblock %}
+
+{% block content %}
+  <div class="content-grid">
+    <section class="card">
+      <p class="eyebrow">Fichiers</p>
+      <h2>Téléversement</h2>
+      <p class="playlist-subtitle">Ajoutez des images, vidéos, PDF ou documents pour alimenter le diaporama.</p>
+      <div class="header-actions">
+        <a href="{{ url_for('main.upload') }}" class="primary-button">Ouvrir</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">Playlist</p>
+      <h2>Ordre et visibilit&eacute;</h2>
+      <p class="playlist-subtitle">Réorganisez, masquez ou lancez le diaporama.</p>
+      <div class="header-actions">
+        <a href="{{ url_for('main.playlist') }}" class="primary-button">Ouvrir</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">Ressources humaines</p>
+      <h2>Employés</h2>
+      <p class="playlist-subtitle">Mettez à jour la base des employés pour les slides automatisées.</p>
+      <div class="header-actions">
+        <a href="{{ url_for('main.employees') }}" class="primary-button">Ouvrir</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">Slide auto</p>
+      <h2>Notre Équipe</h2>
+      <p class="playlist-subtitle">Activez la slide auto-générée et son arrière-plan.</p>
+      <div class="header-actions">
+        <a href="{{ url_for('main.team') }}" class="primary-button">Ouvrir</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">Slide auto</p>
+      <h2>Anniversaire</h2>
+      <p class="playlist-subtitle">Choisissez les modèles et les arrière-plans des anniversaires.</p>
+      <div class="header-actions">
+        <a href="{{ url_for('main.birthday') }}" class="primary-button">Ouvrir</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">Slide auto</p>
+      <h2>Changement d'heure</h2>
+      <p class="playlist-subtitle">Configurez l'annonce officielle et son arrière-plan.</p>
+      <div class="header-actions">
+        <a href="{{ url_for('main.time_change') }}" class="primary-button">Ouvrir</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">Programmation</p>
+      <h2>Messages temporaires</h2>
+      <p class="playlist-subtitle">Créez des annonces temporaires avec leurs horaires.</p>
+      <div class="header-actions">
+        <a href="{{ url_for('main.temporary') }}" class="primary-button">Ouvrir</a>
+      </div>
+    </section>
+  </div>
+{% endblock %}

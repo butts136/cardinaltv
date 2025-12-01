@@ -1,0 +1,190 @@
+<section class="card team-section" id="team-section">
+  <div class="section-header">
+    <div>
+      <h2>Notre &Eacute;quipe</h2>
+      <p class="playlist-subtitle">
+        Cette section permet d'activer ou de d&eacute;sactiver la diapositive auto-g&eacute;n&eacute;r&eacute;e et interactive.
+      </p>
+    </div>
+  </div>
+  <div class="section-content">
+    <div class="team-settings">
+      <div class="team-toggle-row">
+        <h3>Diapositive &laquo; Notre &Eacute;quipe &raquo;</h3>
+        <div class="team-toggle-control">
+          <span class="team-toggle-text">Statut&nbsp;:</span>
+          <label class="visibility-toggle">
+            <span class="visibility-toggle-label visibility-toggle-label-on">Activ&eacute;e</span>
+            <div class="visibility-toggle-switch">
+              <input
+                id="team-enabled"
+                class="visibility-toggle-checkbox"
+                type="checkbox"
+                aria-label="Activer ou d&eacute;sactiver la diapositive Notre &Eacute;quipe"
+              />
+              <span class="visibility-toggle-slider"></span>
+            </div>
+            <span class="visibility-toggle-label visibility-toggle-label-off">D&eacute;sactiv&eacute;e</span>
+          </label>
+        </div>
+      </div>
+      <div class="team-background">
+        <h3>Arri&egrave;re-plan</h3>
+        <p class="playlist-subtitle">
+          Choisissez une image ou une vid&eacute;o qui sera affich&eacute;e en boucle en fond d'&eacute;cran.
+        </p>
+        <div class="team-background-upload">
+          <input
+            type="file"
+            id="team-background-input"
+            accept="image/*,video/*"
+          />
+          <button type="button" class="secondary-button" id="team-background-upload-button">
+            T&eacute;l&eacute;verser un fichier
+          </button>
+          <span
+            id="team-background-status"
+            class="upload-feedback"
+            aria-live="polite"
+          ></span>
+        </div>
+        <div class="team-background-list-wrapper">
+          <h4>Arri&egrave;re-plans disponibles</h4>
+          <div id="team-background-list" class="team-background-list"></div>
+        </div>
+      </div>
+
+      <div class="team-card-settings">
+        <label for="team-card-duration">Dur&eacute;e approximative d'affichage d'une carte (s)</label>
+        <input
+          type="number"
+          id="team-card-duration"
+          min="0.5"
+          max="120"
+          step="0.1"
+          value="6"
+        />
+        <p class="field-hint">
+          Indiquez combien de secondes une carte reste visible, du moment o&ugrave; elle entre dans l'&eacute;cran jusqu'&agrave; sa sortie.
+        </p>
+      </div>
+
+      <div class="team-title">
+        <div class="team-title-header">
+          <h3>Titre</h3>
+          <label class="visibility-toggle">
+            <span class="visibility-toggle-label visibility-toggle-label-on">Activ&eacute;</span>
+            <div class="visibility-toggle-switch">
+              <input
+                id="team-title-enabled"
+                class="visibility-toggle-checkbox"
+                type="checkbox"
+                aria-label="Activer ou d&eacute;sactiver le titre"
+              />
+              <span class="visibility-toggle-slider"></span>
+            </div>
+            <span class="visibility-toggle-label visibility-toggle-label-off">D&eacute;sactiv&eacute;</span>
+          </label>
+        </div>
+
+        <div class="team-title-options" id="team-title-options">
+          <button
+            type="button"
+            class="team-title-options-toggle"
+            id="team-title-options-toggle"
+            aria-expanded="false"
+          >
+            <span>Options du titre</span>
+            <span class="toggle-icon">▼</span>
+          </button>
+          <div class="team-title-options-body">
+            <div class="form-row">
+              <label for="team-title-text">Texte du titre</label>
+              <input
+                type="text"
+                id="team-title-text"
+                placeholder="Ex. Notre &eacute;quipe en vedette"
+              />
+            </div>
+            <div class="form-row dual">
+              <div>
+                <label for="team-title-position">Emplacement</label>
+                <select id="team-title-position">
+                  <option value="top-left">Haut gauche</option>
+                  <option value="top-center">Haut centre</option>
+                  <option value="top-right">Haut droite</option>
+                  <option value="center">Centre</option>
+                  <option value="bottom-left">Bas gauche</option>
+                  <option value="bottom-center">Bas centre</option>
+                  <option value="bottom-right">Bas droite</option>
+                </select>
+              </div>
+              <div>
+                <label for="team-title-font-size">Taille du texte (px)</label>
+                <input
+                  type="number"
+                  id="team-title-font-size"
+                  min="8"
+                  max="200"
+                  step="1"
+                />
+              </div>
+            </div>
+            <div class="form-row dual">
+              <div>
+                <label for="team-title-color">Couleur du texte</label>
+                <input type="color" id="team-title-color" />
+              </div>
+              <div>
+                <label for="team-title-background-color">Fond du titre</label>
+                <input type="color" id="team-title-background-color" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-row">
+                <input type="checkbox" id="team-title-underline" />
+                <span>Soulign&eacute;</span>
+              </label>
+            </div>
+                  <div class="form-row">
+                    <label for="team-title-width">Largeur du texte (%)</label>
+                    <input
+                      type="number"
+                      id="team-title-width"
+                      min="10"
+                      max="100"
+                      step="1"
+                    />
+                  </div>
+                  <!-- La courbure du texte et d'autres options pourront être ajoutées ici plus tard -->
+                </div>
+              </div>
+            </div>
+
+      <div class="team-preview">
+        <h3>Aper&ccedil;u en direct</h3>
+        <p class="playlist-subtitle">
+          Aper&ccedil;u de la diapositive &laquo; Notre &Eacute;quipe &raquo; telle qu'elle appara&icirc;tra dans le diaporama.
+        </p>
+        <div class="team-preview-actions">
+          <button type="button" class="secondary-button" id="team-preview-refresh">
+            Rafra&icirc;chir l'aper&ccedil;u
+          </button>
+        </div>
+        <div class="team-preview-stage" id="team-preview-stage">
+          <!-- Aper&ccedil;u g&eacute;n&eacute;r&eacute; par JavaScript -->
+        </div>
+        <div class="team-actions">
+          <button type="button" class="primary-button" id="team-save-button">
+            Enregistrer les modifications
+          </button>
+          <span
+            id="team-save-status"
+            class="upload-feedback"
+            aria-live="polite"
+          ></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

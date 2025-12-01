@@ -1,0 +1,15 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Anniversaire · Cardinal TV{% endblock %}
+
+{% block page_title %}Anniversaire{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Paramétrez les variantes de la diapositive Anniversaire.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  {% include "partials/birthday_section.html" %}
+{% endblock %}

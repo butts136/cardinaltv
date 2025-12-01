@@ -1,0 +1,15 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Noël · Cardinal TV{% endblock %}
+
+{% block page_title %}Noël{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Configurez l'alerte automatique pour la période des fêtes de Noël.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  {% include "partials/christmas_section.html" %}
+{% endblock %}

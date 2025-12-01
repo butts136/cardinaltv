@@ -1,0 +1,85 @@
+<!-- Media preview modal (opens when clicking a thumbnail) -->
+<div id="media-modal" class="media-modal hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="media-modal-backdrop" data-modal-close></div>
+  <div class="media-modal-content">
+    <button type="button" class="media-modal-close" aria-label="Fermer">&times;</button>
+    <div class="media-modal-inner" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- Employee edit/create modal -->
+<div id="employee-modal" class="media-modal hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="media-modal-backdrop" data-employee-modal-close></div>
+  <div class="media-modal-content employee-modal-content">
+    <button type="button" class="media-modal-close" aria-label="Fermer" data-employee-modal-close>&times;</button>
+    <div class="media-modal-inner employee-modal-inner">
+      <form id="employee-form" class="employee-form" autocomplete="off">
+        <input type="hidden" id="employee-id" />
+        <h2 id="employee-modal-title">Nouvel employ&eacute;</h2>
+        <div class="section-stack">
+          <div class="form-row">
+            <label for="employee-name">Nom complet *</label>
+            <input type="text" id="employee-name" required />
+          </div>
+
+          <div class="form-row">
+            <label for="employee-role">Poste</label>
+            <input type="text" id="employee-role" />
+          </div>
+
+          <div class="form-row">
+            <label for="employee-description">Description des t&acirc;ches</label>
+            <textarea id="employee-description" rows="3"></textarea>
+          </div>
+
+          <div class="form-row">
+            <label for="employee-birthday-day">Date d'anniversaire</label>
+            <div class="birthday-fields stacked-fields">
+              <select id="employee-birthday-year">
+                <option value="">Année (optionnel)</option>
+              </select>
+              <select id="employee-birthday-month">
+                <option value="">Mois</option>
+              </select>
+              <select id="employee-birthday-day">
+                <option value="">Jour</option>
+              </select>
+            </div>
+            <p class="hint">Optionnel, pour calculer l'ancienneté et les anniversaires.</p>
+          </div>
+
+          <div class="form-row">
+            <label>Embauche</label>
+            <div class="hire-fields stacked-fields">
+              <select id="employee-hire-year">
+                <option value="">Année</option>
+              </select>
+              <select id="employee-hire-month">
+                <option value="">Mois</option>
+              </select>
+              <select id="employee-hire-day">
+                <option value="">Jour</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label for="employee-avatar">Avatar</label>
+            <div class="employee-avatar-preview-wrapper">
+              <img id="employee-avatar-preview" class="hidden" alt="Avatar actuel de l'employé" />
+              <input type="file" id="employee-avatar" accept="image/*" />
+              <button type="button" class="secondary-button danger" id="employee-avatar-remove">
+                Supprimer l'avatar
+              </button>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-button">Enregistrer</button>
+            <button type="button" class="secondary-button" id="employee-cancel">Annuler</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

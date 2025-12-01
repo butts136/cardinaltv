@@ -1,0 +1,15 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Changement d'heure · Cardinal TV{% endblock %}
+
+{% block page_title %}Changement d'heure{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Configurez l'alerte automatique pour le passage à l'heure d'été ou d'hiver.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  {% include "partials/time_change_section.html" %}
+{% endblock %}

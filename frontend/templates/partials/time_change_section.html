@@ -1,0 +1,242 @@
+<section class="card time-change-section" id="time-change-section">
+  <div class="section-header">
+    <div>
+      <h2>Annonce Changement d'heure (Été / Hiver)</h2>
+      <p class="playlist-subtitle">
+        Alerte auto-générée basée sur les dates officielles (Internet).
+      </p>
+    </div>
+  </div>
+  <div class="section-content">
+    <div class="time-change-stack">
+      <!-- Statut -->
+      <div class="birthday-panel">
+        <div class="time-change-toggle-row">
+          <h3>Statut</h3>
+          <div class="time-change-toggle-control">
+            <span class="time-change-toggle-text">Diapositive «&nbsp;Changement d'heure&nbsp;»</span>
+            <label class="visibility-toggle">
+              <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
+              <div class="visibility-toggle-switch">
+                <input
+                  id="time-change-enabled"
+                  class="visibility-toggle-checkbox"
+                  type="checkbox"
+                  aria-label="Activer ou désactiver la diapositive Changement d'heure"
+                />
+                <span class="visibility-toggle-slider"></span>
+              </div>
+              <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-row dual">
+          <div>
+            <label for="time-change-days-before">Afficher combien de jours avant</label>
+            <input type="number" id="time-change-days-before" min="0" max="60" step="1" value="7" />
+            <p class="field-hint">Par défaut 7 jours avant la date officielle.</p>
+          </div>
+          <div>
+            <label for="time-change-duration">Durée (s)</label>
+            <input type="number" id="time-change-duration" min="5" max="180" step="1" />
+            <p class="field-hint">Temps d'affichage de la diapositive.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrière-plan -->
+      <details class="birthday-panel collapsible time-change-background" aria-label="Arrière-plans">
+        <summary>
+          <div class="time-change-background-header">
+            <div>
+              <h3>Arrière-plans</h3>
+              <p class="playlist-subtitle">Téléversez ou choisissez un fond.</p>
+            </div>
+            <button
+              type="button"
+              class="birthday-background-toggle"
+              id="time-change-background-toggle"
+              aria-label="Basculer les options d'arrière-plan"
+            >
+              <span class="toggle-icon">▼</span>
+            </button>
+          </div>
+        </summary>
+        <div class="time-change-background-body">
+          <div class="time-change-background-upload">
+            <label for="time-change-background-input" id="time-change-drop-zone" class="birthday-drop-zone">
+              <span class="drop-zone-title">Cliquez ou déposez votre image/vidéo</span>
+              <span class="drop-zone-subtitle">Format image ou vidéo (fond Changement d'heure)</span>
+            </label>
+            <input type="file" id="time-change-background-input" accept="image/*,video/*" />
+            <button
+              type="button"
+              class="secondary-button"
+              id="time-change-background-upload-button"
+            >
+              Téléverser
+            </button>
+            <span
+              id="time-change-background-status"
+              class="upload-feedback"
+              aria-live="polite"
+            ></span>
+          </div>
+          <div class="time-change-background-list-wrapper">
+            <p class="playlist-subtitle small">Bibliothèque des fonds</p>
+            <div id="time-change-background-list" class="team-background-list birthday-background-list"></div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Prochain changement d'heure -->
+      <div class="birthday-panel time-change-next-card">
+        <div class="time-change-next-header">
+          <div>
+            <h3 class="time-change-next-title">Prochain changement d'heure</h3>
+            <p class="time-change-next-subtitle" id="time-change-next-subtitle">
+              En attente des données officielles…
+            </p>
+          </div>
+          <div class="time-change-next-actions">
+            <button type="button" class="secondary-button" id="time-change-show-upcoming">Voir les 4 prochaines</button>
+            <button type="button" class="secondary-button" id="time-change-refresh">Actualiser</button>
+          </div>
+        </div>
+        <div id="time-change-upcoming-list" class="time-change-upcoming-list" hidden>
+          <!-- Liste des 4 prochaines dates générée en JS -->
+        </div>
+      </div>
+
+      <!-- Aperçu de la diapositive -->
+      <div class="birthday-preview birthday-panel">
+        <h3>Aperçu de la diapositive</h3>
+        <div class="time-change-preview-stage" id="time-change-preview-stage">
+          <!-- Aperçu généré en JS -->
+        </div>
+        <div class="birthday-preview-actions">
+          <button type="button" class="secondary-button" id="time-change-preview-refresh">Rafraîchir l'aperçu</button>
+          <button type="button" class="primary-button" id="time-change-save">Enregistrer</button>
+        </div>
+        <span id="time-change-status" class="upload-feedback" aria-live="polite"></span>
+      </div>
+
+      <!-- Textes -->
+      <details class="birthday-panel collapsible time-change-text-panel" aria-label="Textes">
+        <summary>
+          <div class="time-change-lines-header">
+            <div>
+              <p class="time-change-next-title">Textes affichés</p>
+              <ul class="playlist-subtitle small time-change-variables">
+                <li><code>[change_weekday]</code> : Jour de la semaine (ex. dimanche)</li>
+                <li><code>[change_date]</code> : Date complète (ex. 3 mars 2025)</li>
+                <li><code>[change_time]</code> : Heure locale du changement (ex. 02:00)</li>
+                <li><code>[direction_verb]</code> : “avancer” ou “reculer”</li>
+                <li><code>[offset_hours]</code> : Décalage en heures (ex. 1)</li>
+                <li><code>[offset_from]</code> : Offset de départ (ex. -05:00)</li>
+                <li><code>[offset_to]</code> : Offset d’arrivée (ex. -04:00)</li>
+                <li><code>[days_until]</code> / <code>[days_left]</code> : Jours restants avant le changement</li>
+                <li><code>[days_label]</code> : “jour” ou “jours” selon le compte</li>
+                <li><code>[season_label]</code> : Libellé saison avec la préposition (ex. d’été / d’hiver)</li>
+                <li><code>[seasons]</code> : Saison seule (ex. été ou hiver)</li>
+              </ul>
+            </div>
+          </div>
+        </summary>
+        <div class="birthday-variant-fields">
+          <div id="time-change-text-list" class="time-change-lines-list birthday-text-list"></div>
+          <div class="birthday-text-footer">
+            <button type="button" class="secondary-button birthday-text-add" id="time-change-text-add">Ajouter un texte</button>
+          </div>
+          <template id="time-change-text-template">
+            <div class="birthday-text-block" data-line="">
+              <div class="birthday-text-header">
+                <label class="birthday-text-label" for="">Texte</label>
+                <div class="birthday-text-actions">
+                  <button
+                    type="button"
+                    class="text-options-toggle"
+                    aria-expanded="false"
+                    aria-controls=""
+                    title="Options de texte"
+                  >
+                    ⚙
+                  </button>
+                  <button
+                    type="button"
+                    class="text-remove-button birthday-text-remove"
+                    title="Supprimer ce texte"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <textarea data-role="text" placeholder="(Texte)" rows="2"></textarea>
+              <div class="birthday-text-options" data-role="options-panel" hidden>
+                <div class="form-row dual">
+                  <div>
+                    <label data-role="label-size">Taille (px)</label>
+                    <input type="number" data-role="size" min="8" max="150" step="1" />
+                  </div>
+                  <div class="color-picker">
+                    <label data-role="label-color">Couleur</label>
+                    <div class="color-chip-group">
+                      <button type="button" class="color-chip" data-role="color-chip" aria-label="Choisir la couleur">
+                        <span class="color-chip-swatch" data-role="color-swatch"></span>
+                      </button>
+                      <span class="color-chip-value" data-role="color-value">#ffffff</span>
+                      <input type="color" data-role="color" class="color-input-hidden" />
+                    </div>
+                  </div>
+                </div>
+                <div class="form-row dual">
+                  <div>
+                    <label data-role="label-font">Police</label>
+                    <select data-role="font-select" class="birthday-font-select"></select>
+                    <input type="hidden" data-role="font" />
+                  </div>
+                  <div>
+                    <label class="checkbox-row" data-role="label-underline">
+                      <input type="checkbox" data-role="underline" />
+                      <span>Souligné</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="form-row dual">
+                  <div>
+                    <label data-role="label-width">Largeur (%)</label>
+                    <input type="number" data-role="width" min="10" max="100" step="1" />
+                  </div>
+                  <div>
+                    <label data-role="label-height">Hauteur (%)</label>
+                    <input type="number" data-role="height" min="0" max="100" step="1" />
+                  </div>
+                </div>
+                <div class="form-row dual">
+                  <div>
+                    <label data-role="label-offset-x">Emplacement X (%)</label>
+                    <input type="number" data-role="offset-x" min="-200" max="200" step="1" />
+                  </div>
+                  <div>
+                    <label data-role="label-offset-y">Emplacement Y (%)</label>
+                    <input type="number" data-role="offset-y" min="-200" max="200" step="1" />
+                  </div>
+                </div>
+                <div class="form-row dual">
+                  <div>
+                    <label data-role="label-curve">Courbure</label>
+                    <input type="number" data-role="curve" min="0" max="100" step="1" />
+                  </div>
+                  <div>
+                    <label data-role="label-angle">Angle (deg)</label>
+                    <input type="number" data-role="angle" min="-180" max="180" step="1" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>

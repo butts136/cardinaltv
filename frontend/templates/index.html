@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Cardinal TV • Accueil{% endblock %}
+
+{% block page_title %}Accueil{% endblock %}
+
+{% block page_subtitle %}
+  <p class="page-subtitle">Pilotez le diaporama, les médias et les présentations à partir d'un même tableau.</p>
+{% endblock %}
+
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Éditeur des médias</a>
+{% endblock %}
+
+{% block content %}
+  <div class="content-grid">
+    <section class="card diaporama-card" id="home-diaporama">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Diaporama</p>
+          <h2>Commandes rapides</h2>
+          <p class="playlist-subtitle">Lancez l'affichage ou ouvrez l'éditeur détaillé.</p>
+        </div>
+        <div class="header-actions">
+          <button id="slideshow-button" class="primary-button">Lancer le diaporama</button>
+          <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Modifier les médias</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="card powerpoint-card" id="powerpoint-section">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Ressources</p>
+          <h2>PowerPoint</h2>
+          <p class="playlist-subtitle">Téléversez des présentations PowerPoint (.ppt, .pptx).</p>
+        </div>
+        <div class="header-actions">
+          <button id="ppt-upload-button" class="secondary-button">Téléverser</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="ppt-list" class="media-grid">
+          <!-- Les présentations seront listées ici par JS -->
+        </div>
+      </div>
+    </section>
+  </div>
+{% endblock %}
+
+{% block modals %}
+  <!-- Powerpoint upload modal -->
+  <div id="ppt-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-overlay" data-modal-close="true"></div>
+    <div class="modal-content">
+      <header class="modal-header">
+        <h3>Téléverser une présentation PowerPoint</h3>
+        <button class="modal-close" data-modal-close="true" aria-label="Fermer">✕</button>
+      </header>
+      <div class="modal-body">
+        <form id="ppt-upload-form" enctype="multipart/form-data">
+          <label for="ppt-file-input">Fichiers (ppt, pptx, pps, ppsx)</label>
+          <input id="ppt-file-input" name="files" type="file" accept=".ppt,.pptx,.pps,.ppsx" multiple />
+          <div id="ppt-upload-feedback" class="upload-feedback" aria-live="polite"></div>
+          <div id="ppt-upload-progress" class="upload-progress hidden" aria-live="polite">
+            <div class="upload-progress-track">
+              <div class="upload-progress-bar" id="ppt-upload-progress-bar"></div>
+            </div>
+            <div class="upload-progress-status" id="ppt-upload-progress-text"></div>
+          </div>
+          <div class="modal-actions">
+            <button type="submit" class="primary-button">Téléverser</button>
+            <button type="button" class="secondary-button" data-modal-close="true">Annuler</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

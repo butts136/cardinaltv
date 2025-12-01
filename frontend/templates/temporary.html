@@ -1,0 +1,15 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Messages temporaires · Cardinal TV{% endblock %}
+
+{% block page_title %}Messages temporaires{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Créez et planifiez des diapositives temporaires avec texte, images ou vidéo.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  {% include "partials/temporary_section.html" %}
+{% endblock %}

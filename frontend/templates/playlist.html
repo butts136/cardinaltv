@@ -1,0 +1,19 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Playlist · Cardinal TV{% endblock %}
+
+{% block page_title %}Playlist des médias{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Réorganisez, activez/désactivez et prévisualisez vos médias.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  {% include "partials/playlist_section.html" %}
+{% endblock %}
+
+{% block modals %}
+  {% include "partials/modals.html" %}
+{% endblock %}

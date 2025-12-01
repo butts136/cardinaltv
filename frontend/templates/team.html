@@ -1,0 +1,15 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Notre Équipe · Cardinal TV{% endblock %}
+
+{% block page_title %}Notre Équipe{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Activez et personnalisez la diapositive auto-générée de l'équipe.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  {% include "partials/team_section.html" %}
+{% endblock %}

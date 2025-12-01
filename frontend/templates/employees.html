@@ -1,0 +1,19 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Employés · Cardinal TV{% endblock %}
+
+{% block page_title %}Employés{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Gérez la base d'employés utilisée pour les slides automatisées.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  {% include "partials/employees_section.html" %}
+{% endblock %}
+
+{% block modals %}
+  {% include "partials/modals.html" %}
+{% endblock %}

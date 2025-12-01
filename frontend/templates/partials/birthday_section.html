@@ -9,11 +9,6 @@
   <div class="section-content">
     <!-- Type de diapositive -->
     <div class="birthday-type-inline" aria-label="Type de diapositive">
-      <div>
-        <h3>Type de diapositive</h3>
-        <p class="playlist-subtitle">Statut + choix du gabarit</p>
-      </div>
-
       <div class="birthday-toggle-row">
         <h3>Diapositive &laquo; Anniversaire &raquo;</h3>
         <div class="birthday-toggle-control">
@@ -206,88 +201,94 @@
             <li><code>[date]</code> : Date de l'anniversaire (ex. 4 juin 2025)</li>
           </ul>
         </div>
-        {% for line in [1,2,3] %}
-        <div class="birthday-text-block" data-line="{{ line }}">
-          <div class="birthday-text-header">
-            <label for="birthday-variant-text{{ line }}">Texte {{ line }}</label>
-            <div class="birthday-text-actions">
-              <button
-                type="button"
-                class="text-options-toggle"
-                data-line="{{ line }}"
-                aria-expanded="false"
-                aria-controls="birthday-text-options-{{ line }}"
-                title="Options du texte {{ line }}"
-              >
-                ⚙
-              </button>
-              <button
-                type="button"
-                class="text-remove-button birthday-text-remove"
-                data-line="{{ line }}"
-                title="Supprimer ce texte"
-              >
-                ✕
-              </button>
+        <div class="birthday-text-list" id="birthday-text-list"></div>
+        <template id="birthday-text-template">
+          <div class="birthday-text-block" data-line="">
+            <div class="birthday-text-header">
+              <label class="birthday-text-label" for="">Texte</label>
+              <div class="birthday-text-actions">
+                <button
+                  type="button"
+                  class="text-options-toggle"
+                  aria-expanded="false"
+                  aria-controls=""
+                  title="Options de texte"
+                >
+                  ⚙
+                </button>
+                <button
+                  type="button"
+                  class="text-remove-button birthday-text-remove"
+                  title="Supprimer ce texte"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <textarea data-role="text" placeholder="(Texte)" rows="2"></textarea>
+            <div class="birthday-text-options" data-role="options-panel" hidden>
+              <div class="form-row dual">
+                <div>
+                  <label data-role="label-size">Taille (px)</label>
+                  <input type="number" data-role="size" min="8" max="150" step="1" />
+                </div>
+                <div class="color-picker">
+                  <label data-role="label-color">Couleur</label>
+                  <div class="color-chip-group">
+                    <button type="button" class="color-chip" data-role="color-chip" aria-label="Choisir la couleur">
+                      <span class="color-chip-swatch" data-role="color-swatch"></span>
+                    </button>
+                    <span class="color-chip-value" data-role="color-value">#ffffff</span>
+                    <input type="color" data-role="color" class="color-input-hidden" />
+                  </div>
+                </div>
+              </div>
+              <div class="form-row dual">
+                <div>
+                  <label data-role="label-font">Police</label>
+                  <select data-role="font-select" class="birthday-font-select"></select>
+                  <input type="hidden" data-role="font" />
+                </div>
+                <div>
+                  <label class="checkbox-row" data-role="label-underline">
+                    <input type="checkbox" data-role="underline" />
+                    <span>Souligné</span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-row dual">
+                <div>
+                  <label data-role="label-width">Largeur (%)</label>
+                  <input type="number" data-role="width" min="10" max="100" step="1" />
+                </div>
+                <div>
+                  <label data-role="label-height">Hauteur (%)</label>
+                  <input type="number" data-role="height" min="0" max="100" step="1" />
+                </div>
+              </div>
+              <div class="form-row dual">
+                <div>
+                  <label data-role="label-offset-x">Emplacement X (%)</label>
+                  <input type="number" data-role="offset-x" min="-200" max="200" step="1" />
+                </div>
+                <div>
+                  <label data-role="label-offset-y">Emplacement Y (%)</label>
+                  <input type="number" data-role="offset-y" min="-200" max="200" step="1" />
+                </div>
+              </div>
+              <div class="form-row dual">
+                <div>
+                  <label data-role="label-curve">Courbure</label>
+                  <input type="number" data-role="curve" min="0" max="100" step="1" />
+                </div>
+                <div>
+                  <label data-role="label-angle">Angle (deg)</label>
+                  <input type="number" data-role="angle" min="-180" max="180" step="1" />
+                </div>
+              </div>
             </div>
           </div>
-          <textarea id="birthday-variant-text{{ line }}" placeholder="(Texte {{ line }})" rows="2"></textarea>
-          <div class="birthday-text-options" id="birthday-text-options-{{ line }}" data-line="{{ line }}" hidden>
-            <div class="form-row dual">
-              <div>
-                <label for="text{{ line }}-size">Taille (px)</label>
-                <input type="number" id="text{{ line }}-size" min="8" max="150" step="1" />
-              </div>
-              <div>
-                <label for="text{{ line }}-color">Couleur</label>
-                <input type="color" id="text{{ line }}-color" />
-              </div>
-            </div>
-            <div class="form-row dual">
-              <div>
-                <label for="text{{ line }}-font">Police</label>
-                <input type="text" id="text{{ line }}-font" placeholder="Ex. Poppins, sans-serif" />
-              </div>
-              <div>
-                <label for="text{{ line }}-underline" class="checkbox-row">
-                  <input type="checkbox" id="text{{ line }}-underline" />
-                  <span>Souligné</span>
-                </label>
-              </div>
-            </div>
-            <div class="form-row dual">
-              <div>
-                <label for="text{{ line }}-width">Largeur (%)</label>
-                <input type="number" id="text{{ line }}-width" min="10" max="100" step="1" />
-              </div>
-              <div>
-                <label for="text{{ line }}-height">Hauteur (%)</label>
-                <input type="number" id="text{{ line }}-height" min="0" max="100" step="1" />
-              </div>
-            </div>
-            <div class="form-row dual">
-              <div>
-                <label for="text{{ line }}-offset-x">Emplacement X (%)</label>
-                <input type="number" id="text{{ line }}-offset-x" min="-200" max="200" step="1" />
-              </div>
-              <div>
-                <label for="text{{ line }}-offset-y">Emplacement Y (%)</label>
-                <input type="number" id="text{{ line }}-offset-y" min="-200" max="200" step="1" />
-              </div>
-            </div>
-            <div class="form-row dual">
-              <div>
-                <label for="text{{ line }}-curve">Courbure</label>
-                <input type="number" id="text{{ line }}-curve" min="0" max="100" step="1" />
-              </div>
-              <div>
-                <label for="text{{ line }}-angle">Angle (deg)</label>
-                <input type="number" id="text{{ line }}-angle" min="-180" max="180" step="1" />
-              </div>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
+        </template>
       </div>
       <div class="birthday-text-footer">
         <button type="button" class="secondary-button birthday-text-add" id="birthday-text-add">Ajouter un texte</button>

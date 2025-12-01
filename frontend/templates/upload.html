@@ -1,0 +1,15 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Téléversement · Cardinal TV{% endblock %}
+
+{% block page_title %}Téléversement{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Ajoutez des médias à la playlist du diaporama.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  {% include "partials/upload_section.html" %}
+{% endblock %}

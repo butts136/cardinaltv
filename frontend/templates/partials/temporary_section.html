@@ -1,0 +1,93 @@
+<section class="card temp-card" id="temporary-slides">
+  <div class="section-header">
+    <div>
+      <h2>Messages temporaires</h2>
+      <p class="playlist-subtitle">Cr&eacute;ez des diapos auto-destructibles avec texte, images ou vid&eacute;o.</p>
+    </div>
+    <div class="header-actions">
+      <button id="temp-slide-new" class="primary-button" type="button">Nouvelle diapositive</button>
+      <button id="temp-slide-save" class="secondary-button" type="button">Enregistrer la diapositive</button>
+    </div>
+  </div>
+  <div class="section-content">
+    <div class="temp-layout">
+      <aside class="temp-sidebar">
+        <h3>Diapositives programm&eacute;es</h3>
+        <ul id="temp-slide-list" class="temp-slide-list" aria-live="polite"></ul>
+        <div class="temp-sidebar-actions">
+          <button id="temp-slide-duplicate" class="secondary-button" type="button">Dupliquer</button>
+          <button id="temp-slide-delete" class="secondary-button danger" type="button">Supprimer</button>
+        </div>
+      </aside>
+      <div class="temp-editor">
+        <form id="temp-slide-form" autocomplete="off">
+          <input type="hidden" id="temp-slide-id" />
+          <div class="form-row">
+            <label for="temp-slide-label">Titre interne</label>
+            <input type="text" id="temp-slide-label" placeholder="Ex. Rencontre dans la caf&eacute;t&eacute;ria" />
+          </div>
+          <div class="form-row dual">
+            <div>
+              <label for="temp-slide-start">D&eacute;but</label>
+              <input type="datetime-local" id="temp-slide-start" />
+            </div>
+            <div>
+              <label for="temp-slide-end">Fin</label>
+              <input type="datetime-local" id="temp-slide-end" />
+            </div>
+          </div>
+          <div class="form-row dual">
+            <div>
+              <label for="temp-slide-duration">Dur&eacute;e (s)</label>
+              <input type="number" id="temp-slide-duration" min="3" max="180" step="1" />
+            </div>
+            <div>
+              <label class="checkbox-row">
+                <input type="checkbox" id="temp-slide-muted" />
+                <span>Forcer la lecture muette</span>
+              </label>
+            </div>
+          </div>
+          <fieldset class="temp-background-fieldset">
+            <legend>Arri&egrave;re-plan</legend>
+            <div class="form-row dual">
+              <div>
+                <label for="temp-background-color">Couleur</label>
+                <input type="color" id="temp-background-color" />
+              </div>
+              <div>
+                <label for="temp-background-overlay">Voile (opacit&eacute;)</label>
+                <input type="range" id="temp-background-overlay" min="0" max="0.9" step="0.05" />
+              </div>
+            </div>
+            <label for="temp-background-upload">Image ou vid&eacute;o</label>
+            <input type="file" id="temp-background-upload" accept="image/*,video/*" />
+            <div class="temp-background-actions">
+              <button type="button" class="secondary-button" id="temp-background-remove">Retirer</button>
+              <span id="temp-background-status" class="upload-feedback" aria-live="polite"></span>
+            </div>
+          </fieldset>
+          <div class="temp-elements-toolbar">
+            <h3>Contenu</h3>
+            <div class="toolbar-buttons">
+              <button type="button" class="secondary-button" id="temp-add-text">Ajouter un texte</button>
+              <button type="button" class="secondary-button" id="temp-add-image">Ajouter une image</button>
+              <button type="button" class="secondary-button" id="temp-add-video">Ajouter une vid&eacute;o</button>
+            </div>
+          </div>
+          <div id="temp-elements-list" class="temp-elements-list"></div>
+        </form>
+        <div class="temp-preview">
+          <div class="temp-preview-stage" id="temp-preview-stage">
+            <video id="temp-preview-video" class="temp-preview-video" muted loop playsinline></video>
+            <img id="temp-preview-image" class="temp-preview-image" alt="" hidden />
+            <div id="temp-preview-overlay" class="temp-preview-overlay"></div>
+          </div>
+          <p class="temp-preview-hint">
+            Glissez les &eacute;l&eacute;ments directement dans l'aper&ccedil;u pour ajuster la position ou utilisez les valeurs num&eacute;riques.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

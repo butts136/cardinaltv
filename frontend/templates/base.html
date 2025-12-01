@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Cardinal TV{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body class="app-shell {% block body_class %}{% endblock %}" data-base-url="{{ url_for('main.index') }}">
+    <aside class="app-sidebar">
+      <div class="sidebar-brand">
+        <img src="{{ url_for('static', filename='img/logo-1.png') }}" alt="Cardinal TV" class="sidebar-logo" />
+        <div>
+          <p class="brand-kicker">Cardinal TV</p>
+          <p class="brand-title">Panneau de contrôle</p>
+        </div>
+      </div>
+
+      {% set endpoint = request.endpoint or "" %}
+      {% set diapo_endpoints = [
+        'main.slideshow_overview',
+        'main.upload',
+        'main.playlist',
+        'main.employees',
+        'main.team',
+        'main.birthday',
+        'main.time_change',
+        'main.christmas',
+        'main.temporary',
+      ] %}
+
+      <nav class="sidebar-nav" aria-label="Navigation principale">
+        <a
+          class="nav-link {% if endpoint == 'main.index' %}is-active{% endif %}"
+          href="{{ url_for('main.index') }}"
+          aria-current="{{ 'page' if endpoint == 'main.index' else 'false' }}"
+        >
+          <span>Accueil</span>
+        </a>
+
+        <div class="nav-group">
+          <p class="nav-group-label">Diaporama</p>
+          <a
+            class="nav-link {% if endpoint in diapo_endpoints %}is-active{% endif %}"
+            href="{{ url_for('main.slideshow_overview') }}"
+            aria-current="{{ 'page' if endpoint in diapo_endpoints else 'false' }}"
+          >
+            Vue générale
+          </a>
+          <a class="nav-sublink {% if endpoint == 'main.upload' %}is-active{% endif %}" href="{{ url_for('main.upload') }}">Téléversement</a>
+          <a class="nav-sublink {% if endpoint == 'main.playlist' %}is-active{% endif %}" href="{{ url_for('main.playlist') }}">Playlist</a>
+          <a class="nav-sublink {% if endpoint == 'main.employees' %}is-active{% endif %}" href="{{ url_for('main.employees') }}">Employés</a>
+          <a class="nav-sublink {% if endpoint == 'main.team' %}is-active{% endif %}" href="{{ url_for('main.team') }}">Notre Équipe</a>
+          <a class="nav-sublink {% if endpoint == 'main.birthday' %}is-active{% endif %}" href="{{ url_for('main.birthday') }}">Anniversaire</a>
+          <a class="nav-sublink {% if endpoint == 'main.time_change' %}is-active{% endif %}" href="{{ url_for('main.time_change') }}">Changement d'heure</a>
+          <a class="nav-sublink {% if endpoint == 'main.christmas' %}is-active{% endif %}" href="{{ url_for('main.christmas') }}">Noël</a>
+          <a class="nav-sublink {% if endpoint == 'main.temporary' %}is-active{% endif %}" href="{{ url_for('main.temporary') }}">Messages temporaires</a>
+        </div>
+
+        <div class="nav-group">
+          <p class="nav-group-label">Ressources</p>
+          <a class="nav-link" href="{{ url_for('main.index') }}#powerpoint-section">PowerPoint</a>
+        </div>
+      </nav>
+
+      <div class="sidebar-meta">
+        <div class="sidebar-meta-row">
+          <span class="meta-label">Québec</span>
+          <div class="time-display" id="quebec-time" aria-live="polite"></div>
+        </div>
+        <div class="sidebar-meta-row">
+          <span class="meta-label">Serveur</span>
+          <span class="meta-value">Port 39010</span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="app-surface">
+      <header class="page-header">
+        <div class="page-title">
+          <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Ouvrir la navigation">
+            ☰
+          </button>
+          <div>
+            <p class="eyebrow">Cardinal TV</p>
+            <h1>{% block page_title %}{% endblock %}</h1>
+            {% block page_subtitle %}{% endblock %}
+          </div>
+        </div>
+        <div class="header-controls">
+          {% block header_actions %}{% endblock %}
+        </div>
+      </header>
+
+      <main class="page-main layout">
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="page-footer">
+        <small>Cardinal TV · Interface locale</small>
+      </footer>
+    </div>
+
+    {% block modals %}{% endblock %}
+
+    <script>
+      (function () {
+        const toggle = document.getElementById("sidebar-toggle");
+        const shell = document.querySelector(".app-shell");
+        const sidebar = document.querySelector(".app-sidebar");
+        const navLinks = Array.from(document.querySelectorAll(".sidebar-nav a"));
+        const closeSidebar = () => {
+          if (shell?.classList.contains("sidebar-open")) {
+            shell.classList.remove("sidebar-open");
+          }
+        };
+
+        if (toggle && shell) {
+          toggle.addEventListener("click", (event) => {
+            event.stopPropagation();
+            shell.classList.toggle("sidebar-open");
+          });
+        }
+
+        navLinks.forEach((link) => {
+          link.addEventListener("click", () => closeSidebar());
+        });
+
+        const openHashSection = () => {
+          if (!window.location.hash) return;
+          try {
+            const target = document.querySelector(window.location.hash);
+            if (!target) return;
+            const card = target.classList?.contains("card") ? target : target.closest?.(".card");
+            if (!card) return;
+            card.classList.remove("collapsed");
+            const toggleBtn = card.querySelector?.(".section-toggle");
+            if (toggleBtn) {
+              toggleBtn.classList.add("expanded");
+              toggleBtn.setAttribute("aria-expanded", "true");
+            }
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+          } catch (error) {
+            /* hash may not be a valid selector */
+          }
+        };
+
+        window.addEventListener("hashchange", openHashSection);
+        openHashSection();
+
+        document.addEventListener("click", (event) => {
+          if (!shell?.classList.contains("sidebar-open")) return;
+          const target = event.target;
+          if (sidebar?.contains(target) || toggle?.contains(target)) return;
+          closeSidebar();
+        });
+      })();
+    </script>
+    {% block scripts %}
+      <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% endblock %}
+  </body>
+</html>

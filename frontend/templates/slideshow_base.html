@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
     {% block head_extra %}{% endblock %}
   </head>
-  <body class="slideshow-body">
+  <body class="slideshow-body" data-base-url="{{ url_for('main.index') }}">
     {% block slideshow_content %}{% endblock %}
 
     {% block body_scripts %}
