@@ -1,0 +1,299 @@
+<section class="card birthday-section" id="birthday-section">
+  <div class="section-header">
+    <div>
+      <h2>Anniversaire</h2>
+      <p class="playlist-subtitle">Activez la diapositive, choisissez un fond et personnalisez le texte.</p>
+    </div>
+  </div>
+
+  <div class="section-content">
+    <!-- Type de diapositive -->
+    <div class="birthday-type-inline" aria-label="Type de diapositive">
+      <div>
+        <h3>Type de diapositive</h3>
+        <p class="playlist-subtitle">Statut + choix du gabarit</p>
+      </div>
+
+      <div class="birthday-toggle-row">
+        <h3>Diapositive &laquo; Anniversaire &raquo;</h3>
+        <div class="birthday-toggle-control">
+          <span class="birthday-toggle-text">Statut&nbsp;:</span>
+          <label class="visibility-toggle">
+            <span class="visibility-toggle-label visibility-toggle-label-on">Activ&eacute;e</span>
+            <div class="visibility-toggle-switch">
+              <input
+                id="birthday-enabled"
+                class="visibility-toggle-checkbox"
+                type="checkbox"
+                aria-label="Activer ou d&eacute;sactiver la diapositive Anniversaire"
+              />
+              <span class="visibility-toggle-slider"></span>
+            </div>
+            <span class="visibility-toggle-label visibility-toggle-label-off">D&eacute;sactiv&eacute;e</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="birthday-variant-select">
+        <div class="birthday-variant-select-header">
+          <p class="birthday-variant-title">Type de diapositive</p>
+          <p class="birthday-variant-hint">Basculez entre les 3 gabarits auto-générés.</p>
+        </div>
+        <div class="birthday-variant-switch" role="group" aria-label="Types de diapositive anniversaire">
+          <button
+            type="button"
+            class="birthday-variant-pill is-active"
+            data-variant="before"
+            aria-pressed="true"
+          >
+            <span class="pill-kicker">J-quelques jours</span>
+            <span class="pill-title">Avant l'anniversaire</span>
+            <span class="pill-subtitle">Compte &agrave; rebours et teasing</span>
+          </button>
+          <button type="button" class="birthday-variant-pill" data-variant="day" aria-pressed="false">
+            <span class="pill-kicker">Jour J</span>
+            <span class="pill-title">Le grand jour</span>
+            <span class="pill-subtitle">Souhaitez l'anniversaire aujourd'hui</span>
+          </button>
+          <button type="button" class="birthday-variant-pill" data-variant="weekend" aria-pressed="false">
+            <span class="pill-kicker">Week-end</span>
+            <span class="pill-title">F&ecirc;te hors jours ouvrables</span>
+            <span class="pill-subtitle">Annoncer la f&ecirc;te le dernier jour ouvert</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="birthday-opening collapsed" hidden aria-hidden="true">
+        <div class="birthday-opening-header">
+          <div>
+            <p class="birthday-opening-title">Jours d'ouverture</p>
+            <p class="birthday-opening-hint">
+              Les anniversaires pr&eacute;vus un jour ferm&eacute; seront annonc&eacute;s le dernier jour ouvert choisi.
+            </p>
+          </div>
+          <div class="birthday-opening-actions">
+            <span class="birthday-opening-chip">Ouvert / Ferm&eacute;</span>
+            <button
+              type="button"
+              id="birthday-opening-toggle"
+              class="opening-toggle"
+              aria-label="Basculer la liste des jours d'ouverture"
+              aria-expanded="false"
+            >
+              ▼
+            </button>
+          </div>
+        </div>
+        <div class="birthday-opening-body collapsed">
+          <div class="birthday-opening-grid">
+            <button type="button" class="opening-day-card" data-open-day="monday" data-state="open" role="switch" aria-pressed="true" aria-checked="true" aria-label="Basculer l'ouverture du lundi">
+              <span class="opening-day-name">Lundi</span>
+              <span class="opening-day-state">
+                <span class="opening-dot" aria-hidden="true"></span>
+                <span class="opening-state-text">Ouvert</span>
+              </span>
+            </button>
+            <button type="button" class="opening-day-card" data-open-day="tuesday" data-state="open" role="switch" aria-pressed="true" aria-checked="true" aria-label="Basculer l'ouverture du mardi">
+              <span class="opening-day-name">Mardi</span>
+              <span class="opening-day-state">
+                <span class="opening-dot" aria-hidden="true"></span>
+                <span class="opening-state-text">Ouvert</span>
+              </span>
+            </button>
+            <button type="button" class="opening-day-card" data-open-day="wednesday" data-state="open" role="switch" aria-pressed="true" aria-checked="true" aria-label="Basculer l'ouverture du mercredi">
+              <span class="opening-day-name">Mercredi</span>
+              <span class="opening-day-state">
+                <span class="opening-dot" aria-hidden="true"></span>
+                <span class="opening-state-text">Ouvert</span>
+              </span>
+            </button>
+            <button type="button" class="opening-day-card" data-open-day="thursday" data-state="open" role="switch" aria-pressed="true" aria-checked="true" aria-label="Basculer l'ouverture du jeudi">
+              <span class="opening-day-name">Jeudi</span>
+              <span class="opening-day-state">
+                <span class="opening-dot" aria-hidden="true"></span>
+                <span class="opening-state-text">Ouvert</span>
+              </span>
+            </button>
+            <button type="button" class="opening-day-card" data-open-day="friday" data-state="open" role="switch" aria-pressed="true" aria-checked="true" aria-label="Basculer l'ouverture du vendredi">
+              <span class="opening-day-name">Vendredi</span>
+              <span class="opening-day-state">
+                <span class="opening-dot" aria-hidden="true"></span>
+                <span class="opening-state-text">Ouvert</span>
+              </span>
+            </button>
+            <button type="button" class="opening-day-card" data-open-day="saturday" data-state="closed" role="switch" aria-pressed="false" aria-checked="false" aria-label="Basculer l'ouverture du samedi">
+              <span class="opening-day-name">Samedi</span>
+              <span class="opening-day-state">
+                <span class="opening-dot" aria-hidden="true"></span>
+                <span class="opening-state-text">Ferm&eacute;</span>
+              </span>
+            </button>
+            <button type="button" class="opening-day-card" data-open-day="sunday" data-state="closed" role="switch" aria-pressed="false" aria-checked="false" aria-label="Basculer l'ouverture du dimanche">
+              <span class="opening-day-name">Dimanche</span>
+              <span class="opening-day-state">
+                <span class="opening-dot" aria-hidden="true"></span>
+                <span class="opening-state-text">Ferm&eacute;</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrière-plan -->
+    <details class="birthday-background birthday-panel collapsible" aria-label="Arrière-plans">
+      <summary>
+        <div class="birthday-background-header">
+          <div>
+            <h3>Arri&egrave;re-plans</h3>
+            <p class="playlist-subtitle">Téléversez ou choisissez un fond.</p>
+          </div>
+        </div>
+      </summary>
+      <div class="birthday-background-body">
+        <div class="birthday-background-upload">
+          <label for="birthday-background-input" id="birthday-drop-zone" class="birthday-drop-zone">
+            <span class="drop-zone-title">Cliquez ou d&eacute;posez votre image/vid&eacute;o</span>
+            <span class="drop-zone-subtitle">Format image ou vid&eacute;o (fond Anniversaire)</span>
+          </label>
+          <input type="file" id="birthday-background-input" accept="image/*,video/*" />
+          <div class="upload-progress" id="birthday-upload-progress" aria-hidden="true">
+            <div class="upload-progress-bar" id="birthday-upload-progress-bar"></div>
+            <span class="upload-progress-text" id="birthday-upload-progress-text">0%</span>
+          </div>
+          <span
+            id="birthday-background-status"
+            class="upload-feedback"
+            aria-live="polite"
+          ></span>
+        </div>
+        <div class="birthday-background-list-wrapper">
+          <p class="playlist-subtitle small">Biblioth&egrave;que des fonds</p>
+          <div id="birthday-background-list" class="team-background-list birthday-background-list"></div>
+        </div>
+      </div>
+    </details>
+
+    <!-- Aperçu -->
+    <div class="birthday-preview birthday-panel">
+      <h3>Aper&ccedil;u en direct</h3>
+      <p class="playlist-subtitle">Visualisez la diapositive Anniversaire telle qu'elle appara&icirc;t dans le diaporama.</p>
+      <div class="birthday-preview-stage" id="birthday-preview-stage"></div>
+      <div class="birthday-preview-actions">
+        <button type="button" class="secondary-button" id="birthday-preview-refresh">Rafra&icirc;chir l'aper&ccedil;u</button>
+        <button type="button" class="primary-button" id="birthday-variant-save">Sauvegarder le mod&egrave;le</button>
+      </div>
+    </div>
+
+    <!-- Texte -->
+    <details class="birthday-text-panel birthday-panel collapsible" aria-label="Textes">
+      <summary>
+        <div class="birthday-background-header">
+          <div>
+            <h3>Textes</h3>
+            <p class="playlist-subtitle">Modifiez les contenus et leurs options.</p>
+          </div>
+        </div>
+      </summary>
+      <div class="birthday-variant-fields">
+        <div class="birthday-legend">
+          <p class="birthday-legend-title">Variables disponibles :</p>
+          <ul>
+            <li><code>[name]</code> : Pr&eacute;nom/nom de la personne</li>
+            <li><code>[days]</code> : Jours restants avant l'anniversaire</li>
+            <li><code>[day_label]</code> : "jour" ou "jours" selon le compte</li>
+            <li><code>[birthday_weekday]</code> : Jour de l'anniversaire (ex. Dimanche)</li>
+            <li><code>[date]</code> : Date de l'anniversaire (ex. 4 juin 2025)</li>
+          </ul>
+        </div>
+        {% for line in [1,2,3] %}
+        <div class="birthday-text-block" data-line="{{ line }}">
+          <div class="birthday-text-header">
+            <label for="birthday-variant-text{{ line }}">Texte {{ line }}</label>
+            <div class="birthday-text-actions">
+              <button
+                type="button"
+                class="text-options-toggle"
+                data-line="{{ line }}"
+                aria-expanded="false"
+                aria-controls="birthday-text-options-{{ line }}"
+                title="Options du texte {{ line }}"
+              >
+                ⚙
+              </button>
+              <button
+                type="button"
+                class="text-remove-button birthday-text-remove"
+                data-line="{{ line }}"
+                title="Supprimer ce texte"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+          <textarea id="birthday-variant-text{{ line }}" placeholder="(Texte {{ line }})" rows="2"></textarea>
+          <div class="birthday-text-options" id="birthday-text-options-{{ line }}" data-line="{{ line }}" hidden>
+            <div class="form-row dual">
+              <div>
+                <label for="text{{ line }}-size">Taille (px)</label>
+                <input type="number" id="text{{ line }}-size" min="8" max="150" step="1" />
+              </div>
+              <div>
+                <label for="text{{ line }}-color">Couleur</label>
+                <input type="color" id="text{{ line }}-color" />
+              </div>
+            </div>
+            <div class="form-row dual">
+              <div>
+                <label for="text{{ line }}-font">Police</label>
+                <input type="text" id="text{{ line }}-font" placeholder="Ex. Poppins, sans-serif" />
+              </div>
+              <div>
+                <label for="text{{ line }}-underline" class="checkbox-row">
+                  <input type="checkbox" id="text{{ line }}-underline" />
+                  <span>Souligné</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-row dual">
+              <div>
+                <label for="text{{ line }}-width">Largeur (%)</label>
+                <input type="number" id="text{{ line }}-width" min="10" max="100" step="1" />
+              </div>
+              <div>
+                <label for="text{{ line }}-height">Hauteur (%)</label>
+                <input type="number" id="text{{ line }}-height" min="0" max="100" step="1" />
+              </div>
+            </div>
+            <div class="form-row dual">
+              <div>
+                <label for="text{{ line }}-offset-x">Emplacement X (%)</label>
+                <input type="number" id="text{{ line }}-offset-x" min="-200" max="200" step="1" />
+              </div>
+              <div>
+                <label for="text{{ line }}-offset-y">Emplacement Y (%)</label>
+                <input type="number" id="text{{ line }}-offset-y" min="-200" max="200" step="1" />
+              </div>
+            </div>
+            <div class="form-row dual">
+              <div>
+                <label for="text{{ line }}-curve">Courbure</label>
+                <input type="number" id="text{{ line }}-curve" min="0" max="100" step="1" />
+              </div>
+              <div>
+                <label for="text{{ line }}-angle">Angle (deg)</label>
+                <input type="number" id="text{{ line }}-angle" min="-180" max="180" step="1" />
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="birthday-text-footer">
+        <button type="button" class="secondary-button birthday-text-add" id="birthday-text-add">Ajouter un texte</button>
+      </div>
+    </details>
+
+    <div class="birthday-title-settings"></div>
+  </div>
+</section>

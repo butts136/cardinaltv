@@ -13,6 +13,7 @@ import subprocess
 import sys
 import uuid
 import base64
+import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from threading import RLock
@@ -32,6 +33,9 @@ except ImportError:  # pragma: no cover - waitress is optional in development
     waitress_serve = None
 
 BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIR = BASE_DIR / "frontend"
+FRONTEND_STATIC_DIR = FRONTEND_DIR / "static"
+FRONTEND_TEMPLATES_DIR = FRONTEND_DIR / "templates"
 DATA_DIR = BASE_DIR / "data"
 MEDIA_DIR = DATA_DIR / "images"
 STATE_FILE = DATA_DIR / "media.json"
@@ -44,6 +48,11 @@ TEMP_SLIDE_ASSETS_DIR = DATA_DIR / "temporary_assets"
 TEAM_SLIDE_ASSETS_DIR = DATA_DIR / "team_slide_assets"
 BIRTHDAY_SLIDE_ASSETS_DIR = DATA_DIR / "birthday" / "background"
 BIRTHDAY_SLIDE_CONFIG_DIR = DATA_DIR / "birthday" / "config_slides"
+BIRTHDAY_FONT_DIR = DATA_DIR / "birthday" / "fonts"
+TIME_CHANGE_SLIDE_ASSETS_DIR = DATA_DIR / "time_change" / "background"
+TIME_CHANGE_CONFIG_FILE = DATA_DIR / "time_change" / "config.json"
+CHRISTMAS_SLIDE_ASSETS_DIR = DATA_DIR / "christmas" / "background"
+CHRISTMAS_CONFIG_FILE = DATA_DIR / "christmas" / "config.json"
 DEFAULT_DURATION_SECONDS = 10
 QUEBEC_TZ = ZoneInfo("America/Toronto")
 TEXT_IMAGE_WIDTH = 1920
@@ -131,6 +140,84 @@ DEFAULT_SETTINGS = {
             "sunday": False,
         },
     },
+    "time_change_slide": {
+        "enabled": False,
+        "order_index": 0,
+        "duration": 12.0,
+        "background_path": None,
+        "background_mimetype": None,
+        # Nombre de jours d'anticipation avant l'affichage de la diapositive.
+        "days_before": 7,
+        "offset_hours": 1.0,
+        "title_text": "Annonce Changement d'heure (Été / Hiver)",
+        "message_template": (
+            "Le [change_weekday] [change_date] à [change_time], on va [direction_verb] "
+            "l'heure de [offset_hours]h (de [offset_from] à [offset_to]). Il reste "
+            "[days_until] [days_label] avant l'heure [season_label]."
+        ),
+        "title_font_size": 42.0,
+        "message_font_size": 24.0,
+        "meta_font_size": 18.0,
+        "text_color": "#f8fafc",
+        "text1": "Annonce Changement d'heure (Été / Hiver)",
+        "text2": (
+            "Le [change_weekday] [change_date] à [change_time], on va [direction_verb] "
+            "l'heure de [offset_hours]h (de [offset_from] à [offset_to])."
+        ),
+        "text3": "Il reste [days_until] [days_label] avant l'heure [season_label].",
+        "text1_options": None,
+        "text2_options": None,
+        "text3_options": None,
+        "lines": [
+            {
+                "text": "Annonce Changement d'heure (Été / Hiver)",
+                "options": None,
+            },
+            {
+                "text": (
+                    "Le [change_weekday] [change_date] à [change_time], on va [direction_verb] "
+                    "l'heure de [offset_hours]h (de [offset_from] à [offset_to])."
+                ),
+                "options": None,
+            },
+            {
+                "text": "Il reste [days_until] [days_label] avant l'heure [season_label].",
+                "options": None,
+            },
+        ],
+    },
+    "christmas_slide": {
+        "enabled": False,
+        "order_index": 0,
+        "duration": 12.0,
+        "background_path": None,
+        "background_mimetype": None,
+        # Nombre de jours d'anticipation avant l'affichage de la diapositive.
+        "days_before": 25,
+        "title_text": "🎄 Joyeux Noël ! 🎄",
+        "title_font_size": 64.0,
+        "text_color": "#f8fafc",
+        "text1": "🎄 Joyeux Noël ! 🎄",
+        "text2": "Plus que [days_until] [days_label] avant Noël !",
+        "text3": "Toute l'équipe vous souhaite de joyeuses fêtes !",
+        "text1_options": None,
+        "text2_options": None,
+        "text3_options": None,
+        "lines": [
+            {
+                "text": "🎄 Joyeux Noël ! 🎄",
+                "options": None,
+            },
+            {
+                "text": "Plus que [days_until] [days_label] avant Noël !",
+                "options": None,
+            },
+            {
+                "text": "Toute l'équipe vous souhaite de joyeuses fêtes !",
+                "options": None,
+            },
+        ],
+    },
 }
 
 def _detect_libreoffice_command() -> Optional[str]:
@@ -191,6 +278,11 @@ POWERPOINT_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 BIRTHDAY_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 BIRTHDAY_SLIDE_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+BIRTHDAY_FONT_DIR.mkdir(parents=True, exist_ok=True)
+TIME_CHANGE_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+TIME_CHANGE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+CHRISTMAS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 STATIC_ROUTE_PREFIX = "static"
 
@@ -207,6 +299,7 @@ BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
     "curve": 0.0,
     "angle": 0.0,
 }
+BIRTHDAY_MAX_LINES = 50
 BIRTHDAY_CONFIG_DEFAULT = {
     "title": "Anniversaire à venir",
     "subtitle": "Dans [days] jours, ce sera la fête",
@@ -217,9 +310,257 @@ BIRTHDAY_CONFIG_DEFAULT = {
     "text1_options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT),
     "text2_options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT),
     "text3_options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT),
+    "lines": [
+        {"text": "(Texte 1)", "options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT)},
+        {"text": "(Texte 2)", "options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT)},
+        {"text": "(Texte 3)", "options": copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT)},
+    ],
     "background_path": None,
     "background_mimetype": None,
 }
+
+TIME_CHANGE_WEEKDAYS_FR = [
+    "lundi",
+    "mardi",
+    "mercredi",
+    "jeudi",
+    "vendredi",
+    "samedi",
+    "dimanche",
+]
+
+TIME_CHANGE_MONTHS_FR = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+]
+
+TIME_CHANGE_CACHE_TTL = timedelta(hours=6)
+TIME_CHANGE_CACHE: Dict[str, Any] = {"year": None, "data": None, "fetched_at": None}
+TIME_CHANGE_SOURCE_URL = "https://www.timeanddate.com/time/change/canada/montreal?year={year}"
+TIME_CHANGE_TEXT_OPTIONS_DEFAULT = {
+    "font_size": 48.0,
+    "font_family": "",
+    "width_percent": 100.0,
+    "height_percent": 0.0,
+    "color": "#f8fafc",
+    "underline": False,
+    "offset_x_percent": 0.0,
+    "offset_y_percent": 0.0,
+    "curve": 0.0,
+    "angle": 0.0,
+}
+TIME_CHANGE_MAX_LINES = BIRTHDAY_MAX_LINES
+
+
+def _strip_html(raw: Any) -> str:
+    text = ""
+    try:
+        text = str(raw or "")
+    except Exception:
+        text = ""
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    return text.replace("\xa0", " ").strip()
+
+
+def _parse_timeanddate_datetime(raw: Any, year: int) -> Optional[datetime]:
+    cleaned = _strip_html(raw)
+    if not cleaned:
+        return None
+    cleaned = cleaned.split("—")[0].split("-")[0].strip()
+    for fmt in ("%A, %B %d, %I:%M %p", "%A, %B %d, %Y", "%A, %B %d"):
+        try:
+            base = datetime.strptime(cleaned, fmt)
+            if fmt == "%A, %B %d":
+                base = base.replace(year=year)
+            if base.year == 1900:
+                base = base.replace(year=year)
+            if base.tzinfo is None:
+                base = base.replace(tzinfo=QUEBEC_TZ)
+            return base.astimezone(QUEBEC_TZ)
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_time_change_schedule(html_text: str, year: int) -> Optional[Dict[str, Any]]:
+    row_re = re.compile(
+        rf"<tr[^>]*>\s*<th[^>]*>{year}</th>\s*<td[^>]*>(?P<start>.*?)</td>\s*<td[^>]*>(?P<end>.*?)</td>",
+        re.IGNORECASE | re.DOTALL,
+    )
+    match = row_re.search(html_text)
+    if not match:
+        return None
+    start_raw = match.group("start")
+    end_raw = match.group("end")
+    start_dt = _parse_timeanddate_datetime(start_raw, year)
+    end_dt = _parse_timeanddate_datetime(end_raw, year)
+    if start_dt and end_dt:
+        return {"start": start_dt, "end": end_dt, "source": "timeanddate"}
+    return None
+
+
+def _fetch_time_change_schedule_from_web(year: int) -> Optional[Dict[str, Any]]:
+    url = TIME_CHANGE_SOURCE_URL.format(year=year)
+    try:
+        with urllib.request.urlopen(url, timeout=10) as response:
+            html_text = response.read().decode("utf-8", errors="ignore")
+    except OSError:
+        return None
+    return _parse_time_change_schedule(html_text, year)
+
+
+def _refine_transition_window(
+    start_dt: datetime, end_dt: datetime, base_offset: timedelta
+) -> Dict[str, Any]:
+    tz = QUEBEC_TZ
+    low = start_dt
+    high = end_dt
+    for _ in range(28):
+        mid = low + (high - low) / 2
+        offset = tz.utcoffset(mid) or timedelta()
+        if offset == base_offset:
+            low = mid
+        else:
+            high = mid
+    final_offset = tz.utcoffset(high) or timedelta()
+    return {
+        "datetime": high,
+        "from_offset": base_offset,
+        "to_offset": final_offset,
+    }
+
+
+def _compute_time_change_from_zoneinfo(year: int) -> Optional[Dict[str, Any]]:
+    tz = QUEBEC_TZ
+    start = datetime(year, 1, 1, tzinfo=tz)
+    end = datetime(year + 1, 1, 1, tzinfo=tz)
+    cursor = start
+    last_offset = tz.utcoffset(start) or timedelta()
+    transitions: List[Dict[str, Any]] = []
+    step = timedelta(hours=12)
+    while cursor < end:
+        next_cursor = min(end, cursor + step)
+        offset = tz.utcoffset(next_cursor) or timedelta()
+        if offset != last_offset:
+            transitions.append(_refine_transition_window(cursor, next_cursor, last_offset))
+            last_offset = transitions[-1]["to_offset"]
+        cursor = next_cursor
+    if not transitions:
+        return None
+    transitions.sort(key=lambda entry: entry["datetime"])
+    if len(transitions) == 1:
+        target = transitions[0]
+        return {
+            "start": target["datetime"],
+            "end": target["datetime"],
+            "source": "tzdata",
+        }
+    start_transition = transitions[0]
+    end_transition = transitions[1]
+    return {
+        "start": start_transition["datetime"],
+        "end": end_transition["datetime"],
+        "source": "tzdata",
+    }
+
+
+def _get_time_change_schedule(year: int) -> Optional[Dict[str, Any]]:
+    now = _now()
+    cache_year = TIME_CHANGE_CACHE.get("year")
+    fetched_at = TIME_CHANGE_CACHE.get("fetched_at")
+    cached = TIME_CHANGE_CACHE.get("data")
+    if (
+        cache_year == year
+        and isinstance(fetched_at, datetime)
+        and cached
+        and (now - fetched_at) < TIME_CHANGE_CACHE_TTL
+    ):
+        return cached
+
+    schedule = _fetch_time_change_schedule_from_web(year)
+    if not schedule:
+        schedule = _compute_time_change_from_zoneinfo(year)
+    if schedule:
+        TIME_CHANGE_CACHE["year"] = year
+        TIME_CHANGE_CACHE["data"] = schedule
+        TIME_CHANGE_CACHE["fetched_at"] = now
+    return schedule
+
+
+def _format_offset(delta: Optional[timedelta]) -> str:
+    if delta is None:
+        return ""
+    seconds = int(delta.total_seconds())
+    sign = "+" if seconds >= 0 else "-"
+    seconds = abs(seconds)
+    hours, remainder = divmod(seconds, 3600)
+    minutes = remainder // 60
+    return f"{sign}{hours:02d}:{minutes:02d}"
+
+
+def _next_time_change_info() -> Optional[Dict[str, Any]]:
+    now = _now().astimezone(QUEBEC_TZ)
+    schedule = _get_time_change_schedule(now.year)
+    candidates: List[tuple[datetime, str, str]] = []
+    for kind in ("start", "end"):
+        dt = schedule.get(kind) if schedule else None
+        if isinstance(dt, datetime):
+            local_dt = dt.astimezone(QUEBEC_TZ)
+            if local_dt > now:
+                candidates.append((local_dt, kind, schedule.get("source") or "unknown"))
+    if not candidates:
+        schedule = _get_time_change_schedule(now.year + 1)
+        for kind in ("start", "end"):
+            dt = schedule.get(kind) if schedule else None
+            if isinstance(dt, datetime):
+                local_dt = dt.astimezone(QUEBEC_TZ)
+                if local_dt > now:
+                    candidates.append((local_dt, kind, schedule.get("source") or "unknown"))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda entry: entry[0])
+    change_dt, kind, source = candidates[0]
+    before_offset = QUEBEC_TZ.utcoffset(change_dt - timedelta(hours=2)) or timedelta()
+    after_offset = QUEBEC_TZ.utcoffset(change_dt + timedelta(hours=2)) or before_offset
+    direction = "forward" if after_offset > before_offset else "backward"
+    direction_label = "avancer" if direction == "forward" else "reculer"
+    season = "summer" if direction == "forward" else "winter"
+    season_label = "d'été" if direction == "forward" else "d'hiver"
+    date_label = f"{change_dt.day} {TIME_CHANGE_MONTHS_FR[change_dt.month - 1]} {change_dt.year}"
+    weekday_label = TIME_CHANGE_WEEKDAYS_FR[change_dt.weekday()]
+    offset_hours = abs(after_offset - before_offset).total_seconds() / 3600.0
+    days_until = (change_dt.date() - now.date()).days
+
+    return {
+        "change_at": change_dt.isoformat(),
+        "change_at_local": change_dt.isoformat(),
+        "kind": "dst_start" if kind == "start" else "dst_end",
+        "direction": direction,
+        "direction_label": direction_label,
+        "season": season,
+        "season_label": season_label,
+        "weekday_label": weekday_label,
+        "date_label": date_label,
+        "time_label": change_dt.strftime("%H:%M"),
+        "offset_from": _format_offset(before_offset),
+        "offset_to": _format_offset(after_offset),
+        "offset_hours": round(offset_hours, 2),
+        "days_until": days_until,
+        "source": source,
+    }
 
 
 def _natural_key(value: str) -> List[Any]:
@@ -292,6 +633,31 @@ def _read_birthday_config(variant: str) -> Dict[str, Any]:
             if isinstance(raw.get("angle"), (int, float)):
                 options["angle"] = float(raw["angle"])
         return options
+
+    def normalize_lines(raw_lines: Any, fallback: Dict[str, Any]) -> List[Dict[str, Any]]:
+        lines: List[Dict[str, Any]] = []
+        if isinstance(raw_lines, list):
+            for entry in raw_lines:
+                if not isinstance(entry, dict):
+                    continue
+                text_val = entry.get("text")
+                try:
+                    text = str(text_val or "")
+                except Exception:
+                    text = ""
+                options = normalize_text_options(entry.get("options"))
+                lines.append({"text": text, "options": options})
+                if len(lines) >= BIRTHDAY_MAX_LINES:
+                    break
+
+        if lines:
+            return lines
+
+        return [
+            {"text": fallback.get("text1", ""), "options": fallback.get("text1_options", {})},
+            {"text": fallback.get("text2", ""), "options": fallback.get("text2_options", {})},
+            {"text": fallback.get("text3", ""), "options": fallback.get("text3_options", {})},
+        ]
     try:
         with config_path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
@@ -317,6 +683,17 @@ def _read_birthday_config(variant: str) -> Dict[str, Any]:
             merged["background_path"] = data["background_path"] or None
         if isinstance(data.get("background_mimetype"), str):
             merged["background_mimetype"] = data["background_mimetype"] or None
+        merged["lines"] = normalize_lines(data.get("lines"), merged)
+        # Aligner les anciens champs text1/2/3 avec la première série de lignes pour compatibilité.
+        if merged["lines"]:
+            merged["text1"] = merged["lines"][0]["text"]
+            merged["text1_options"] = merged["lines"][0]["options"]
+        if len(merged["lines"]) > 1:
+            merged["text2"] = merged["lines"][1]["text"]
+            merged["text2_options"] = merged["lines"][1]["options"]
+        if len(merged["lines"]) > 2:
+            merged["text3"] = merged["lines"][2]["text"]
+            merged["text3_options"] = merged["lines"][2]["options"]
         # Retro-compatibilité : si les nouveaux champs ne sont pas présents,
         # réutiliser les anciens titres/sous-titres.
         if merged.get("text1") == BIRTHDAY_CONFIG_DEFAULT["text1"] and isinstance(data.get("title"), str):
@@ -359,6 +736,39 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
                 options["angle"] = float(raw["angle"])
         return options
 
+    def normalize_lines(raw_lines: Any, legacy_target: Dict[str, Any]) -> List[Dict[str, Any]]:
+        lines: List[Dict[str, Any]] = []
+        if isinstance(raw_lines, list):
+            for entry in raw_lines:
+                if not isinstance(entry, dict):
+                    continue
+                text_val = entry.get("text")
+                try:
+                    text = str(text_val or "")
+                except Exception:
+                    text = ""
+                options = normalize_text_options(entry.get("options"))
+                lines.append({"text": text, "options": options})
+                if len(lines) >= BIRTHDAY_MAX_LINES:
+                    break
+        if lines:
+            return lines
+
+        # Si aucune nouvelle structure, reconstituer avec les anciens champs.
+        candidates = [
+            (legacy_target.get("text1"), legacy_target.get("text1_options")),
+            (legacy_target.get("text2"), legacy_target.get("text2_options")),
+            (legacy_target.get("text3"), legacy_target.get("text3_options")),
+        ]
+        for text_val, options_val in candidates:
+            try:
+                text = str(text_val or "")
+            except Exception:
+                text = ""
+            options = normalize_text_options(options_val)
+            lines.append({"text": text, "options": options})
+        return lines
+
     normalized = copy.deepcopy(BIRTHDAY_CONFIG_DEFAULT)
     if isinstance(config.get("title"), str):
         normalized["title"] = config["title"]
@@ -368,7 +778,6 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
         normalized["body"] = config["body"]
     if isinstance(config.get("text1"), str):
         normalized["text1"] = config["text1"]
-        # Conserver l'ancien champ pour compatibilité
         normalized["title"] = config["text1"]
     if isinstance(config.get("text2"), str):
         normalized["text2"] = config["text2"]
@@ -376,15 +785,23 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
     if isinstance(config.get("text3"), str):
         normalized["text3"] = config["text3"]
         normalized["body"] = config.get("body", config["text3"])
-    if isinstance(config.get("text1"), str):
-        normalized["text1"] = config["text1"]
-    if isinstance(config.get("text2"), str):
-        normalized["text2"] = config["text2"]
-    if isinstance(config.get("text3"), str):
-        normalized["text3"] = config["text3"]
+
     normalized["text1_options"] = normalize_text_options(config.get("text1_options"))
     normalized["text2_options"] = normalize_text_options(config.get("text2_options"))
     normalized["text3_options"] = normalize_text_options(config.get("text3_options"))
+    normalized["lines"] = normalize_lines(config.get("lines"), normalized)
+
+    # Aligner les anciens champs avec les nouvelles lignes (les trois premières seulement).
+    if normalized["lines"]:
+        normalized["text1"] = normalized["lines"][0]["text"]
+        normalized["text1_options"] = normalized["lines"][0]["options"]
+    if len(normalized["lines"]) > 1:
+        normalized["text2"] = normalized["lines"][1]["text"]
+        normalized["text2_options"] = normalized["lines"][1]["options"]
+    if len(normalized["lines"]) > 2:
+        normalized["text3"] = normalized["lines"][2]["text"]
+        normalized["text3_options"] = normalized["lines"][2]["options"]
+
     if "background_path" in config:
         if config["background_path"] is None:
             normalized["background_path"] = None
@@ -401,6 +818,454 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
         json.dump(normalized, handle, ensure_ascii=True, indent=2)
     return normalized
     return number
+
+
+def _normalize_time_change_text_options(raw: Any) -> Dict[str, Any]:
+    options = copy.deepcopy(TIME_CHANGE_TEXT_OPTIONS_DEFAULT)
+    if isinstance(raw, dict):
+        if isinstance(raw.get("font_size"), (int, float)):
+            options["font_size"] = float(raw["font_size"])
+        if isinstance(raw.get("font_family"), str):
+            options["font_family"] = raw["font_family"]
+        if isinstance(raw.get("width_percent"), (int, float)):
+            options["width_percent"] = float(raw["width_percent"])
+        if isinstance(raw.get("height_percent"), (int, float)):
+            options["height_percent"] = float(raw["height_percent"])
+        if isinstance(raw.get("color"), str):
+            options["color"] = raw["color"]
+        if isinstance(raw.get("underline"), bool):
+            options["underline"] = raw["underline"]
+        if isinstance(raw.get("offset_x_percent"), (int, float)):
+            options["offset_x_percent"] = float(raw["offset_x_percent"])
+        if isinstance(raw.get("offset_y_percent"), (int, float)):
+            options["offset_y_percent"] = float(raw["offset_y_percent"])
+        if isinstance(raw.get("curve"), (int, float)):
+            options["curve"] = float(raw["curve"])
+        if isinstance(raw.get("angle"), (int, float)):
+            options["angle"] = float(raw["angle"])
+    return options
+
+
+def _normalize_time_change_lines(raw_lines: Any, fallback: Dict[str, Any]) -> List[Dict[str, Any]]:
+    lines: List[Dict[str, Any]] = []
+    if isinstance(raw_lines, list):
+        for entry in raw_lines:
+            if not isinstance(entry, dict):
+                continue
+            text_val = entry.get("text")
+            try:
+                text = str(text_val or "")
+            except Exception:
+                text = ""
+            options = _normalize_time_change_text_options(entry.get("options"))
+            lines.append({"text": text, "options": options})
+            if len(lines) >= TIME_CHANGE_MAX_LINES:
+                break
+    if lines:
+        return lines
+
+    fallback_candidates = [
+        (fallback.get("text1"), fallback.get("text1_options")),
+        (fallback.get("text2"), fallback.get("text2_options")),
+        (fallback.get("text3"), fallback.get("text3_options")),
+    ]
+    for text_val, options_val in fallback_candidates:
+        try:
+            text = str(text_val or "")
+        except Exception:
+            text = ""
+        options = _normalize_time_change_text_options(options_val)
+        lines.append({"text": text, "options": options})
+    return lines
+
+
+def _normalize_time_change_config(
+    raw: Any, base: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    result = copy.deepcopy(base or DEFAULT_SETTINGS["time_change_slide"])
+    source = raw if isinstance(raw, dict) else {}
+
+    for key, value in source.items():
+        if key == "enabled":
+            result["enabled"] = bool(value)
+        elif key == "order_index":
+            try:
+                index = int(value)
+            except (TypeError, ValueError):
+                continue
+            if index < 0:
+                index = 0
+            result["order_index"] = index
+        elif key == "duration":
+            try:
+                duration = float(value)
+            except (TypeError, ValueError):
+                continue
+            if duration < 1.0:
+                duration = 1.0
+            if duration > 600.0:
+                duration = 600.0
+            result["duration"] = duration
+        elif key == "days_before":
+            try:
+                days = int(value)
+            except (TypeError, ValueError):
+                continue
+            if days < 0:
+                days = 0
+            if days > 365:
+                days = 365
+            result["days_before"] = days
+        elif key == "background_path":
+            if value is None:
+                result["background_path"] = None
+            else:
+                try:
+                    text = str(value).strip()
+                except Exception:
+                    continue
+                result["background_path"] = text or None
+        elif key == "background_mimetype":
+            if value is None:
+                result["background_mimetype"] = None
+            elif isinstance(value, str) and value.strip():
+                result["background_mimetype"] = value.strip()
+        elif key == "title_text":
+            try:
+                text = str(value)
+            except Exception:
+                continue
+            result["title_text"] = text
+        elif key == "message_template":
+            try:
+                text = str(value)
+            except Exception:
+                continue
+            result["message_template"] = text
+        elif key == "offset_hours":
+            try:
+                hours = float(value)
+            except (TypeError, ValueError):
+                continue
+            if hours < 0.0:
+                hours = 0.0
+            if hours > 5.0:
+                hours = 5.0
+            result["offset_hours"] = hours
+        elif key == "title_font_size":
+            try:
+                size = float(value)
+            except (TypeError, ValueError):
+                continue
+            if size < 8.0:
+                size = 8.0
+            if size > 120.0:
+                size = 120.0
+            result["title_font_size"] = size
+        elif key == "message_font_size":
+            try:
+                size = float(value)
+            except (TypeError, ValueError):
+                continue
+            if size < 8.0:
+                size = 8.0
+            if size > 120.0:
+                size = 120.0
+            result["message_font_size"] = size
+        elif key == "meta_font_size":
+            try:
+                size = float(value)
+            except (TypeError, ValueError):
+                continue
+            if size < 8.0:
+                size = 8.0
+            if size > 120.0:
+                size = 120.0
+            result["meta_font_size"] = size
+        elif key == "text_color":
+            if isinstance(value, str) and value.strip():
+                result["text_color"] = value.strip()
+        elif key == "text1":
+            if isinstance(value, str) and value.strip():
+                result["text1"] = value
+        elif key == "text2":
+            if isinstance(value, str) and value.strip():
+                result["text2"] = value
+        elif key == "text3":
+            if isinstance(value, str) and value.strip():
+                result["text3"] = value
+        elif key == "text1_options":
+            result["text1_options"] = _normalize_time_change_text_options(value)
+        elif key == "text2_options":
+            result["text2_options"] = _normalize_time_change_text_options(value)
+        elif key == "text3_options":
+            result["text3_options"] = _normalize_time_change_text_options(value)
+
+    result["lines"] = _normalize_time_change_lines(source.get("lines"), result)
+
+    if result["lines"]:
+        result["text1"] = result["lines"][0]["text"]
+        result["text1_options"] = result["lines"][0]["options"]
+    if len(result["lines"]) > 1:
+        result["text2"] = result["lines"][1]["text"]
+        result["text2_options"] = result["lines"][1]["options"]
+    if len(result["lines"]) > 2:
+        result["text3"] = result["lines"][2]["text"]
+        result["text3_options"] = result["lines"][2]["options"]
+    return result
+
+
+def _read_time_change_config_file() -> Optional[Dict[str, Any]]:
+    if not TIME_CHANGE_CONFIG_FILE.exists():
+        return None
+    try:
+        with TIME_CHANGE_CONFIG_FILE.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return _normalize_time_change_config(data, DEFAULT_SETTINGS["time_change_slide"])
+
+
+def _write_time_change_config_file(config: Dict[str, Any]) -> Dict[str, Any]:
+    base = _read_time_change_config_file() or DEFAULT_SETTINGS["time_change_slide"]
+    normalized = _normalize_time_change_config(config, base)
+    try:
+        TIME_CHANGE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with TIME_CHANGE_CONFIG_FILE.open("w", encoding="utf-8") as handle:
+            json.dump(normalized, handle, ensure_ascii=True, indent=2)
+    except OSError:
+        pass
+    return normalized
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Christmas slide configuration
+# ───────────────────────────────────────────────────────────────────────────────
+
+CHRISTMAS_TEXT_OPTIONS_DEFAULT = {
+    "font_size": 48.0,
+    "font_family": "",
+    "width_percent": 100.0,
+    "height_percent": 0.0,
+    "color": "#f8fafc",
+    "underline": False,
+    "offset_x_percent": 0.0,
+    "offset_y_percent": 0.0,
+    "curve": 0.0,
+    "angle": 0.0,
+}
+CHRISTMAS_MAX_LINES = 50
+
+
+def _normalize_christmas_text_options(raw: Any) -> Dict[str, Any]:
+    options = copy.deepcopy(CHRISTMAS_TEXT_OPTIONS_DEFAULT)
+    if isinstance(raw, dict):
+        if isinstance(raw.get("font_size"), (int, float)):
+            options["font_size"] = float(raw["font_size"])
+        if isinstance(raw.get("font_family"), str):
+            options["font_family"] = raw["font_family"]
+        if isinstance(raw.get("width_percent"), (int, float)):
+            options["width_percent"] = float(raw["width_percent"])
+        if isinstance(raw.get("height_percent"), (int, float)):
+            options["height_percent"] = float(raw["height_percent"])
+        if isinstance(raw.get("color"), str):
+            options["color"] = raw["color"]
+        if isinstance(raw.get("underline"), bool):
+            options["underline"] = raw["underline"]
+        if isinstance(raw.get("offset_x_percent"), (int, float)):
+            options["offset_x_percent"] = float(raw["offset_x_percent"])
+        if isinstance(raw.get("offset_y_percent"), (int, float)):
+            options["offset_y_percent"] = float(raw["offset_y_percent"])
+        if isinstance(raw.get("curve"), (int, float)):
+            options["curve"] = float(raw["curve"])
+        if isinstance(raw.get("angle"), (int, float)):
+            options["angle"] = float(raw["angle"])
+    return options
+
+
+def _normalize_christmas_lines(raw_lines: Any, fallback: Dict[str, Any]) -> List[Dict[str, Any]]:
+    lines: List[Dict[str, Any]] = []
+    if isinstance(raw_lines, list):
+        for entry in raw_lines:
+            if not isinstance(entry, dict):
+                continue
+            text_val = entry.get("text")
+            try:
+                text = str(text_val or "")
+            except Exception:
+                text = ""
+            options = _normalize_christmas_text_options(entry.get("options"))
+            lines.append({"text": text, "options": options})
+            if len(lines) >= CHRISTMAS_MAX_LINES:
+                break
+    if lines:
+        return lines
+
+    fallback_candidates = [
+        (fallback.get("text1"), fallback.get("text1_options")),
+        (fallback.get("text2"), fallback.get("text2_options")),
+        (fallback.get("text3"), fallback.get("text3_options")),
+    ]
+    for text_val, options_val in fallback_candidates:
+        try:
+            text = str(text_val or "")
+        except Exception:
+            text = ""
+        options = _normalize_christmas_text_options(options_val)
+        lines.append({"text": text, "options": options})
+    return lines
+
+
+def _normalize_christmas_config(
+    raw: Any, base: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    result = copy.deepcopy(base or DEFAULT_SETTINGS["christmas_slide"])
+    source = raw if isinstance(raw, dict) else {}
+
+    for key, value in source.items():
+        if key == "enabled":
+            result["enabled"] = bool(value)
+        elif key == "order_index":
+            try:
+                index = int(value)
+            except (TypeError, ValueError):
+                continue
+            if index < 0:
+                index = 0
+            result["order_index"] = index
+        elif key == "duration":
+            try:
+                duration = float(value)
+            except (TypeError, ValueError):
+                continue
+            if duration < 1.0:
+                duration = 1.0
+            if duration > 600.0:
+                duration = 600.0
+            result["duration"] = duration
+        elif key == "days_before":
+            try:
+                days = int(value)
+            except (TypeError, ValueError):
+                continue
+            if days < 0:
+                days = 0
+            if days > 365:
+                days = 365
+            result["days_before"] = days
+        elif key == "background_path":
+            if value is None:
+                result["background_path"] = None
+            else:
+                try:
+                    text = str(value).strip()
+                except Exception:
+                    continue
+                result["background_path"] = text or None
+        elif key == "background_mimetype":
+            if value is None:
+                result["background_mimetype"] = None
+            elif isinstance(value, str) and value.strip():
+                result["background_mimetype"] = value.strip()
+        elif key == "title_text":
+            try:
+                text = str(value)
+            except Exception:
+                continue
+            result["title_text"] = text
+        elif key == "title_font_size":
+            try:
+                size = float(value)
+            except (TypeError, ValueError):
+                continue
+            if size < 8.0:
+                size = 8.0
+            if size > 120.0:
+                size = 120.0
+            result["title_font_size"] = size
+        elif key == "text_color":
+            if isinstance(value, str) and value.strip():
+                result["text_color"] = value.strip()
+        elif key == "text1":
+            if isinstance(value, str):
+                result["text1"] = value
+        elif key == "text2":
+            if isinstance(value, str):
+                result["text2"] = value
+        elif key == "text3":
+            if isinstance(value, str):
+                result["text3"] = value
+        elif key == "text1_options":
+            result["text1_options"] = _normalize_christmas_text_options(value)
+        elif key == "text2_options":
+            result["text2_options"] = _normalize_christmas_text_options(value)
+        elif key == "text3_options":
+            result["text3_options"] = _normalize_christmas_text_options(value)
+
+    result["lines"] = _normalize_christmas_lines(source.get("lines"), result)
+
+    if result["lines"]:
+        result["text1"] = result["lines"][0]["text"]
+        result["text1_options"] = result["lines"][0]["options"]
+    if len(result["lines"]) > 1:
+        result["text2"] = result["lines"][1]["text"]
+        result["text2_options"] = result["lines"][1]["options"]
+    if len(result["lines"]) > 2:
+        result["text3"] = result["lines"][2]["text"]
+        result["text3_options"] = result["lines"][2]["options"]
+    return result
+
+
+def _read_christmas_config_file() -> Optional[Dict[str, Any]]:
+    if not CHRISTMAS_CONFIG_FILE.exists():
+        return None
+    try:
+        with CHRISTMAS_CONFIG_FILE.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return _normalize_christmas_config(data, DEFAULT_SETTINGS["christmas_slide"])
+
+
+def _write_christmas_config_file(config: Dict[str, Any]) -> Dict[str, Any]:
+    base = _read_christmas_config_file() or DEFAULT_SETTINGS["christmas_slide"]
+    normalized = _normalize_christmas_config(config, base)
+    try:
+        CHRISTMAS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with CHRISTMAS_CONFIG_FILE.open("w", encoding="utf-8") as handle:
+            json.dump(normalized, handle, ensure_ascii=True, indent=2)
+    except OSError:
+        pass
+    return normalized
+
+
+def _next_christmas_info() -> Optional[Dict[str, Any]]:
+    """Calcule les informations sur le prochain Noël."""
+    now = _now().astimezone(QUEBEC_TZ)
+    year = now.year
+    christmas = datetime(year, 12, 25, 0, 0, 0, tzinfo=QUEBEC_TZ)
+    
+    # Si Noël est passé cette année, on prend l'année suivante
+    if now.date() > christmas.date():
+        year += 1
+        christmas = datetime(year, 12, 25, 0, 0, 0, tzinfo=QUEBEC_TZ)
+    
+    days_until = (christmas.date() - now.date()).days
+    weekday_label = TIME_CHANGE_WEEKDAYS_FR[christmas.weekday()]
+    date_label = f"25 décembre {year}"
+    
+    return {
+        "christmas_date": christmas.isoformat(),
+        "year": year,
+        "weekday_label": weekday_label,
+        "date_label": date_label,
+        "days_until": days_until,
+        "days_label": "jour" if days_until == 1 else "jours",
+    }
 
 
 def _sanitize_asset_name(value: Any) -> Optional[str]:
@@ -1126,6 +1991,30 @@ class MediaStore:
                     result["open_days"] = normalized_open
         return result
 
+    def _normalize_time_change_slide(
+        self, time_change_slide: Dict[str, Any], base: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        persisted_config = _read_time_change_config_file()
+        merged: Dict[str, Any] = {}
+        if isinstance(persisted_config, dict):
+            merged.update(persisted_config)
+        if isinstance(time_change_slide, dict):
+            merged.update(time_change_slide)
+        base_config = base or persisted_config or DEFAULT_SETTINGS["time_change_slide"]
+        return _normalize_time_change_config(merged, base_config)
+
+    def _normalize_christmas_slide(
+        self, christmas_slide: Dict[str, Any], base: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        persisted_config = _read_christmas_config_file()
+        merged: Dict[str, Any] = {}
+        if isinstance(persisted_config, dict):
+            merged.update(persisted_config)
+        if isinstance(christmas_slide, dict):
+            merged.update(christmas_slide)
+        base_config = base or persisted_config or DEFAULT_SETTINGS["christmas_slide"]
+        return _normalize_christmas_config(merged, base_config)
+
     def _ensure_settings(self) -> bool:
         settings = self._data.get("settings")
         if not isinstance(settings, dict):
@@ -1139,15 +2028,29 @@ class MediaStore:
         birthday_slide = settings.get("birthday_slide")
         if not isinstance(birthday_slide, dict):
             birthday_slide = {}
+        time_change_slide = settings.get("time_change_slide")
+        if not isinstance(time_change_slide, dict):
+            time_change_slide = {}
+        christmas_slide = settings.get("christmas_slide")
+        if not isinstance(christmas_slide, dict):
+            christmas_slide = {}
         normalized_overlay = self._normalize_overlay(overlay, DEFAULT_SETTINGS["overlay"])
         normalized_team = self._normalize_team_slide(team_slide, DEFAULT_SETTINGS["team_slide"])
         normalized_birthday = self._normalize_birthday_slide(
             birthday_slide, DEFAULT_SETTINGS["birthday_slide"]
         )
+        normalized_time_change = self._normalize_time_change_slide(
+            time_change_slide, DEFAULT_SETTINGS["time_change_slide"]
+        )
+        normalized_christmas = self._normalize_christmas_slide(
+            christmas_slide, DEFAULT_SETTINGS["christmas_slide"]
+        )
         normalized_settings = {
             "overlay": normalized_overlay,
             "team_slide": normalized_team,
             "birthday_slide": normalized_birthday,
+            "time_change_slide": normalized_time_change,
+            "christmas_slide": normalized_christmas,
         }
         changed = self._data.get("settings") != normalized_settings
         self._data["settings"] = normalized_settings
@@ -1189,6 +2092,32 @@ class MediaStore:
                 )
                 normalized_birthday = self._normalize_birthday_slide(birthday_updates, current_birthday)
                 self._data["settings"]["birthday_slide"] = normalized_birthday
+                handled = True
+            if "time_change_slide" in updates:
+                time_change_updates = updates["time_change_slide"]
+                if not isinstance(time_change_updates, dict):
+                    raise ValueError("Le bloc time_change_slide doit être un objet.")
+                current_time_change = (
+                    self._data["settings"].get("time_change_slide") or DEFAULT_SETTINGS["time_change_slide"]
+                )
+                normalized_time_change = self._normalize_time_change_slide(
+                    time_change_updates, current_time_change
+                )
+                normalized_time_change = _write_time_change_config_file(normalized_time_change)
+                self._data["settings"]["time_change_slide"] = normalized_time_change
+                handled = True
+            if "christmas_slide" in updates:
+                christmas_updates = updates["christmas_slide"]
+                if not isinstance(christmas_updates, dict):
+                    raise ValueError("Le bloc christmas_slide doit être un objet.")
+                current_christmas = (
+                    self._data["settings"].get("christmas_slide") or DEFAULT_SETTINGS["christmas_slide"]
+                )
+                normalized_christmas = self._normalize_christmas_slide(
+                    christmas_updates, current_christmas
+                )
+                normalized_christmas = _write_christmas_config_file(normalized_christmas)
+                self._data["settings"]["christmas_slide"] = normalized_christmas
                 handled = True
             if not handled:
                 raise ValueError("Aucun paramètre à mettre à jour.")
@@ -1929,7 +2858,12 @@ class TemporarySlideStore:
         return active
 
 
-app = Flask(__name__, static_folder="static", static_url_path="/cardinaltv/static")
+app = Flask(
+    __name__,
+    static_folder=str(FRONTEND_STATIC_DIR),
+    template_folder=str(FRONTEND_TEMPLATES_DIR),
+    static_url_path="/cardinaltv/static",
+)
 app.config["APPLICATION_ROOT"] = "/cardinaltv"
 STATIC_ROUTE_PREFIX = (app.static_url_path or "/static").lstrip("/")
 store = MediaStore(STATE_FILE)
@@ -2102,15 +3036,56 @@ def slideshow() -> Any:
     return render_template("slideshow.html")
 
 
+@bp.route("/diaporama", endpoint="slideshow_overview")
 @bp.route("/slideshow-editor")
-def slideshow_editor() -> Any:
+def slideshow_overview() -> Any:
     return render_template("slideshow_editor.html")
+
+
+@bp.route("/diaporama/upload")
+def upload() -> Any:
+    return render_template("upload.html")
+
+
+@bp.route("/diaporama/playlist")
+def playlist() -> Any:
+    return render_template("playlist.html")
+
+
+@bp.route("/diaporama/employes")
+def employees() -> Any:
+    return render_template("employees.html")
+
+
+@bp.route("/diaporama/team")
+def team() -> Any:
+    return render_template("team.html")
+
+
+@bp.route("/diaporama/anniversaire")
+def birthday() -> Any:
+    return render_template("birthday.html")
+
+
+@bp.route("/diaporama/changement-heure")
+def time_change() -> Any:
+    return render_template("time_change.html")
+
+
+@bp.route("/diaporama/noel")
+def christmas() -> Any:
+    return render_template("christmas.html")
+
+
+@bp.route("/diaporama/messages-temporaires")
+def temporary() -> Any:
+    return render_template("temporary.html")
 
 
 @bp.route('/sw.js')
 def serve_sw():
     # Serve the service worker script from the static directory under the blueprint
-    sw_path = Path(__file__).resolve().parent / 'static' / 'js' / 'sw.js'
+    sw_path = FRONTEND_STATIC_DIR / 'js' / 'sw.js'
     if not sw_path.exists():
         abort(404)
     # send_from_directory expects directory and filename
@@ -2309,14 +3284,26 @@ def serve_birthday_slide_asset(filename: str) -> Any:
     )
 
 
+@bp.route("/time-change-slide-assets/<path:filename>")
+def serve_time_change_slide_asset(filename: str) -> Any:
+    target = TIME_CHANGE_SLIDE_ASSETS_DIR / filename
+    if not target.exists():
+        abort(404, description="Fichier introuvable.")
+    return send_from_directory(
+        TIME_CHANGE_SLIDE_ASSETS_DIR,
+        filename,
+        as_attachment=False,
+    )
+
+
 @bp.route("/service-worker.js")
 def service_worker() -> Any:
     # Servez le service worker depuis la racine pour couvrir tout le scope.
-    sw_path = BASE_DIR / "static" / "service-worker.js"
+    sw_path = FRONTEND_STATIC_DIR / "service-worker.js"
     if not sw_path.exists():
         abort(404)
     return send_from_directory(
-        BASE_DIR / "static",
+        str(FRONTEND_STATIC_DIR),
         "service-worker.js",
         as_attachment=False,
         mimetype="application/javascript",
@@ -2376,6 +3363,30 @@ def get_settings() -> Any:
         birthday_slide["background_source"] = birthday_background_source
         birthday_slide["background_label"] = None
         settings["birthday_slide"] = birthday_slide
+
+        time_change_slide = settings.get("time_change_slide") or {}
+        tc_bg_path = time_change_slide.get("background_path")
+        time_change_background_url = None
+        if isinstance(tc_bg_path, str) and tc_bg_path:
+            time_change_background_url = url_for(
+                "main.serve_time_change_slide_asset", filename=tc_bg_path, _external=False
+            )
+        else:
+            time_change_slide["background_path"] = None
+        time_change_slide["background_url"] = time_change_background_url
+        settings["time_change_slide"] = time_change_slide
+
+        christmas_slide = settings.get("christmas_slide") or {}
+        xmas_bg_path = christmas_slide.get("background_path")
+        christmas_background_url = None
+        if isinstance(xmas_bg_path, str) and xmas_bg_path:
+            christmas_background_url = url_for(
+                "main.serve_christmas_slide_asset", filename=xmas_bg_path, _external=False
+            )
+        else:
+            christmas_slide["background_path"] = None
+        christmas_slide["background_url"] = christmas_background_url
+        settings["christmas_slide"] = christmas_slide
     except Exception:
         # In case anything goes wrong, return the original settings unchanged.
         pass
@@ -3017,6 +4028,462 @@ def list_birthday_slide_backgrounds() -> Any:
         current = {"type": "upload", "filename": bg_path}
 
     return jsonify({"items": items, "current": current})
+
+
+@bp.route("/birthday-fonts/<path:filename>")
+def serve_birthday_font(filename: str) -> Any:
+    safe = secure_filename(filename)
+    if not safe or safe != filename:
+        abort(400, description="Nom de fichier invalide.")
+    target = (BIRTHDAY_FONT_DIR / safe).resolve()
+    base_dir = BIRTHDAY_FONT_DIR.resolve()
+    try:
+        target.relative_to(base_dir)
+    except ValueError:
+        abort(400, description="Chemin de fichier non autorisé.")
+    if not target.exists() or not target.is_file():
+        abort(404, description="Police introuvable.")
+    mimetype = _guess_mimetype(target.name) or "font/otf"
+    return send_from_directory(base_dir, target.name, mimetype=mimetype)
+
+
+@bp.get("/api/birthday-slide/fonts")
+def list_birthday_fonts() -> Any:
+    """Liste les polices personnalisées disponibles pour la diapositive Anniversaire."""
+    BIRTHDAY_FONT_DIR.mkdir(parents=True, exist_ok=True)
+    allowed_ext = {".ttf", ".otf", ".woff", ".woff2"}
+    items: List[Dict[str, Any]] = []
+    for entry in sorted(BIRTHDAY_FONT_DIR.iterdir(), key=lambda p: p.name.lower()):
+        if not entry.is_file():
+            continue
+        if entry.suffix.lower() not in allowed_ext:
+            continue
+        filename = entry.name
+        url = url_for("main.serve_birthday_font", filename=filename, _external=False)
+        family = Path(filename).stem.replace("_", " ").replace("-", " ")
+        items.append(
+            {
+                "filename": filename,
+                "url": url,
+                "family": family,
+            }
+        )
+    return jsonify({"items": items})
+
+
+@bp.delete("/api/birthday-slide/background/<path:filename>")
+def delete_birthday_slide_background(filename: str) -> Any:
+    """Supprime un arrière-plan de la diapositive Anniversaire."""
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        abort(400, description="Nom de fichier invalide.")
+
+    BIRTHDAY_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    target = (BIRTHDAY_SLIDE_ASSETS_DIR / safe_name).resolve()
+    base_dir = BIRTHDAY_SLIDE_ASSETS_DIR.resolve()
+    try:
+        target.relative_to(base_dir)
+    except ValueError:
+        abort(400, description="Chemin de fichier non autorisé.")
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+
+    try:
+        target.unlink()
+    except OSError as exc:
+        abort(500, description=f"Impossible de supprimer le fichier : {exc}")
+
+    try:
+        settings = store.get_settings()
+    except Exception:
+        settings = {"birthday_slide": DEFAULT_SETTINGS["birthday_slide"]}
+
+    birthday_slide = settings.get("birthday_slide") or {}
+    updates: Dict[str, Any] = {}
+    if isinstance(birthday_slide.get("background_path"), str) and birthday_slide["background_path"] == filename:
+        updates = {"background_path": None, "background_mimetype": None}
+
+    new_settings = settings
+    if updates:
+        try:
+            new_settings = store.update_settings({"birthday_slide": updates})
+        except ValueError as exc:
+            abort(400, description=str(exc))
+
+    cleared_variants: List[str] = []
+    for variant in BIRTHDAY_VARIANTS:
+        config_path = BIRTHDAY_SLIDE_CONFIG_DIR / f"{variant}.json"
+        if not config_path.exists():
+            continue
+        try:
+            with config_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        if data.get("background_path") != filename:
+            continue
+        data["background_path"] = None
+        data["background_mimetype"] = None
+        try:
+            with config_path.open("w", encoding="utf-8") as handle:
+                json.dump(data, handle, ensure_ascii=False, indent=2)
+            cleared_variants.append(variant)
+        except Exception:
+            continue
+
+    current = (new_settings.get("birthday_slide") or {}).get("background_path")
+    current_payload = {"type": "upload", "filename": current} if current else {}
+    return jsonify(
+        {
+            "removed": filename,
+            "current": current_payload,
+            "settings": new_settings,
+            "cleared_variants": cleared_variants,
+        }
+    )
+
+
+@bp.get("/api/time-change-slide/next")
+def api_time_change_next() -> Any:
+    info = _next_time_change_info()
+    days_before_arg = request.args.get("days_before")
+    within_window: Optional[bool] = None
+    if days_before_arg is not None:
+        try:
+            limit_days = int(days_before_arg)
+            within_window = info is not None and info.get("days_until") is not None and info["days_until"] <= limit_days
+        except (TypeError, ValueError):
+            within_window = None
+    return jsonify({"change": info, "within_window": within_window})
+
+
+@bp.get("/api/time-change-slide/upcoming")
+def api_time_change_upcoming() -> Any:
+    """Retourne les 4 prochains changements d'heure (les 2 de cette année + les 2 de l'an prochain si besoin)."""
+    now = _now().astimezone(QUEBEC_TZ)
+    upcoming: List[Dict[str, Any]] = []
+
+    for year_offset in range(3):
+        year = now.year + year_offset
+        schedule = _get_time_change_schedule(year)
+        if not schedule:
+            continue
+        for kind in ("start", "end"):
+            dt = schedule.get(kind)
+            if not isinstance(dt, datetime):
+                continue
+            local_dt = dt.astimezone(QUEBEC_TZ)
+            if local_dt <= now:
+                continue
+            before_offset = QUEBEC_TZ.utcoffset(local_dt - timedelta(hours=2)) or timedelta()
+            after_offset = QUEBEC_TZ.utcoffset(local_dt + timedelta(hours=2)) or before_offset
+            direction = "forward" if after_offset > before_offset else "backward"
+            direction_label = "avancer" if direction == "forward" else "reculer"
+            season = "summer" if direction == "forward" else "winter"
+            season_label = "d'été" if direction == "forward" else "d'hiver"
+            date_label = f"{local_dt.day} {TIME_CHANGE_MONTHS_FR[local_dt.month - 1]} {local_dt.year}"
+            weekday_label = TIME_CHANGE_WEEKDAYS_FR[local_dt.weekday()]
+            offset_hours = abs(after_offset - before_offset).total_seconds() / 3600.0
+            days_until = (local_dt.date() - now.date()).days
+            upcoming.append({
+                "change_at": local_dt.isoformat(),
+                "change_at_local": local_dt.isoformat(),
+                "kind": "dst_start" if kind == "start" else "dst_end",
+                "direction": direction,
+                "direction_label": direction_label,
+                "season": season,
+                "season_label": season_label,
+                "weekday_label": weekday_label,
+                "date_label": date_label,
+                "time_label": local_dt.strftime("%H:%M"),
+                "offset_from": _format_offset(before_offset),
+                "offset_to": _format_offset(after_offset),
+                "offset_hours": round(offset_hours, 2),
+                "days_until": days_until,
+                "source": schedule.get("source") or "unknown",
+            })
+        if len(upcoming) >= 4:
+            break
+
+    upcoming.sort(key=lambda entry: entry["change_at"])
+    return jsonify({"upcoming": upcoming[:4]})
+
+
+@bp.post("/api/time-change-slide/background")
+def upload_time_change_slide_background() -> Any:
+    """Téléverse un fond image/vidéo pour la diapositive Changement d'heure."""
+    uploaded = request.files.get("file") or request.files.get("background")
+    if not uploaded or not uploaded.filename:
+        abort(400, description="Aucun fichier reçu.")
+
+    original_name = uploaded.filename
+    safe_name = secure_filename(original_name) or "time-change-background"
+    ext = Path(original_name).suffix or Path(safe_name).suffix
+    ext_lower = (ext or "").lower()
+
+    mimetype = uploaded.mimetype or _guess_mimetype(original_name, safe_name) or ""
+    mimetype_lower = mimetype.lower()
+    if not (
+        mimetype_lower.startswith("image/")
+        or mimetype_lower.startswith("video/")
+        or ext_lower in IMAGE_EXTENSIONS
+        or ext_lower in VIDEO_EXTENSIONS
+    ):
+        abort(400, description="Veuillez fournir une image ou une vidéo pour l'arrière-plan.")
+
+    TIME_CHANGE_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    media_id = uuid.uuid4().hex
+    storage_name = f"{media_id}{ext_lower}" if ext_lower else media_id
+    target = TIME_CHANGE_SLIDE_ASSETS_DIR / storage_name
+    uploaded.save(target)
+
+    updates: Dict[str, Any] = {
+        "background_path": storage_name,
+        "background_mimetype": mimetype or None,
+    }
+
+    try:
+        settings = store.update_settings({"time_change_slide": updates})
+    except ValueError as exc:
+        abort(400, description=str(exc))
+
+    time_change_slide = settings.get("time_change_slide") or {}
+    bg_path = time_change_slide.get("background_path")
+    background_url = None
+    if isinstance(bg_path, str) and bg_path:
+        background_url = url_for("main.serve_time_change_slide_asset", filename=bg_path, _external=False)
+
+    return jsonify(
+        {
+            "background_url": background_url,
+            "background_mimetype": time_change_slide.get("background_mimetype"),
+            "settings": settings,
+        }
+    )
+
+
+@bp.get("/api/time-change-slide/backgrounds")
+def list_time_change_slide_backgrounds() -> Any:
+    """Liste les fonds téléversés pour la diapositive Changement d'heure."""
+    TIME_CHANGE_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    items: List[Dict[str, Any]] = []
+    for entry in sorted(TIME_CHANGE_SLIDE_ASSETS_DIR.iterdir()):
+        if not entry.is_file():
+            continue
+        filename = entry.name
+        mimetype = _guess_mimetype(filename) or "application/octet-stream"
+        url = url_for("main.serve_time_change_slide_asset", filename=filename, _external=False)
+        items.append(
+            {
+                "filename": filename,
+                "url": url,
+                "mimetype": mimetype,
+            }
+        )
+
+    settings = store.get_settings()
+    time_change_slide = settings.get("time_change_slide") or {}
+    current = time_change_slide.get("background_path")
+    return jsonify({"items": items, "current": current})
+
+
+@bp.delete("/api/time-change-slide/background/<path:filename>")
+def delete_time_change_slide_background(filename: str) -> Any:
+    """Supprime un arrière-plan de la diapositive Changement d'heure."""
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        abort(400, description="Nom de fichier invalide.")
+
+    TIME_CHANGE_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    target = (TIME_CHANGE_SLIDE_ASSETS_DIR / safe_name).resolve()
+    base_dir = TIME_CHANGE_SLIDE_ASSETS_DIR.resolve()
+    try:
+        target.relative_to(base_dir)
+    except ValueError:
+        abort(400, description="Chemin de fichier non autorisé.")
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+
+    try:
+        target.unlink()
+    except OSError as exc:
+        abort(500, description=f"Impossible de supprimer le fichier : {exc}")
+
+    try:
+        settings = store.get_settings()
+    except Exception:
+        settings = {"time_change_slide": DEFAULT_SETTINGS["time_change_slide"]}
+
+    time_change_slide = settings.get("time_change_slide") or {}
+    updates: Dict[str, Any] = {}
+    if isinstance(time_change_slide.get("background_path"), str) and time_change_slide["background_path"] == filename:
+        updates = {"background_path": None, "background_mimetype": None}
+
+    new_settings = settings
+    if updates:
+        try:
+            new_settings = store.update_settings({"time_change_slide": updates})
+        except ValueError as exc:
+            abort(400, description=str(exc))
+
+    current = (new_settings.get("time_change_slide") or {}).get("background_path")
+    return jsonify({"removed": filename, "current": current, "settings": new_settings})
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Christmas slide API endpoints
+# ───────────────────────────────────────────────────────────────────────────────
+
+@bp.get("/api/christmas-slide/next")
+def api_christmas_next() -> Any:
+    info = _next_christmas_info()
+    days_before_arg = request.args.get("days_before")
+    within_window: Optional[bool] = None
+    if days_before_arg is not None:
+        try:
+            limit_days = int(days_before_arg)
+            within_window = info is not None and info.get("days_until") is not None and info["days_until"] <= limit_days
+        except (TypeError, ValueError):
+            within_window = None
+    return jsonify({"christmas": info, "within_window": within_window})
+
+
+@bp.post("/api/christmas-slide/background")
+def upload_christmas_slide_background() -> Any:
+    """Téléverse un fond image/vidéo pour la diapositive Noël."""
+    uploaded = request.files.get("file") or request.files.get("background")
+    if not uploaded or not uploaded.filename:
+        abort(400, description="Aucun fichier reçu.")
+
+    original_name = uploaded.filename
+    safe_name = secure_filename(original_name) or "christmas-background"
+    ext = Path(original_name).suffix or Path(safe_name).suffix
+    ext_lower = (ext or "").lower()
+
+    mimetype = uploaded.mimetype or _guess_mimetype(original_name, safe_name) or ""
+    mimetype_lower = mimetype.lower()
+    if not (
+        mimetype_lower.startswith("image/")
+        or mimetype_lower.startswith("video/")
+        or ext_lower in IMAGE_EXTENSIONS
+        or ext_lower in VIDEO_EXTENSIONS
+    ):
+        abort(400, description="Veuillez fournir une image ou une vidéo pour l'arrière-plan.")
+
+    CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    media_id = uuid.uuid4().hex
+    storage_name = f"{media_id}{ext_lower}" if ext_lower else media_id
+    target = CHRISTMAS_SLIDE_ASSETS_DIR / storage_name
+    uploaded.save(target)
+
+    updates: Dict[str, Any] = {
+        "background_path": storage_name,
+        "background_mimetype": mimetype or None,
+    }
+
+    try:
+        settings = store.update_settings({"christmas_slide": updates})
+    except ValueError as exc:
+        abort(400, description=str(exc))
+
+    christmas_slide = settings.get("christmas_slide") or {}
+    bg_path = christmas_slide.get("background_path")
+    background_url = None
+    if isinstance(bg_path, str) and bg_path:
+        background_url = url_for("main.serve_christmas_slide_asset", filename=bg_path, _external=False)
+
+    return jsonify(
+        {
+            "background_url": background_url,
+            "background_mimetype": christmas_slide.get("background_mimetype"),
+            "settings": settings,
+        }
+    )
+
+
+@bp.get("/api/christmas-slide/backgrounds")
+def list_christmas_slide_backgrounds() -> Any:
+    """Liste les fonds téléversés pour la diapositive Noël."""
+    CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    items: List[Dict[str, Any]] = []
+    for entry in sorted(CHRISTMAS_SLIDE_ASSETS_DIR.iterdir()):
+        if not entry.is_file():
+            continue
+        filename = entry.name
+        mimetype = _guess_mimetype(filename) or "application/octet-stream"
+        url = url_for("main.serve_christmas_slide_asset", filename=filename, _external=False)
+        items.append(
+            {
+                "filename": filename,
+                "url": url,
+                "mimetype": mimetype,
+            }
+        )
+
+    settings = store.get_settings()
+    christmas_slide = settings.get("christmas_slide") or {}
+    current = christmas_slide.get("background_path")
+    return jsonify({"items": items, "current": current})
+
+
+@bp.delete("/api/christmas-slide/background/<path:filename>")
+def delete_christmas_slide_background(filename: str) -> Any:
+    """Supprime un arrière-plan de la diapositive Noël."""
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        abort(400, description="Nom de fichier invalide.")
+
+    CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    target = (CHRISTMAS_SLIDE_ASSETS_DIR / safe_name).resolve()
+    base_dir = CHRISTMAS_SLIDE_ASSETS_DIR.resolve()
+    try:
+        target.relative_to(base_dir)
+    except ValueError:
+        abort(400, description="Chemin de fichier non autorisé.")
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+
+    try:
+        target.unlink()
+    except OSError as exc:
+        abort(500, description=f"Impossible de supprimer le fichier : {exc}")
+
+    try:
+        settings = store.get_settings()
+    except Exception:
+        settings = {"christmas_slide": DEFAULT_SETTINGS["christmas_slide"]}
+
+    christmas_slide = settings.get("christmas_slide") or {}
+    updates: Dict[str, Any] = {}
+    if isinstance(christmas_slide.get("background_path"), str) and christmas_slide["background_path"] == filename:
+        updates = {"background_path": None, "background_mimetype": None}
+
+    new_settings = settings
+    if updates:
+        try:
+            new_settings = store.update_settings({"christmas_slide": updates})
+        except ValueError as exc:
+            abort(400, description=str(exc))
+
+    current = (new_settings.get("christmas_slide") or {}).get("background_path")
+    return jsonify({"removed": filename, "current": current, "settings": new_settings})
+
+
+@bp.get("/christmas-slide/asset/<path:filename>")
+def serve_christmas_slide_asset(filename: str) -> Any:
+    """Sert un fichier d'arrière-plan pour la diapositive Noël."""
+    CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    target = (CHRISTMAS_SLIDE_ASSETS_DIR / filename).resolve()
+    base_dir = CHRISTMAS_SLIDE_ASSETS_DIR.resolve()
+    try:
+        target.relative_to(base_dir)
+    except ValueError:
+        abort(403, description="Chemin de fichier non autorisé.")
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+    return send_from_directory(CHRISTMAS_SLIDE_ASSETS_DIR, filename)
 
 
 @bp.post('/api/powerpoint/upload')
