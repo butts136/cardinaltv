@@ -21,7 +21,7 @@ def check_imports():
             __import__(dep)
             print(f"  ✓ {dep}")
         except ImportError as e:
-            print(f"  ✗ {dep} - {e}")
+            print(f"  ✗ {dep} - Import error: {e}")
             return False
     
     for dep in optional_deps:

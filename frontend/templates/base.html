@@ -148,8 +148,9 @@
         submenuToggles.forEach((btn) => {
           btn.addEventListener("click", () => {
             const submenu = btn.closest(".nav-submenu");
-            const content = submenu?.querySelector(".nav-submenu-content");
-            if (!submenu || !content) return;
+            if (!submenu) return;
+            const content = submenu.querySelector(".nav-submenu-content");
+            if (!content) return;
             const isExpanded = submenu.classList.toggle("is-expanded");
             content.classList.toggle("is-open", isExpanded);
             btn.setAttribute("aria-expanded", isExpanded ? "true" : "false");

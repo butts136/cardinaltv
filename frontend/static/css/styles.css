@@ -207,7 +207,7 @@ a:hover {
 }
 
 .nav-submenu-content.is-open {
-  max-height: 200px;
+  max-height: 250px; /* Accommodates up to ~5 submenu items */
 }
 
 .nav-sublink--nested {
