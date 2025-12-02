@@ -627,7 +627,10 @@ const showBackgroundMediaError = (wrapper, message) => {
 
 const showPreviewBackgroundFallback = (backdrop, message) => {
   if (!backdrop) return;
-  backdrop.classList.add("time-change-slide-backdrop--fallback");
+  const fallbackClass = backdrop.classList.contains("birthday-slide-backdrop")
+    ? "birthday-slide-backdrop--fallback"
+    : "time-change-slide-backdrop--fallback";
+  backdrop.classList.add(fallbackClass);
   backdrop.innerHTML = "";
   const placeholder = document.createElement("div");
   placeholder.className = "time-change-slide-fallback-message";
@@ -2575,6 +2578,7 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
     const img = document.createElement("img");
     img.src = item.url;
     img.alt = item.label || item.filename || "Arrière-plan";
+    img.addEventListener("error", () => showBackgroundMediaError(mediaWrapper, "Aperçu indisponible."));
     mediaWrapper.appendChild(img);
   } else {
     const video = document.createElement("video");
@@ -2583,6 +2587,7 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
     video.loop = true;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
+    video.addEventListener("error", () => showBackgroundMediaError(mediaWrapper, "Aperçu indisponible."));
     mediaWrapper.appendChild(video);
   }
 
@@ -2768,7 +2773,7 @@ const uploadBirthdayBackground = async (file = null) => {
 
   // Use XMLHttpRequest to get progress events.
   const xhr = new XMLHttpRequest();
-  xhr.open("POST", "api/birthday-slide/background");
+  xhr.open("POST", buildApiUrl("api/birthday-slide/background"));
 
   const resetProgress = () => setBirthdayUploadProgress(0, { active: false });
 
@@ -2970,6 +2975,9 @@ const renderBirthdayPreview = () => {
     void video.play().catch(() => {});
     video.addEventListener("loadedmetadata", applyBirthdayPreviewScale);
     video.addEventListener("canplay", applyBirthdayPreviewScale);
+    video.addEventListener("error", () =>
+      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
+    );
     backdrop.appendChild(video);
   } else if (bgUrl) {
     const img = document.createElement("img");
@@ -2977,9 +2985,12 @@ const renderBirthdayPreview = () => {
     img.src = bgUrl;
     img.alt = "Arrière-plan Anniversaire";
     img.addEventListener("load", applyBirthdayPreviewScale);
+    img.addEventListener("error", () =>
+      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
+    );
     backdrop.appendChild(img);
   } else {
-    backdrop.classList.add("birthday-slide-backdrop--fallback");
+    showPreviewBackgroundFallback(backdrop, "Ajoutez un arrière-plan pour la diapositive.");
   }
 
   const overlay = document.createElement("div");

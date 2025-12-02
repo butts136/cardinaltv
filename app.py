@@ -3365,10 +3365,15 @@ def get_settings() -> Any:
         birthday_background_url = None
         birthday_background_source = None
         if isinstance(bg_upload_path, str) and bg_upload_path:
-            birthday_background_url = url_for(
-                "main.serve_birthday_slide_asset", filename=bg_upload_path, _external=False
-            )
-            birthday_background_source = "upload"
+            if _slide_asset_exists(BIRTHDAY_SLIDE_ASSETS_DIR, bg_upload_path):
+                birthday_background_url = url_for(
+                    "main.serve_birthday_slide_asset", filename=bg_upload_path, _external=False
+                )
+                birthday_background_source = "upload"
+            else:
+                birthday_slide["background_media_id"] = None
+                birthday_slide["background_path"] = None
+                birthday_slide["background_mimetype"] = None
         else:
             birthday_slide["background_media_id"] = None
             birthday_slide["background_path"] = None
