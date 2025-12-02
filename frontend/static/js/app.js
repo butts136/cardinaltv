@@ -2970,6 +2970,7 @@ const renderBirthdayPreview = () => {
     video.loop = true;
     video.autoplay = true;
     video.muted = true;
+    video.setAttribute("muted", "");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     void video.play().catch(() => {});

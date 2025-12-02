@@ -1590,8 +1590,10 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
+    video.setAttribute("muted", "");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
+    void video.play().catch(() => {});
     backdrop.appendChild(video);
     currentVideo = video;
   } else if (bgUrl) {
