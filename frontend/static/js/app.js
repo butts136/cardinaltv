@@ -63,7 +63,6 @@ const birthdayBackgroundInput = document.querySelector("#birthday-background-inp
 const birthdayBackgroundUploadButton = document.querySelector("#birthday-background-upload-button");
 const birthdayBackgroundStatus = document.querySelector("#birthday-background-status");
 const birthdayBackgroundList = document.querySelector("#birthday-background-list");
-const birthdayBackgroundApplyAllInput = document.querySelector("#birthday-background-apply-all");
 const birthdayPreviewStage = document.querySelector("#birthday-preview-stage");
 const birthdayPreviewRefreshButton = document.querySelector("#birthday-preview-refresh");
 const birthdayBackgroundToggleButton = document.querySelector("#birthday-background-toggle");
@@ -508,13 +507,6 @@ const BIRTHDAY_FIXED_COPY = {
     ],
     background_path: null,
   },
-};
-
-const BIRTHDAY_VARIANTS = ["before", "day", "weekend"];
-const BIRTHDAY_VARIANT_LABELS = {
-  before: "Avant l'anniversaire",
-  day: "Jour J",
-  weekend: "Week-end",
 };
 
 const TEAM_SLIDE_SCALE = 1.25;
@@ -2400,40 +2392,29 @@ const populateBirthdayVariantForm = (config) => {
   setBirthdayVariantUI(birthdayCurrentVariant || "before");
 };
 
-const fetchBirthdayVariantConfig = async (variant) => {
+const loadBirthdayVariantConfig = async (variant) => {
+  setBirthdayVariantUI(variant);
   try {
     const data = await fetchJSON(`api/birthday-slide/config/${variant}`);
     const cfg = (data && data.config) || {};
-    return normalizeBirthdayVariantConfig(cfg, variant);
+    birthdayVariantConfigs[variant] = normalizeBirthdayVariantConfig(cfg, variant);
+    populateBirthdayVariantForm(birthdayVariantConfigs[variant]);
   } catch (error) {
     console.error("Erreur lors du chargement de la config anniversaire:", error);
-    return normalizeBirthdayVariantConfig({ ...(BIRTHDAY_FIXED_COPY[variant] || {}) }, variant);
+    birthdayVariantConfigs[variant] = normalizeBirthdayVariantConfig(
+      { ...(BIRTHDAY_FIXED_COPY[variant] || {}) },
+      variant,
+    );
+    populateBirthdayVariantForm(birthdayVariantConfigs[variant]);
   }
-};
-
-const loadBirthdayVariantConfig = async (variant) => {
-  setBirthdayVariantUI(variant);
-  birthdayVariantConfigs[variant] = await fetchBirthdayVariantConfig(variant);
-  populateBirthdayVariantForm(birthdayVariantConfigs[variant]);
   renderBirthdayPreview();
   renderBirthdayBackgroundOptions();
 };
 
-const saveBirthdayVariantConfig = async ({
-  variant = birthdayCurrentVariant || "before",
-  syncFromUI = true,
-  successMessage = "Textes enregistrés.",
-  overrides = {},
-} = {}) => {
-  const currentVariant = birthdayCurrentVariant || "before";
-  const targetVariant = variant || currentVariant;
-  const shouldSync = syncFromUI !== false && targetVariant === currentVariant;
-  if (shouldSync) {
-    syncBirthdayVariantConfigFromUI();
-  } else if (!birthdayVariantConfigs[targetVariant]) {
-    birthdayVariantConfigs[targetVariant] = await fetchBirthdayVariantConfig(targetVariant);
-  }
-  const existing = birthdayVariantConfigs[targetVariant] || { ...BIRTHDAY_FIXED_COPY[targetVariant] };
+const saveBirthdayVariantConfig = async ({ successMessage = "Textes enregistrés.", overrides = {} } = {}) => {
+  syncBirthdayVariantConfigFromUI();
+  const variant = birthdayCurrentVariant || "before";
+  const existing = birthdayVariantConfigs[variant] || { ...BIRTHDAY_FIXED_COPY[variant] };
   const chosenPath =
     overrides.background_path !== undefined
       ? overrides.background_path
@@ -2444,7 +2425,7 @@ const saveBirthdayVariantConfig = async ({
       : birthdayBackgroundOptions.find((opt) => opt.filename === chosenPath)?.mimetype ||
         existing.background_mimetype ||
         null;
-  const textsSource = normalizeBirthdayVariantConfig(existing, targetVariant);
+  const textsSource = normalizeBirthdayVariantConfig(birthdayVariantConfigs[variant] || existing, variant);
   const linesPayload = normalizeBirthdayLines(textsSource);
   const payload = {
     lines: linesPayload,
@@ -2458,33 +2439,31 @@ const saveBirthdayVariantConfig = async ({
     background_mimetype: chosenMime,
   };
   try {
-    const data = await fetchJSON(`api/birthday-slide/config/${targetVariant}`, {
+    const data = await fetchJSON(`api/birthday-slide/config/${variant}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     const cfg = (data && data.config) || payload;
-    const merged = normalizeBirthdayVariantConfig({ ...cfg }, targetVariant);
+    const merged = normalizeBirthdayVariantConfig({ ...cfg }, variant);
     const selected = birthdayBackgroundOptions.find((opt) => opt.filename === merged.background_path);
     if (selected || overrides.background_url) {
       const resolvedUrl = overrides.background_url || selected?.url || merged.background_url || null;
       merged.background_url = resolvedUrl ? resolveMediaUrl(resolvedUrl) : null;
-      merged.background_mimetype =
-        overrides.background_mimetype || selected?.mimetype || merged.background_mimetype || null;
+      merged.background_mimetype = overrides.background_mimetype || selected?.mimetype || merged.background_mimetype || null;
+    } else if (
+      birthdayVariantConfigs[variant]?.background_url &&
+      merged.background_path === birthdayVariantConfigs[variant].background_path
+    ) {
+      merged.background_url = birthdayVariantConfigs[variant].background_url;
     }
-    birthdayVariantConfigs[targetVariant] = merged;
-    if (successMessage && targetVariant === currentVariant) {
-      setBirthdayBackgroundStatus(successMessage, "success");
-    }
-    if (targetVariant === currentVariant) {
-      renderBirthdayPreview();
-    }
+    birthdayVariantConfigs[variant] = merged;
+    setBirthdayBackgroundStatus(successMessage, "success");
+    renderBirthdayPreview();
     renderBirthdayBackgroundOptions();
   } catch (error) {
     console.error("Erreur lors de l'enregistrement de la variante anniversaire:", error);
-    if (targetVariant === currentVariant) {
-      setBirthdayBackgroundStatus("Impossible d'enregistrer les textes.", "error");
-    }
+    setBirthdayBackgroundStatus("Impossible d'enregistrer les textes.", "error");
   }
 };
 
@@ -2603,9 +2582,6 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
   if (isSelected) {
     wrapper.classList.add("team-background-item--active");
   }
-  if (isVariantActive) {
-    wrapper.classList.add("birthday-background-item--variant");
-  }
   wrapper.tabIndex = 0;
   wrapper.setAttribute("role", "button");
 
@@ -2635,40 +2611,37 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
 
   const selectBackground = async () => {
     setBirthdayBackgroundStatus("Mise à jour...", "info");
-    const targetVariant = birthdayCurrentVariant || "before";
-    const overrides = {
+    const variant = birthdayCurrentVariant || "before";
+    if (!birthdayVariantConfigs[variant]) {
+      birthdayVariantConfigs[variant] = { ...BIRTHDAY_FIXED_COPY[variant] };
+    }
+    birthdayVariantConfigs[variant].background_path = item.filename;
+    birthdayVariantConfigs[variant].background_mimetype = item.mimetype || null;
+    birthdayVariantConfigs[variant].background_url = resolveMediaUrl(item.url || "");
+
+    const patch = {
       background_path: item.filename,
       background_mimetype: item.mimetype || null,
-      background_url: resolveMediaUrl(item.url || ""),
+      background_media_id: null,
     };
-    const applyToAll = Boolean(birthdayBackgroundApplyAllInput?.checked);
     try {
-      if (applyToAll) {
-        await saveBirthdaySettings({
+      await saveBirthdaySettings(patch);
+      await saveBirthdayVariantConfig({
+        successMessage: "Arrière-plan sélectionné.",
+        overrides: {
           background_path: item.filename,
           background_mimetype: item.mimetype || null,
-          background_media_id: null,
-        });
-        birthdayBackgroundCurrent = { type: "upload", filename: item.filename };
-        for (const variant of BIRTHDAY_VARIANTS) {
-          await saveBirthdayVariantConfig({
-            variant,
-            syncFromUI: variant === targetVariant,
-            successMessage:
-              variant === targetVariant
-                ? "Arrière-plan appliqué aux trois variantes."
-                : null,
-            overrides,
-          });
-        }
-      } else {
-        await saveBirthdayVariantConfig({
-          variant: targetVariant,
-          syncFromUI: true,
-          successMessage: "Arrière-plan appliqué à cette variante.",
-          overrides,
-        });
-      }
+          background_url: item.url || null,
+        },
+      });
+      birthdaySlideSettings = {
+        ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS),
+        background_path: item.filename,
+        background_mimetype: item.mimetype || null,
+        background_url: resolveMediaUrl(item.url || birthdaySlideSettings?.background_url || null) || null,
+      };
+      birthdayBackgroundCurrent = { type: "upload", filename: item.filename };
+      renderBirthdayPreview();
       renderBirthdayBackgroundOptions();
     } catch (error) {
       console.error("Erreur lors de la sélection du fond Anniversaire:", error);
@@ -2699,13 +2672,7 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
   if (isSelected) {
     const badge = document.createElement("div");
     badge.className = "background-chip birthday-background-selected";
-    if (isVariantActive) {
-      badge.classList.add("background-chip--variant");
-      badge.textContent = `Variante (${BIRTHDAY_VARIANT_LABELS[birthdayCurrentVariant] || "actuelle"})`;
-    } else {
-      badge.classList.add("background-chip--global");
-      badge.textContent = "Fond global";
-    }
+    badge.textContent = "Arrière-plan sélectionné";
     wrapper.appendChild(badge);
   }
 
@@ -2932,7 +2899,7 @@ const updateBirthdayOverlayText = (root, settings) => {
     if (opts.height_percent) {
       line.style.minHeight = `${opts.height_percent}%`;
     }
-    line.style.whiteSpace = "pre-line";
+    line.style.whiteSpace = "pre";
     const rawX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const rawY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
     const left = clamp(50 + rawX, 0, 100);
@@ -3023,7 +2990,6 @@ const renderBirthdayPreview = () => {
     video.setAttribute("muted", "");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
-    video.load();
     void video.play().catch(() => {});
     video.addEventListener("loadedmetadata", applyBirthdayPreviewScale);
     video.addEventListener("canplay", applyBirthdayPreviewScale);

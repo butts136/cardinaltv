@@ -646,17 +646,6 @@
   box-shadow: 0 0 0 2px rgba(76, 110, 245, 0.2);
 }
 
-.birthday-background-apply-all {
-  margin-top: 0.75rem;
-  gap: 0.4rem;
-}
-
-.birthday-background-hint {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.65);
-  margin-top: 0.25rem;
-}
-
 .background-chip--global {
   background: rgba(240, 101, 149, 0.16);
   border-color: rgba(240, 101, 149, 0.32);
