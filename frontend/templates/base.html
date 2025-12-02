@@ -30,6 +30,11 @@
         'main.christmas',
         'main.temporary',
       ] %}
+      {% set fetes_endpoints = [
+        'main.birthday',
+        'main.time_change',
+        'main.christmas',
+      ] %}
 
       <nav class="sidebar-nav" aria-label="Navigation principale">
         <a
@@ -53,9 +58,19 @@
           <a class="nav-sublink {% if endpoint == 'main.playlist' %}is-active{% endif %}" href="{{ url_for('main.playlist') }}">Playlist</a>
           <a class="nav-sublink {% if endpoint == 'main.employees' %}is-active{% endif %}" href="{{ url_for('main.employees') }}">Employés</a>
           <a class="nav-sublink {% if endpoint == 'main.team' %}is-active{% endif %}" href="{{ url_for('main.team') }}">Notre Équipe</a>
-          <a class="nav-sublink {% if endpoint == 'main.birthday' %}is-active{% endif %}" href="{{ url_for('main.birthday') }}">Anniversaire</a>
-          <a class="nav-sublink {% if endpoint == 'main.time_change' %}is-active{% endif %}" href="{{ url_for('main.time_change') }}">Changement d'heure</a>
-          <a class="nav-sublink {% if endpoint == 'main.christmas' %}is-active{% endif %}" href="{{ url_for('main.christmas') }}">Noël</a>
+          
+          <div class="nav-submenu {% if endpoint in fetes_endpoints %}is-expanded{% endif %}">
+            <button type="button" class="nav-submenu-toggle {% if endpoint in fetes_endpoints %}is-active{% endif %}" aria-expanded="{{ 'true' if endpoint in fetes_endpoints else 'false' }}">
+              <span>Fêtes</span>
+              <span class="nav-submenu-arrow">▼</span>
+            </button>
+            <div class="nav-submenu-content {% if endpoint in fetes_endpoints %}is-open{% endif %}">
+              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.birthday' %}is-active{% endif %}" href="{{ url_for('main.birthday') }}">Anniversaire</a>
+              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.time_change' %}is-active{% endif %}" href="{{ url_for('main.time_change') }}">Changement d'heure</a>
+              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.christmas' %}is-active{% endif %}" href="{{ url_for('main.christmas') }}">Noël</a>
+            </div>
+          </div>
+          
           <a class="nav-sublink {% if endpoint == 'main.temporary' %}is-active{% endif %}" href="{{ url_for('main.temporary') }}">Messages temporaires</a>
         </div>
 
@@ -126,6 +141,20 @@
 
         navLinks.forEach((link) => {
           link.addEventListener("click", () => closeSidebar());
+        });
+
+        // Submenu toggle (Fêtes)
+        const submenuToggles = document.querySelectorAll(".nav-submenu-toggle");
+        submenuToggles.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const submenu = btn.closest(".nav-submenu");
+            if (!submenu) return;
+            const content = submenu.querySelector(".nav-submenu-content");
+            if (!content) return;
+            const isExpanded = submenu.classList.toggle("is-expanded");
+            content.classList.toggle("is-open", isExpanded);
+            btn.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+          });
         });
 
         const openHashSection = () => {

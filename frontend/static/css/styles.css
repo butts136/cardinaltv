@@ -159,6 +159,62 @@ a:hover {
   border: 1px solid var(--border);
 }
 
+/* Submenu (Fêtes) */
+.nav-submenu {
+  margin: 0.25rem 0;
+}
+
+.nav-submenu-toggle {
+  width: 100%;
+  padding: 0.65rem 0.85rem 0.65rem 1.8rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.nav-submenu-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  transform: translateX(2px);
+}
+
+.nav-submenu-toggle.is-active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nav-submenu-arrow {
+  font-size: 0.65rem;
+  transition: transform 0.2s ease;
+}
+
+.nav-submenu.is-expanded .nav-submenu-arrow {
+  transform: rotate(180deg);
+}
+
+.nav-submenu-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out;
+}
+
+.nav-submenu-content.is-open {
+  max-height: 250px; /* Accommodates up to ~5 submenu items */
+}
+
+.nav-sublink--nested {
+  padding-left: 2.8rem;
+  font-size: 0.9rem;
+}
+
 .sidebar-meta {
   margin-top: auto;
   padding: 1rem;
@@ -1346,6 +1402,98 @@ input[type="datetime-local"]:focus {
 
 @media (max-width: 960px) {
   .time-change-slide-overlay {
+    max-width: 90%;
+    padding: clamp(14px, 4.5vw, 26px);
+  }
+}
+
+/* Christmas slide styles */
+.christmas-slide-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  background: radial-gradient(circle at 20% 20%, #1a2a1a 0%, #0d1a0d 65%, #050a05 100%);
+}
+
+.christmas-slide-viewport {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.christmas-slide-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.christmas-slide-backdrop--fallback {
+  background: linear-gradient(135deg, #1a2a1a 0%, #8B0000 35%, #006400 65%, #050a05 100%);
+}
+
+.christmas-slide-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0.6);
+}
+
+.christmas-slide-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  padding: 0;
+  max-width: 100%;
+  width: 100%;
+  color: #f8fafc;
+  text-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  background: transparent;
+  backdrop-filter: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.christmas-lines {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.christmas-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(1rem, 2.6vw, 1.4rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(248, 250, 252, 0.95);
+  margin: 0;
+  text-shadow: 0 10px 28px rgba(0, 0, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.3);
+  white-space: pre;
+  overflow: visible;
+  text-align: center;
+  max-width: 100%;
+}
+
+.christmas-line--primary {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 800;
+}
+
+@media (max-width: 960px) {
+  .christmas-slide-overlay {
     max-width: 90%;
     padding: clamp(14px, 4.5vw, 26px);
   }
