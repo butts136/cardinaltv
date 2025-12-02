@@ -6253,9 +6253,11 @@ window.addEventListener("load", async () => {
     Boolean(settingsForm) ||
     Boolean(birthdayEnabledInput) ||
     Boolean(timeChangeEnabledInput) ||
+    Boolean(christmasEnabledInput) ||
     Boolean(teamEnabledInput) ||
     Boolean(teamPreviewStage) ||
     Boolean(birthdayPreviewStage) ||
+    Boolean(christmasPreviewStage) ||
     Boolean(timeChangePreviewStage) ||
     Boolean(mediaList);
 

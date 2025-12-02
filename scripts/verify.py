@@ -145,8 +145,8 @@ def check_christmas_in_slideshow():
     return all_passed
 
 def check_navigation_submenu():
-    """Vérifie que le sous-menu Fêtes est présent dans la navigation."""
-    print("\nVérification du sous-menu Fêtes...")
+    """Vérifie que le sous-menu Diapo auto-généré est présent dans la navigation."""
+    print("\nVérification du sous-menu Diapo auto-généré...")
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     base_html_path = os.path.join(base_dir, "frontend/templates/base.html")
     
@@ -155,7 +155,7 @@ def check_navigation_submenu():
     
     checks = [
         ("nav-submenu class", "nav-submenu" in content),
-        ("Fêtes label", "Fêtes" in content),
+        ("Diapo auto-généré label", "Diapo auto-généré" in content),
         ("fetes_endpoints", "fetes_endpoints" in content),
         ("nav-submenu-toggle", "nav-submenu-toggle" in content),
     ]
@@ -183,7 +183,7 @@ def main():
     results.append(("Fonction Noël", check_christmas_function()))
     results.append(("Fichiers frontend", check_frontend_files()))
     results.append(("Christmas slideshow", check_christmas_in_slideshow()))
-    results.append(("Sous-menu Fêtes", check_navigation_submenu()))
+    results.append(("Sous-menu Diapo auto-généré", check_navigation_submenu()))
     
     print("\n" + "=" * 50)
     print("Résumé")

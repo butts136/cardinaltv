@@ -276,20 +276,17 @@ Les diapositives automatiques sont des slides générées dynamiquement en fonct
 │      ├─ Playlist          │                         │
 │      ├─ Employés          │                         │
 │      ├─ Notre Équipe      │                         │
-│      └─ Fêtes             │                         │
+│      └─ Diapo auto-généré │                         │
 │         ├─ Anniversaire   │                         │
 │         ├─ Changement     │                         │
 │         │   d'heure       │                         │
 │         └─ Noël           │                         │
-│                           │                         │
-│ Ressources                │                         │
-│   └─ PowerPoint           │                         │
 └───────────────────────────┴─────────────────────────┘
 ```
 
-### Sous-menu Fêtes
+### Sous-menu Diapo auto-généré
 
-Les diapositives liées aux fêtes et événements calendaires sont regroupées dans la sous-catégorie **Fêtes** :
+Les diapositives liées aux fêtes et événements calendaires sont regroupées dans la sous-catégorie **Diapo auto-généré** :
 - Anniversaire
 - Changement d'heure
 - Noël
@@ -383,7 +380,7 @@ Pour ajouter une nouvelle diapositive de fête (ex. Halloween, Saint-Valentin), 
 
 5. **Navigation** :
    - Ajouter la route dans `app.py`
-   - Ajouter le lien dans `base.html` (sous-menu Fêtes)
+   - Ajouter le lien dans `base.html` (sous-menu Diapo auto-généré)
 
 ### Template de diapositive
 
@@ -440,7 +437,7 @@ const render[Fete]Slide = (item) => {
 
 4. **Vérifier la navigation** :
    - Cliquer sur tous les liens du menu latéral
-   - Vérifier le sous-menu Fêtes
+   - Vérifier le sous-menu Diapo auto-généré
    - Tester l'accessibilité clavier
 
 ### Script de vérification

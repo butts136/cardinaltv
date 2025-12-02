@@ -1313,50 +1313,6 @@ def _guess_mimetype(*names: Optional[str]) -> Optional[str]:
     return None
 
 
-def _list_christmas_background_files() -> List[Dict[str, Any]]:
-    """Return available christmas backgrounds (images/videos) from the assets directory."""
-    CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    items: List[Dict[str, Any]] = []
-    try:
-        entries = sorted(
-            CHRISTMAS_SLIDE_ASSETS_DIR.iterdir(),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-    except OSError:
-        return items
-
-    for entry in entries:
-        if not entry.is_file():
-            continue
-        if entry.name.startswith("."):
-            continue
-        try:
-            stat = entry.stat()
-        except OSError:
-            continue
-        suffix = entry.suffix.lower()
-        guessed = _guess_mimetype(entry.name) or ""
-        if not guessed:
-            if suffix in IMAGE_EXTENSIONS:
-                guessed = "image/*"
-            elif suffix in VIDEO_EXTENSIONS:
-                guessed = "video/*"
-        if not guessed:
-            guessed = "application/octet-stream"
-        url = url_for("main.serve_christmas_slide_asset", filename=entry.name, _external=False)
-        items.append(
-            {
-                "filename": entry.name,
-                "url": url,
-                "mimetype": guessed,
-                "size": stat.st_size,
-                "modified_at": datetime.fromtimestamp(stat.st_mtime, tz=QUEBEC_TZ).isoformat(),
-            }
-        )
-    return items
-
-
 def _build_document_directory(base_name: str, media_id: str) -> Path:
     safe_base = secure_filename(base_name) or media_id
     candidate = MEDIA_DIR / safe_base
@@ -4450,7 +4406,22 @@ def upload_christmas_slide_background() -> Any:
 @bp.get("/api/christmas-slide/backgrounds")
 def list_christmas_slide_backgrounds() -> Any:
     """Liste les fonds téléversés pour la diapositive Noël."""
-    items = _list_christmas_background_files()
+    CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    items: List[Dict[str, Any]] = []
+    for entry in sorted(CHRISTMAS_SLIDE_ASSETS_DIR.iterdir()):
+        if not entry.is_file():
+            continue
+        filename = entry.name
+        mimetype = _guess_mimetype(filename) or "application/octet-stream"
+        url = url_for("main.serve_christmas_slide_asset", filename=filename, _external=False)
+        items.append(
+            {
+                "filename": filename,
+                "url": url,
+                "mimetype": mimetype,
+            }
+        )
+
     settings = store.get_settings()
     christmas_slide = settings.get("christmas_slide") or {}
     current = christmas_slide.get("background_path")

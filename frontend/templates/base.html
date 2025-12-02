@@ -61,7 +61,7 @@
           
           <div class="nav-submenu {% if endpoint in fetes_endpoints %}is-expanded{% endif %}">
             <button type="button" class="nav-submenu-toggle {% if endpoint in fetes_endpoints %}is-active{% endif %}" aria-expanded="{{ 'true' if endpoint in fetes_endpoints else 'false' }}">
-              <span>Fêtes</span>
+              <span>Diapo auto-généré</span>
               <span class="nav-submenu-arrow">▼</span>
             </button>
             <div class="nav-submenu-content {% if endpoint in fetes_endpoints %}is-open{% endif %}">
@@ -74,10 +74,6 @@
           <a class="nav-sublink {% if endpoint == 'main.temporary' %}is-active{% endif %}" href="{{ url_for('main.temporary') }}">Messages temporaires</a>
         </div>
 
-        <div class="nav-group">
-          <p class="nav-group-label">Ressources</p>
-          <a class="nav-link" href="{{ url_for('main.index') }}#powerpoint-section">PowerPoint</a>
-        </div>
       </nav>
 
       <div class="sidebar-meta">
@@ -143,7 +139,7 @@
           link.addEventListener("click", () => closeSidebar());
         });
 
-        // Submenu toggle (Fêtes)
+        // Submenu toggle (Diapo auto-généré)
         const submenuToggles = document.querySelectorAll(".nav-submenu-toggle");
         submenuToggles.forEach((btn) => {
           btn.addEventListener("click", () => {
