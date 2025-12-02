@@ -96,6 +96,32 @@ const DEFAULT_TIME_CHANGE_SLIDE = {
   text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
 };
 
+const CHRISTMAS_TEXT_OPTIONS_DEFAULT = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" };
+
+const DEFAULT_CHRISTMAS_SLIDE = {
+  enabled: false,
+  order_index: 0,
+  duration: 12,
+  background_url: null,
+  background_mimetype: null,
+  background_path: null,
+  days_before: 25,
+  title_text: "🎄 Joyeux Noël ! 🎄",
+  title_font_size: 64,
+  text_color: "#f8fafc",
+  text1: "🎄 Joyeux Noël ! 🎄",
+  text2: "Plus que [days_until] [days_label] avant Noël !",
+  text3: "Toute l'équipe vous souhaite de joyeuses fêtes !",
+  text1_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" },
+  text2_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#fbbf24" },
+  text3_options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" },
+  lines: [
+    { text: "🎄 Joyeux Noël ! 🎄", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, font_size: 64, color: "#f8fafc", offset_y_percent: -15 } },
+    { text: "Plus que [days_until] [days_label] avant Noël !", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, font_size: 36, color: "#fbbf24" } },
+    { text: "Toute l'équipe vous souhaite de joyeuses fêtes !", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, font_size: 28, color: "#f8fafc", offset_y_percent: 15 } },
+  ],
+};
+
 const BIRTHDAY_FIXED_COPY = {
   before: {
     text1: "(Texte 1)",
@@ -147,6 +173,7 @@ const TEAM_TITLE_HOLD_MS = 3000;
 const TEAM_SLIDE_ID = "__team_slide_auto__";
 const BIRTHDAY_SLIDE_ID = "__birthday_slide_auto__";
 const TIME_CHANGE_SLIDE_ID = "__time_change_slide_auto__";
+const CHRISTMAS_SLIDE_ID = "__christmas_slide_auto__";
 const BASE_CANVAS_WIDTH = Number(canvas?.dataset.baseWidth) || 1920;
 const BASE_CANVAS_HEIGHT = Number(canvas?.dataset.baseHeight) || 1080;
 const OVERLAY_DISABLED = true;
@@ -186,6 +213,10 @@ let timeChangeSlideSettings = { ...DEFAULT_TIME_CHANGE_SLIDE };
 let timeChangeInfo = null;
 let lastTimeChangeFetch = 0;
 const TIME_CHANGE_REFRESH_MS = 60 * 60 * 1000;
+let christmasSlideSettings = { ...DEFAULT_CHRISTMAS_SLIDE };
+let christmasInfo = null;
+let lastChristmasFetch = 0;
+const CHRISTMAS_REFRESH_MS = 60 * 60 * 1000;
 let teamEmployeesData = [];
 let teamEmployeesPromise = null;
 let teamRotationTimer = null;
@@ -616,8 +647,13 @@ const refreshOverlaySettings = async () => {
       ...DEFAULT_TIME_CHANGE_SLIDE,
       ...(data && data.time_change_slide ? data.time_change_slide : {}),
     };
+    christmasSlideSettings = {
+      ...DEFAULT_CHRISTMAS_SLIDE,
+      ...(data && data.christmas_slide ? data.christmas_slide : {}),
+    };
     await preloadBirthdayVariants();
     await fetchTimeChangeInfo(true);
+    await fetchChristmasInfo(true);
   } catch (error) {
     console.warn("Impossible de charger les paramètres:", error);
   }
@@ -657,6 +693,9 @@ const detectMediaKind = (item) => {
   }
   if (item.time_change_slide) {
     return "time-change";
+  }
+  if (item.christmas_slide) {
+    return "christmas";
   }
   if (Array.isArray(item.page_urls) && item.page_urls.length) {
     return "document";
@@ -1620,6 +1659,179 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   }, durationSeconds * 1000);
 };
 
+const normalizeTimeChangeLines = (settings) => {
+  const base = Array.isArray(settings.lines) ? settings.lines : [];
+  const normalized = base
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      text: typeof entry.text === "string" ? entry.text : "",
+      options: { ...TIME_CHANGE_TEXT_OPTIONS_DEFAULT, ...(entry.options || {}) },
+    }))
+    .filter((entry) => (entry.text || "").trim().length);
+  if (normalized.length) return normalized;
+  // Fallback to legacy text1/text2/text3 format
+  const legacy = [
+    { text: settings.text1 || "", options: settings.text1_options || {} },
+    { text: settings.text2 || "", options: settings.text2_options || {} },
+    { text: settings.text3 || "", options: settings.text3_options || {} },
+  ];
+  return legacy
+    .filter((entry) => (entry.text || "").trim().length)
+    .map((entry) => ({
+      text: entry.text,
+      options: { ...TIME_CHANGE_TEXT_OPTIONS_DEFAULT, ...(entry.options || {}) },
+    }));
+};
+
+const normalizeChristmasLines = (settings) => {
+  const base = Array.isArray(settings.lines) ? settings.lines : [];
+  const normalized = base
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      text: typeof entry.text === "string" ? entry.text : "",
+      options: { ...CHRISTMAS_TEXT_OPTIONS_DEFAULT, ...(entry.options || {}) },
+    }))
+    .filter((entry) => (entry.text || "").trim().length);
+  if (normalized.length) return normalized;
+  // Fallback to legacy text1/text2/text3 format
+  const legacy = [
+    { text: settings.text1 || DEFAULT_CHRISTMAS_SLIDE.text1, options: settings.text1_options || {} },
+    { text: settings.text2 || DEFAULT_CHRISTMAS_SLIDE.text2, options: settings.text2_options || {} },
+    { text: settings.text3 || DEFAULT_CHRISTMAS_SLIDE.text3, options: settings.text3_options || {} },
+  ];
+  return legacy
+    .filter((entry) => (entry.text || "").trim().length)
+    .map((entry) => ({
+      text: entry.text,
+      options: { ...CHRISTMAS_TEXT_OPTIONS_DEFAULT, ...(entry.options || {}) },
+    }));
+};
+
+const fetchChristmasInfo = async (force = false) => {
+  const now = Date.now();
+  if (!force && christmasInfo && now - lastChristmasFetch < CHRISTMAS_REFRESH_MS) {
+    return christmasInfo;
+  }
+  try {
+    const query =
+      christmasSlideSettings && Number.isFinite(Number(christmasSlideSettings.days_before))
+        ? `?days_before=${christmasSlideSettings.days_before}`
+        : "";
+    const data = await fetchJSON(`api/christmas-slide/next${query}`);
+    christmasInfo = data && data.christmas ? data.christmas : null;
+    lastChristmasFetch = Date.now();
+  } catch (error) {
+    console.warn("Impossible de charger les données de Noël:", error);
+    christmasInfo = null;
+    lastChristmasFetch = Date.now();
+  }
+  return christmasInfo;
+};
+
+const formatChristmasMessage = (template, info) => {
+  const change = info || {};
+  const days = Number.isFinite(Number(change.days_until)) ? Number(change.days_until) : null;
+  const replacements = {
+    days_until: days != null ? days : "",
+    days_left: days != null ? days : "",
+    days_label: days === 1 ? DAY_LABEL_PLURAL.singular : DAY_LABEL_PLURAL.plural,
+    christmas_date: change.date_label || "25 décembre",
+    christmas_weekday: change.weekday_label || "",
+    year: change.year || new Date().getFullYear(),
+  };
+  return template.replace(/\[([^\]]+)\]/g, (match, key) =>
+    replacements[key] !== undefined && replacements[key] !== null ? String(replacements[key]) : "",
+  );
+};
+
+const renderChristmasSlide = (item) => {
+  clearPlaybackTimer();
+  mediaWrapper.innerHTML = "";
+  const settings = christmasSlideSettings || DEFAULT_CHRISTMAS_SLIDE;
+  const info = item.christmas || christmasInfo;
+  const durationSeconds = Math.max(
+    1,
+    Math.round(Number(item.duration) || settings.duration || DEFAULT_CHRISTMAS_SLIDE.duration)
+  );
+
+  const viewport = document.createElement("div");
+  viewport.className = "christmas-slide-viewport";
+
+  const frame = document.createElement("div");
+  frame.className = "christmas-slide-frame";
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "christmas-slide-backdrop";
+  const bgUrl = item.background_url || settings.background_url;
+  const mime = (item.background_mimetype || settings.background_mimetype || "").toLowerCase();
+  const ext = getExtension(bgUrl || "");
+  const isVideo = mime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
+  if (bgUrl && isVideo) {
+    const video = document.createElement("video");
+    video.className = "christmas-slide-media christmas-slide-video";
+    video.src = bgUrl;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    backdrop.appendChild(video);
+    currentVideo = video;
+  } else if (bgUrl) {
+    const img = document.createElement("img");
+    img.className = "christmas-slide-media christmas-slide-image";
+    img.src = bgUrl;
+    img.alt = "Arrière-plan Noël";
+    backdrop.appendChild(img);
+  } else {
+    backdrop.classList.add("christmas-slide-backdrop--fallback");
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "christmas-slide-overlay";
+
+  const replaceTokens = (text) => formatChristmasMessage(text, info);
+  const makeLine = (text, options, extraClasses = "") => {
+    const line = document.createElement("div");
+    line.className = `christmas-line ${extraClasses}`.trim();
+    line.textContent = replaceTokens(text || "");
+    const opts = options || CHRISTMAS_TEXT_OPTIONS_DEFAULT;
+    line.style.color = opts.color || settings.text_color || "#f8fafc";
+    if (opts.font_size) line.style.fontSize = `${opts.font_size}px`;
+    if (opts.font_family) line.style.fontFamily = opts.font_family;
+    line.style.textDecoration = opts.underline ? "underline" : "none";
+    if (opts.width_percent) line.style.maxWidth = `${opts.width_percent}%`;
+    if (opts.height_percent) line.style.minHeight = `${opts.height_percent}%`;
+    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+    const left = Math.min(100, Math.max(0, 50 + offsetX));
+    const top = Math.min(100, Math.max(0, 50 - offsetY));
+    line.style.left = `${left}%`;
+    line.style.top = `${top}%`;
+    const rotation = `rotate(${opts.angle || 0}deg)`;
+    line.style.transform = `translate(-50%, -50%) ${rotation}`;
+    return line;
+  };
+
+  const linesWrapper = document.createElement("div");
+  linesWrapper.className = "christmas-lines";
+  const lines = normalizeChristmasLines(settings);
+  lines.forEach((line, idx) => {
+    linesWrapper.append(
+      makeLine(line.text, line.options, idx === 0 ? "christmas-line--primary" : ""),
+    );
+  });
+
+  overlay.append(linesWrapper);
+  frame.append(backdrop, overlay);
+  viewport.appendChild(frame);
+  mediaWrapper.appendChild(viewport);
+
+  playbackTimer = setTimeout(() => {
+    void advanceSlide().catch((error) => console.error(error));
+  }, durationSeconds * 1000);
+};
+
 const renderTimeChangeSlide = (item) => {
   clearPlaybackTimer();
   mediaWrapper.innerHTML = "";
@@ -1786,6 +1998,31 @@ const buildTimeChangeSlideItem = (changeInfo) => {
   };
 };
 
+const buildChristmasSlideItem = (christmasData) => {
+  const filename = christmasSlideSettings.background_path || CHRISTMAS_SLIDE_ID;
+  const mimetype =
+    christmasSlideSettings.background_mimetype || "application/x-christmas-slide";
+  const duration = Math.max(
+    1,
+    Number(christmasSlideSettings.duration) || DEFAULT_CHRISTMAS_SLIDE.duration,
+  );
+  return {
+    id: CHRISTMAS_SLIDE_ID,
+    christmas_slide: true,
+    original_name: "Noël",
+    filename,
+    duration,
+    enabled: true,
+    skip_rounds: 0,
+    mimetype,
+    display_mimetype: mimetype,
+    background_url: christmasSlideSettings.background_url,
+    background_mimetype: christmasSlideSettings.background_mimetype,
+    order: Number(christmasSlideSettings.order_index) || 0,
+    christmas: christmasData || null,
+  };
+};
+
 const injectAutoSlidesIntoPlaylist = async (items) => {
   const base = Array.isArray(items) ? [...items] : [];
   const autoEntries = [];
@@ -1805,6 +2042,25 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
         id: timeChangeItem.id,
         index: Math.min(idx, base.length + autoEntries.length),
         item: timeChangeItem,
+      });
+    }
+  }
+
+  if (christmasSlideSettings.enabled) {
+    const christmas = await fetchChristmasInfo();
+    const daysLimit = Number.isFinite(Number(christmasSlideSettings.days_before))
+      ? Number(christmasSlideSettings.days_before)
+      : DEFAULT_CHRISTMAS_SLIDE.days_before;
+    if (christmas && (christmas.days_until == null || christmas.days_until <= daysLimit)) {
+      const christmasItem = buildChristmasSlideItem(christmas);
+      const idx = Math.min(
+        Math.max(0, Number.parseInt(christmasSlideSettings.order_index, 10) || 0),
+        base.length,
+      );
+      autoEntries.push({
+        id: christmasItem.id,
+        index: Math.min(idx, base.length + autoEntries.length),
+        item: christmasItem,
       });
     }
   }
@@ -1951,6 +2207,10 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   }
   if (kind === "time-change") {
     renderTimeChangeSlide(item);
+    return;
+  }
+  if (kind === "christmas") {
+    renderChristmasSlide(item);
     return;
   }
 
