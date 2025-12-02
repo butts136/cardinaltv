@@ -301,7 +301,7 @@ const normalizeBirthdayVariantConfig = (rawConfig = {}, variant = "before") => {
     { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
     { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
   );
-  return {
+  const normalized = {
     ...merged,
     lines,
     text1: l1?.text ?? "",
@@ -311,6 +311,12 @@ const normalizeBirthdayVariantConfig = (rawConfig = {}, variant = "before") => {
     text2_options: l2?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
     text3_options: l3?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
   };
+  if (typeof normalized.background_url === "string") {
+    normalized.background_url = resolveAssetUrl(normalized.background_url);
+  } else if (normalized.background_path) {
+    normalized.background_url = resolveAssetUrl(`birthday-slide-assets/${normalized.background_path}`);
+  }
+  return normalized;
 };
 
 const loadBirthdayVariantConfig = async (variant) => {
@@ -639,6 +645,13 @@ const refreshOverlaySettings = async () => {
       ...(data && data.birthday_slide ? data.birthday_slide : {}),
       open_days: normalizeOpenDays(data?.birthday_slide?.open_days),
     };
+    if (typeof birthdaySlideSettings.background_url === "string") {
+      birthdaySlideSettings.background_url = resolveAssetUrl(birthdaySlideSettings.background_url);
+    } else if (birthdaySlideSettings.background_path) {
+      birthdaySlideSettings.background_url = resolveAssetUrl(
+        `birthday-slide-assets/${birthdaySlideSettings.background_path}`,
+      );
+    }
     teamSlideSettings = {
       ...DEFAULT_TEAM_SLIDE,
       ...(data && data.team_slide ? data.team_slide : {}),
@@ -1587,12 +1600,14 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     const video = document.createElement("video");
     video.className = "birthday-slide-media birthday-slide-video";
     video.src = bgUrl;
+    video.preload = "auto";
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
     video.setAttribute("muted", "");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
+    video.load();
     void video.play().catch(() => {});
     backdrop.appendChild(video);
     currentVideo = video;
@@ -1634,7 +1649,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     if (opts.height_percent) {
       line.style.minHeight = `${opts.height_percent}%`;
     }
-    line.style.whiteSpace = "pre";
+    line.style.whiteSpace = "pre-line";
     const rawX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const rawY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
     const left = clampPercent(50 + rawX);

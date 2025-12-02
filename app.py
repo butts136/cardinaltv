@@ -3944,10 +3944,15 @@ def get_birthday_slide_config(variant: str) -> Any:
     try:
         config = _read_birthday_config(variant)
         bg_path = config.get("background_path")
-        if bg_path:
-            config["background_url"] = url_for(
-                "main.serve_birthday_slide_asset", filename=bg_path, _external=False
-            )
+        if isinstance(bg_path, str) and bg_path:
+            if _slide_asset_exists(BIRTHDAY_SLIDE_ASSETS_DIR, bg_path):
+                config["background_url"] = url_for(
+                    "main.serve_birthday_slide_asset", filename=bg_path, _external=False
+                )
+            else:
+                config["background_path"] = None
+                config["background_mimetype"] = None
+                config["background_url"] = None
         else:
             config["background_url"] = None
     except ValueError as exc:
@@ -3964,6 +3969,18 @@ def update_birthday_slide_config(variant: str) -> Any:
         config = _write_birthday_config(variant, payload)
     except ValueError as exc:
         abort(400, description=str(exc))
+    bg_path = config.get("background_path")
+    if isinstance(bg_path, str) and bg_path:
+        if _slide_asset_exists(BIRTHDAY_SLIDE_ASSETS_DIR, bg_path):
+            config["background_url"] = url_for(
+                "main.serve_birthday_slide_asset", filename=bg_path, _external=False
+            )
+        else:
+            config["background_path"] = None
+            config["background_mimetype"] = None
+            config["background_url"] = None
+    else:
+        config["background_url"] = None
     return jsonify({"variant": variant, "config": config})
 
 
