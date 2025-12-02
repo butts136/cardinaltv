@@ -566,6 +566,11 @@ const buildApiUrl = (path) => {
   return `${APP_BASE_URL}${path}`;
 };
 
+const resolveMediaUrl = (value) => {
+  if (!value || typeof value !== "string") return null;
+  return buildApiUrl(value);
+};
+
 const fetchJSON = async (url, options) => {
   const response = await fetch(buildApiUrl(url), options);
   if (!response.ok) {
@@ -778,7 +783,9 @@ const normalizeBirthdaySlideSettings = (raw) => {
     result.background_mimetype = raw.background_mimetype || null;
   }
   if (typeof raw.background_url === "string") {
-    result.background_url = raw.background_url;
+    result.background_url = resolveMediaUrl(raw.background_url);
+  } else if (result.background_path) {
+    result.background_url = buildApiUrl(`birthday-slide-assets/${result.background_path}`);
   }
   if (typeof raw.background_source === "string") {
     result.background_source = raw.background_source;
@@ -2187,7 +2194,7 @@ const normalizeBirthdayVariantConfig = (rawConfig = {}, variant = "before") => {
     { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
     { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
   );
-  return {
+  const normalized = {
     ...merged,
     lines,
     text1: l1?.text ?? "",
@@ -2197,6 +2204,12 @@ const normalizeBirthdayVariantConfig = (rawConfig = {}, variant = "before") => {
     text2_options: l2?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
     text3_options: l3?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
   };
+  if (typeof normalized.background_url === "string") {
+    normalized.background_url = resolveMediaUrl(normalized.background_url);
+  } else if (normalized.background_path) {
+    normalized.background_url = buildApiUrl(`birthday-slide-assets/${normalized.background_path}`);
+  }
+  return normalized;
 };
 
 const renumberBirthdayTextBlocks = () => {
@@ -2435,7 +2448,8 @@ const saveBirthdayVariantConfig = async ({ successMessage = "Textes enregistrés
     const merged = normalizeBirthdayVariantConfig({ ...cfg }, variant);
     const selected = birthdayBackgroundOptions.find((opt) => opt.filename === merged.background_path);
     if (selected || overrides.background_url) {
-      merged.background_url = overrides.background_url || selected?.url || merged.background_url || null;
+      const resolvedUrl = overrides.background_url || selected?.url || merged.background_url || null;
+      merged.background_url = resolvedUrl ? resolveMediaUrl(resolvedUrl) : null;
       merged.background_mimetype = overrides.background_mimetype || selected?.mimetype || merged.background_mimetype || null;
     } else if (
       birthdayVariantConfigs[variant]?.background_url &&
@@ -2603,7 +2617,7 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
     }
     birthdayVariantConfigs[variant].background_path = item.filename;
     birthdayVariantConfigs[variant].background_mimetype = item.mimetype || null;
-    birthdayVariantConfigs[variant].background_url = item.url || null;
+    birthdayVariantConfigs[variant].background_url = resolveMediaUrl(item.url || "");
 
     const patch = {
       background_path: item.filename,
@@ -2624,7 +2638,7 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
         ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS),
         background_path: item.filename,
         background_mimetype: item.mimetype || null,
-        background_url: item.url || birthdaySlideSettings?.background_url || null,
+        background_url: resolveMediaUrl(item.url || birthdaySlideSettings?.background_url || null) || null,
       };
       birthdayBackgroundCurrent = { type: "upload", filename: item.filename };
       renderBirthdayPreview();
@@ -2741,7 +2755,10 @@ const loadBirthdayBackgroundList = async () => {
   try {
     const data = await fetchJSON("api/birthday-slide/backgrounds");
     const items = Array.isArray(data.items) ? data.items : [];
-    birthdayBackgroundOptions = items;
+    birthdayBackgroundOptions = items.map((item) => ({
+      ...item,
+      url: resolveMediaUrl(item.url),
+    }));
     birthdayBackgroundCurrent = data.current || {};
     renderBirthdayBackgroundOptions();
     renderBirthdayPreview();
@@ -2791,7 +2808,7 @@ const uploadBirthdayBackground = async (file = null) => {
         : birthdaySlideSettings;
     birthdaySlideSettings = normalizeBirthdaySlideSettings(rawSettings || {});
     if (responseJson && responseJson.background_url) {
-      birthdaySlideSettings.background_url = responseJson.background_url;
+      birthdaySlideSettings.background_url = resolveMediaUrl(responseJson.background_url);
     }
     setBirthdayBackgroundStatus("Arrière-plan mis à jour.", "success");
     renderMedia();
