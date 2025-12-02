@@ -196,6 +196,10 @@ let teamPreviewStartTimer = null;
 let teamPreviewCanvas = null;
 let teamPreviewResizeObserver = null;
 let teamPreviewResizeListenerAttached = false;
+let teamPreviewVisibilityObserver = null;
+let teamPreviewIsVisible = true;
+let teamPreviewRefreshPending = false;
+let teamPreviewRenderedSource = null;
 let birthdayPreviewCanvas = null;
 let birthdayPreviewResizeObserver = null;
 let birthdayPreviewRenderedSource = null;
@@ -610,6 +614,25 @@ const highlightDropZone = (active) => {
   } else {
     dropZone.classList.remove("drag-over");
   }
+};
+
+const showBackgroundMediaError = (wrapper, message) => {
+  if (!wrapper) return;
+  wrapper.innerHTML = "";
+  const fallback = document.createElement("div");
+  fallback.className = "team-background-item-error";
+  fallback.textContent = message || "Prévisualisation indisponible.";
+  wrapper.appendChild(fallback);
+};
+
+const showPreviewBackgroundFallback = (backdrop, message) => {
+  if (!backdrop) return;
+  backdrop.classList.add("time-change-slide-backdrop--fallback");
+  backdrop.innerHTML = "";
+  const placeholder = document.createElement("div");
+  placeholder.className = "time-change-slide-fallback-message";
+  placeholder.textContent = message || "Arrière-plan indisponible.";
+  backdrop.appendChild(placeholder);
 };
 
 const setUploadFeedback = (message, status = "info") => {
@@ -2992,6 +3015,101 @@ const applyTimeChangePreviewScale = () => {
   timeChangePreviewCanvas.style.setProperty("--time-change-preview-scale", `${scale}`);
 };
 
+const ensureTimeChangePreviewScene = (bgKey, bgUrl, isVideo) => {
+  if (
+    timeChangePreviewStage?.querySelector(".time-change-preview-canvas") &&
+    timeChangePreviewRenderedSource === bgKey
+  ) {
+    return timeChangePreviewStage.querySelector(".time-change-preview-canvas");
+  }
+
+  if (!timeChangePreviewStage) return null;
+  timeChangePreviewStage.innerHTML = "";
+
+  const canvas = document.createElement("div");
+  canvas.className = "time-change-preview-canvas";
+  canvas.style.setProperty("--time-change-preview-base-width", `${TIME_CHANGE_PREVIEW_BASE_WIDTH}px`);
+  canvas.style.setProperty("--time-change-preview-base-height", `${TIME_CHANGE_PREVIEW_BASE_HEIGHT}px`);
+
+  const viewport = document.createElement("div");
+  viewport.className = "time-change-slide-viewport";
+
+  const frame = document.createElement("div");
+  frame.className = "time-change-slide-frame";
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "time-change-slide-backdrop";
+  if (bgUrl && isVideo) {
+    const video = document.createElement("video");
+    video.className = "time-change-slide-media time-change-slide-video";
+    video.src = bgUrl;
+    video.loop = true;
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    void video.play().catch(() => {});
+    video.addEventListener("loadedmetadata", applyTimeChangePreviewScale);
+    video.addEventListener("canplay", applyTimeChangePreviewScale);
+    video.addEventListener("error", () =>
+      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
+    );
+    backdrop.appendChild(video);
+  } else if (bgUrl) {
+    const img = document.createElement("img");
+    img.className = "time-change-slide-media time-change-slide-image";
+    img.src = bgUrl;
+    img.alt = "Arrière-plan Changement d'heure";
+    img.addEventListener("load", applyTimeChangePreviewScale);
+    img.addEventListener("error", () =>
+      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
+    );
+    backdrop.appendChild(img);
+  } else {
+    backdrop.classList.add("time-change-slide-backdrop--fallback");
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "time-change-slide-overlay";
+  const linesWrapper = document.createElement("div");
+  linesWrapper.className = "time-change-lines";
+  overlay.appendChild(linesWrapper);
+
+  frame.append(backdrop, overlay);
+  viewport.appendChild(frame);
+  canvas.appendChild(viewport);
+  timeChangePreviewStage.appendChild(canvas);
+  timeChangePreviewCanvas = canvas;
+  timeChangePreviewRenderedSource = bgKey;
+  return canvas;
+};
+
+const updateSlideLinesContent = (wrapper, lines, settings, defaults, formatFn) => {
+  if (!wrapper) return;
+  wrapper.innerHTML = "";
+  lines.forEach((line, idx) => {
+    const node = document.createElement("div");
+    node.className = "time-change-line" + (idx === 0 ? " time-change-line--primary" : "");
+    node.textContent = formatFn(line.text || "");
+    const opts = { ...defaults, ...(line.options || {}) };
+    node.style.color = opts.color || settings.text_color || "#f8fafc";
+    if (opts.font_size) node.style.fontSize = `${opts.font_size}px`;
+    if (opts.font_family) node.style.fontFamily = opts.font_family;
+    node.style.textDecoration = opts.underline ? "underline" : "none";
+    if (opts.width_percent) node.style.maxWidth = `${opts.width_percent}%`;
+    if (opts.height_percent) node.style.minHeight = `${opts.height_percent}%`;
+    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+    const left = Math.min(100, Math.max(0, 50 + offsetX));
+    const top = Math.min(100, Math.max(0, 50 - offsetY));
+    node.style.left = `${left}%`;
+    node.style.top = `${top}%`;
+    const rotation = `rotate(${opts.angle || 0}deg)`;
+    node.style.transform = `translate(-50%, -50%) ${rotation}`;
+    wrapper.appendChild(node);
+  });
+};
+
 // ---------------------------------------------------------------------------
 // Section "Changement d'heure" – formulaire & aperçu
 // ---------------------------------------------------------------------------
@@ -3342,88 +3460,17 @@ const renderTimeChangePreview = () => {
 
   const bgKey = `${bgUrl || "none"}|${mime}|${ext}`;
 
-  timeChangePreviewStage.innerHTML = "";
+  ensureTimeChangePreviewScene(bgKey, bgUrl, isVideo);
+  const linesWrapper = timeChangePreviewStage.querySelector(".time-change-lines");
+  updateSlideLinesContent(
+    linesWrapper,
+    lines,
+    settings,
+    TIME_CHANGE_TEXT_OPTIONS_DEFAULT,
+    (text) => formatTimeChangeMessage(text, info),
+  );
 
-  const canvas = document.createElement("div");
-  canvas.className = "time-change-preview-canvas";
-  canvas.style.setProperty("--time-change-preview-base-width", `${TIME_CHANGE_PREVIEW_BASE_WIDTH}px`);
-  canvas.style.setProperty("--time-change-preview-base-height", `${TIME_CHANGE_PREVIEW_BASE_HEIGHT}px`);
-
-  const viewport = document.createElement("div");
-  viewport.className = "time-change-slide-viewport";
-
-  const frame = document.createElement("div");
-  frame.className = "time-change-slide-frame";
-
-  const backdrop = document.createElement("div");
-  backdrop.className = "time-change-slide-backdrop";
-  if (bgUrl && isVideo) {
-    const video = document.createElement("video");
-    video.className = "time-change-slide-media time-change-slide-video";
-    video.src = bgUrl;
-    video.loop = true;
-    video.muted = true;
-    video.autoplay = true;
-    video.playsInline = true;
-    video.setAttribute("playsinline", "");
-    void video.play().catch(() => {});
-    video.addEventListener("loadedmetadata", applyTimeChangePreviewScale);
-    video.addEventListener("canplay", applyTimeChangePreviewScale);
-    backdrop.appendChild(video);
-  } else if (bgUrl) {
-    const img = document.createElement("img");
-    img.className = "time-change-slide-media time-change-slide-image";
-    img.src = bgUrl;
-    img.alt = "Arrière-plan Changement d'heure";
-    img.addEventListener("load", applyTimeChangePreviewScale);
-    backdrop.appendChild(img);
-  } else {
-    backdrop.classList.add("time-change-slide-backdrop--fallback");
-  }
-
-  const overlay = document.createElement("div");
-  overlay.className = "time-change-slide-overlay";
-
-  const replaceTokens = (text) => formatTimeChangeMessage(text, info);
-
-  const makeLine = (text, options, extraClasses = "") => {
-    const line = document.createElement("div");
-    line.className = `time-change-line ${extraClasses}`.trim();
-    line.textContent = replaceTokens(text || "");
-    const opts = options || TIME_CHANGE_TEXT_OPTIONS_DEFAULT;
-    line.style.color = opts.color || settings.text_color || "#f8fafc";
-    if (opts.font_size) line.style.fontSize = `${opts.font_size}px`;
-    if (opts.font_family) line.style.fontFamily = opts.font_family;
-    line.style.textDecoration = opts.underline ? "underline" : "none";
-    if (opts.width_percent) line.style.maxWidth = `${opts.width_percent}%`;
-    if (opts.height_percent) line.style.minHeight = `${opts.height_percent}%`;
-    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
-    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-    const left = Math.min(100, Math.max(0, 50 + offsetX));
-    const top = Math.min(100, Math.max(0, 50 - offsetY));
-    line.style.left = `${left}%`;
-    line.style.top = `${top}%`;
-    const rotation = `rotate(${opts.angle || 0}deg)`;
-    line.style.transform = `translate(-50%, -50%) ${rotation}`;
-    return line;
-  };
-
-  const linesWrapper = document.createElement("div");
-  linesWrapper.className = "time-change-lines";
-  lines.forEach((line, idx) => {
-    linesWrapper.appendChild(
-      makeLine(line.text, line.options, idx === 0 ? "time-change-line--primary" : ""),
-    );
-  });
-
-  overlay.append(linesWrapper);
-  frame.append(backdrop, overlay);
-  viewport.appendChild(frame);
-  canvas.appendChild(viewport);
-  timeChangePreviewStage.appendChild(canvas);
-  timeChangePreviewCanvas = canvas;
   applyTimeChangePreviewScale();
-  timeChangePreviewRenderedSource = bgKey;
 
   if (!timeChangePreviewResizeObserver && "ResizeObserver" in window) {
     timeChangePreviewResizeObserver = new ResizeObserver(applyTimeChangePreviewScale);
@@ -3569,6 +3616,9 @@ const renderTimeChangeBackgroundItem = (item, current) => {
     const img = document.createElement("img");
     img.src = item.url;
     img.alt = item.label || item.filename || "Arrière-plan";
+    img.addEventListener("error", () =>
+      showBackgroundMediaError(mediaWrapper, "Aperçu indisponible."),
+    );
     mediaWrapper.appendChild(img);
   } else {
     const video = document.createElement("video");
@@ -3580,6 +3630,9 @@ const renderTimeChangeBackgroundItem = (item, current) => {
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     video.setAttribute("muted", "");
+    video.addEventListener("error", () =>
+      showBackgroundMediaError(mediaWrapper, "Aperçu indisponible."),
+    );
     mediaWrapper.appendChild(video);
   }
 
@@ -4134,21 +4187,15 @@ const applyChristmasPreviewScale = () => {
   christmasPreviewCanvas.style.setProperty("--time-change-preview-scale", `${scale}`);
 };
 
-const renderChristmasPreview = () => {
-  if (!christmasPreviewStage) return;
-  const settings = normalizeChristmasSettings(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS);
-  const info = christmasInfo;
-  const bgUrl =
-    settings.background_url ||
-    (settings.background_path ? buildApiUrl(`christmas-slide/asset/${settings.background_path}`) : null);
-  const mime = (settings.background_mimetype || "").toLowerCase();
-  const ext = getExtensionLower(settings.background_path || bgUrl || "");
-  const isVideo = mime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
-  const lines = (christmasLines && christmasLines.length ? christmasLines : normalizeChristmasLines(settings)).filter(
-    (entry) => (entry.text || "").trim().length,
-  );
+const ensureChristmasPreviewScene = (bgKey, bgUrl, isVideo) => {
+  if (
+    christmasPreviewStage?.querySelector(".time-change-preview-canvas") &&
+    christmasPreviewRenderedSource === bgKey
+  ) {
+    return christmasPreviewStage.querySelector(".time-change-preview-canvas");
+  }
 
-  const bgKey = `${bgUrl || "none"}|${mime}|${ext}`;
+  if (!christmasPreviewStage) return null;
   christmasPreviewStage.innerHTML = "";
 
   const canvas = document.createElement("div");
@@ -4178,6 +4225,9 @@ const renderChristmasPreview = () => {
     void video.play().catch(() => {});
     video.addEventListener("loadedmetadata", applyChristmasPreviewScale);
     video.addEventListener("canplay", applyChristmasPreviewScale);
+    video.addEventListener("error", () =>
+      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
+    );
     backdrop.appendChild(video);
   } else if (bgUrl) {
     const img = document.createElement("img");
@@ -4185,6 +4235,9 @@ const renderChristmasPreview = () => {
     img.src = bgUrl;
     img.alt = "Arrière-plan Noël";
     img.addEventListener("load", applyChristmasPreviewScale);
+    img.addEventListener("error", () =>
+      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
+    );
     backdrop.appendChild(img);
   } else {
     backdrop.classList.add("time-change-slide-backdrop--fallback");
@@ -4192,47 +4245,45 @@ const renderChristmasPreview = () => {
 
   const overlay = document.createElement("div");
   overlay.className = "time-change-slide-overlay";
-
-  const replaceTokens = (text) => formatChristmasMessage(text, info);
-
-  const makeLine = (text, options, extraClasses = "") => {
-    const line = document.createElement("div");
-    line.className = `time-change-line ${extraClasses}`.trim();
-    line.textContent = replaceTokens(text || "");
-    const opts = options || CHRISTMAS_TEXT_OPTIONS_DEFAULT;
-    line.style.color = opts.color || settings.text_color || "#f8fafc";
-    if (opts.font_size) line.style.fontSize = `${opts.font_size}px`;
-    if (opts.font_family) line.style.fontFamily = opts.font_family;
-    line.style.textDecoration = opts.underline ? "underline" : "none";
-    if (opts.width_percent) line.style.maxWidth = `${opts.width_percent}%`;
-    if (opts.height_percent) line.style.minHeight = `${opts.height_percent}%`;
-    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
-    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-    const left = Math.min(100, Math.max(0, 50 + offsetX));
-    const top = Math.min(100, Math.max(0, 50 - offsetY));
-    line.style.left = `${left}%`;
-    line.style.top = `${top}%`;
-    const rotation = `rotate(${opts.angle || 0}deg)`;
-    line.style.transform = `translate(-50%, -50%) ${rotation}`;
-    return line;
-  };
-
   const linesWrapper = document.createElement("div");
   linesWrapper.className = "time-change-lines";
-  lines.forEach((line, idx) => {
-    linesWrapper.appendChild(
-      makeLine(line.text, line.options, idx === 0 ? "time-change-line--primary" : ""),
-    );
-  });
+  overlay.appendChild(linesWrapper);
 
-  overlay.append(linesWrapper);
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
   canvas.appendChild(viewport);
   christmasPreviewStage.appendChild(canvas);
   christmasPreviewCanvas = canvas;
-  applyChristmasPreviewScale();
   christmasPreviewRenderedSource = bgKey;
+  return canvas;
+};
+
+const renderChristmasPreview = () => {
+  if (!christmasPreviewStage) return;
+  const settings = normalizeChristmasSettings(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS);
+  const info = christmasInfo;
+  const bgUrl =
+    settings.background_url ||
+    (settings.background_path ? buildApiUrl(`christmas-slide/asset/${settings.background_path}`) : null);
+  const mime = (settings.background_mimetype || "").toLowerCase();
+  const ext = getExtensionLower(settings.background_path || bgUrl || "");
+  const isVideo = mime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
+  const lines = (christmasLines && christmasLines.length ? christmasLines : normalizeChristmasLines(settings)).filter(
+    (entry) => (entry.text || "").trim().length,
+  );
+
+  const bgKey = `${bgUrl || "none"}|${mime}|${ext}`;
+  ensureChristmasPreviewScene(bgKey, bgUrl, isVideo);
+  const linesWrapper = christmasPreviewStage.querySelector(".time-change-lines");
+  updateSlideLinesContent(
+    linesWrapper,
+    lines,
+    settings,
+    CHRISTMAS_TEXT_OPTIONS_DEFAULT,
+    (text) => formatChristmasMessage(text, info),
+  );
+
+  applyChristmasPreviewScale();
 
   if (!christmasPreviewResizeObserver && "ResizeObserver" in window) {
     christmasPreviewResizeObserver = new ResizeObserver(applyChristmasPreviewScale);
@@ -4397,8 +4448,9 @@ const loadChristmasBackgroundList = async () => {
   try {
     const data = await fetchJSON("api/christmas-slide/backgrounds");
     christmasBackgroundOptions = Array.isArray(data.items) ? data.items : [];
-    if (data.current) {
-      const currentItem = christmasBackgroundOptions.find((item) => item.filename === data.current);
+    let resolvedCurrent = data.current || null;
+    if (resolvedCurrent) {
+      const currentItem = christmasBackgroundOptions.find((item) => item.filename === resolvedCurrent);
       if (currentItem) {
         christmasSlideSettings = {
           ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS),
@@ -4406,9 +4458,18 @@ const loadChristmasBackgroundList = async () => {
           background_mimetype: currentItem.mimetype || null,
           background_url: currentItem.url || buildApiUrl(`christmas-slide/asset/${currentItem.filename}`),
         };
+      } else {
+        resolvedCurrent = null;
+        christmasSlideSettings = {
+          ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS),
+          background_path: null,
+          background_mimetype: null,
+          background_url: null,
+        };
+        setChristmasBackgroundStatus("Arrière-plan introuvable. Veuillez en choisir un nouveau.", "error");
       }
     }
-    renderChristmasBackgroundList(data.current || null);
+    renderChristmasBackgroundList(resolvedCurrent);
     renderChristmasPreview();
   } catch (error) {
     console.error("Erreur lors du chargement des fonds Noël:", error);
@@ -4681,6 +4742,43 @@ const stopTeamPreviewRotation = () => {
   }
 };
 
+const shouldAnimateTeamPreview = () => teamPreviewIsVisible && !document.hidden;
+
+const setTeamPreviewVisibility = (isVisible) => {
+  if (teamPreviewIsVisible === isVisible) {
+    return;
+  }
+  teamPreviewIsVisible = isVisible;
+  if (!isVisible) {
+    stopTeamPreviewRotation();
+    teamPreviewRefreshPending = true;
+  } else if (teamPreviewRefreshPending) {
+    teamPreviewRefreshPending = false;
+    renderTeamPreview();
+  }
+};
+
+const setupTeamPreviewVisibilityObserver = () => {
+  if (!teamPreviewStage || teamPreviewVisibilityObserver || !("IntersectionObserver" in window)) {
+    return;
+  }
+  teamPreviewVisibilityObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.target !== teamPreviewStage) {
+          return;
+        }
+        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.2;
+        setTeamPreviewVisibility(visible);
+      });
+    },
+    {
+      threshold: [0, 0.2, 0.4, 1],
+    },
+  );
+  teamPreviewVisibilityObserver.observe(teamPreviewStage);
+};
+
 const applyTeamPreviewScale = () => {
   if (!teamPreviewStage || !teamPreviewCanvas) return;
   const baseW = TEAM_PREVIEW_BASE_WIDTH;
@@ -4695,10 +4793,34 @@ const applyTeamPreviewScale = () => {
   teamPreviewCanvas.style.setProperty("--team-preview-scale", `${scale}`);
 };
 
-const renderTeamPreview = () => {
-  stopTeamPreviewRotation();
-  if (!teamPreviewStage) return;
-  const settings = teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS;
+const getTeamPreviewStructure = () => {
+  if (!teamPreviewStage) return {};
+  const canvas = teamPreviewStage.querySelector(".team-preview-canvas") || null;
+  const overlayInner =
+    teamPreviewStage.querySelector(".team-slide-overlay-inner") || null;
+  const cardsViewport = overlayInner?.querySelector(".team-slide-cards-viewport") || null;
+  const cardsContainer = overlayInner?.querySelector(".team-slide-cards") || null;
+  const titlePlaceholder = overlayInner?.querySelector(".team-slide-title-placeholder") || null;
+  const title = overlayInner?.querySelector(".team-slide-title") || null;
+  return {
+    canvas,
+    overlayInner,
+    cardsViewport,
+    cardsContainer,
+    title,
+    titlePlaceholder,
+  };
+};
+
+const getTeamBackgroundKey = (settings) => {
+  if (!settings) return "none";
+  const source = settings.background_url || settings.background_path || "none";
+  const mime = (settings.background_mimetype || "").toLowerCase();
+  return `${source}|${mime}`;
+};
+
+const buildTeamPreviewStage = (settings, bgKey) => {
+  if (!teamPreviewStage) return null;
   teamPreviewStage.innerHTML = "";
 
   const canvas = document.createElement("div");
@@ -4720,12 +4842,15 @@ const renderTeamPreview = () => {
       video.muted = true;
       video.playsInline = true;
       video.setAttribute("playsinline", "");
+      video.addEventListener("loadedmetadata", applyTeamPreviewScale);
+      video.addEventListener("canplay", applyTeamPreviewScale);
       root.appendChild(video);
     } else {
       const img = document.createElement("img");
       img.className = "team-slide-image";
       img.src = bgUrl;
       img.alt = "Aperçu arrière-plan Notre Équipe";
+      img.addEventListener("load", applyTeamPreviewScale);
       root.appendChild(img);
     }
   } else {
@@ -4739,28 +4864,9 @@ const renderTeamPreview = () => {
   const overlayInner = document.createElement("div");
   overlayInner.className = "team-slide-overlay-inner";
 
-  const hasTitle = settings.title_enabled && settings.title_text;
-  const titlePlaceholder = hasTitle ? document.createElement("div") : null;
-  const title = hasTitle ? document.createElement("div") : null;
-  if (title) {
-    title.className = "team-slide-title";
-    title.textContent = settings.title_text;
-    title.style.color = settings.title_color || "#111";
-    title.style.width = `${Math.max(10, settings.title_width_percent || 80)}%`;
-    if (settings.title_background_color) {
-      title.style.background = settings.title_background_color;
-    }
-    if (settings.title_font_size) {
-      title.style.fontSize = `${settings.title_font_size * TEAM_SLIDE_SCALE}px`;
-    }
-    if (settings.title_underline) {
-      title.style.textDecoration = "underline";
-    }
-  }
-  if (titlePlaceholder) {
-    titlePlaceholder.className = "team-slide-title-placeholder";
-    overlayInner.appendChild(titlePlaceholder);
-  }
+  const titlePlaceholder = document.createElement("div");
+  titlePlaceholder.className = "team-slide-title-placeholder";
+  overlayInner.appendChild(titlePlaceholder);
 
   const cardsViewport = document.createElement("div");
   cardsViewport.className = "team-slide-cards-viewport team-slide-cards-viewport--masked";
@@ -4768,15 +4874,39 @@ const renderTeamPreview = () => {
   cardsContainer.className = "team-slide-cards";
   cardsViewport.appendChild(cardsContainer);
   overlayInner.appendChild(cardsViewport);
-  if (title) {
-    overlayInner.appendChild(title);
-  }
+
+  const title = document.createElement("div");
+  title.className = "team-slide-title";
+  overlayInner.appendChild(title);
+
   overlay.appendChild(overlayInner);
   root.appendChild(overlay);
   canvas.appendChild(root);
   teamPreviewStage.appendChild(canvas);
   teamPreviewCanvas = canvas;
+  teamPreviewRenderedSource = bgKey;
+  return canvas;
+};
+
+const renderTeamPreview = () => {
+  stopTeamPreviewRotation();
+  if (!teamPreviewStage) return;
+  const settings = teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS;
+  const bgKey = getTeamBackgroundKey(settings);
+
+  let structure = getTeamPreviewStructure();
+  if (!structure.canvas || teamPreviewRenderedSource !== bgKey) {
+    buildTeamPreviewStage(settings, bgKey);
+    structure = getTeamPreviewStructure();
+  }
+
+  const { overlayInner, cardsViewport, cardsContainer, title, titlePlaceholder } = structure;
+  if (!overlayInner || !cardsViewport || !cardsContainer) {
+    return;
+  }
+
   applyTeamPreviewScale();
+  setupTeamPreviewVisibilityObserver();
   if (!teamPreviewResizeListenerAttached) {
     if ("ResizeObserver" in window) {
       teamPreviewResizeObserver = new ResizeObserver(applyTeamPreviewScale);
@@ -4787,8 +4917,67 @@ const renderTeamPreview = () => {
     teamPreviewResizeListenerAttached = true;
   }
 
+  const hasTitle = Boolean(settings.title_enabled && settings.title_text);
+  let activeTitle = null;
+  if (title) {
+    if (hasTitle) {
+      title.style.display = "block";
+      title.textContent = settings.title_text;
+      title.style.color = settings.title_color || "#111";
+      title.style.width = `${Math.max(10, settings.title_width_percent || 80)}%`;
+      if (settings.title_background_color) {
+        title.style.background = settings.title_background_color;
+      } else {
+        title.style.background = "";
+      }
+      if (settings.title_font_size) {
+        title.style.fontSize = `${settings.title_font_size * TEAM_SLIDE_SCALE}px`;
+      } else {
+        title.style.removeProperty("font-size");
+      }
+      title.style.textDecoration = settings.title_underline ? "underline" : "none";
+      activeTitle = title;
+    } else {
+      title.textContent = "";
+      title.style.display = "none";
+    }
+  }
+  if (titlePlaceholder) {
+    titlePlaceholder.style.display = hasTitle ? "block" : "none";
+  }
+
+  cardsContainer.innerHTML = "";
   const employeeList = Array.isArray(employees) ? employees.slice() : [];
+  const overlayStyles = window.getComputedStyle(overlayInner);
+  const overlayPaddingTop = Number.parseFloat(overlayStyles.paddingTop) || 0;
+
+  const measureTitlePositions = () => {
+    if (!activeTitle) {
+      if (titlePlaceholder) {
+        titlePlaceholder.style.height = "0";
+      }
+      return { titleStartCenter: 0, titleEndCenter: 0, titleDistance: 0 };
+    }
+    const titleHeight = activeTitle.getBoundingClientRect().height || 0;
+    if (titlePlaceholder) {
+      titlePlaceholder.style.height = `${titleHeight}px`;
+    }
+    const overlayRect = overlayInner.getBoundingClientRect();
+    const titleStartCenter = (overlayRect.height || 0) / 2;
+    const titleEndCenter = overlayPaddingTop + titleHeight / 2;
+    const titleDistance = Math.max(0, titleStartCenter - titleEndCenter);
+    activeTitle.dataset.startCenter = String(titleStartCenter);
+    activeTitle.dataset.endCenter = String(titleEndCenter);
+    activeTitle.style.position = "absolute";
+    activeTitle.style.left = "50%";
+    activeTitle.style.top = `${titleStartCenter}px`;
+    activeTitle.style.transform = "translate(-50%, -50%)";
+    activeTitle.style.willChange = "transform, top";
+    return { titleStartCenter, titleEndCenter, titleDistance };
+  };
+
   if (!employeeList.length) {
+    measureTitlePositions();
     const empty = document.createElement("div");
     empty.className = "team-preview-empty";
     empty.textContent = "Ajoutez des employés pour visualiser la diapositive.";
@@ -4796,13 +4985,10 @@ const renderTeamPreview = () => {
     return;
   }
 
-  cardsContainer.innerHTML = "";
   employeeList.forEach((emp) => cardsContainer.appendChild(renderTeamPreviewCard(emp)));
-  cardsContainer.style.transform = "translateY(0)";
   cardsContainer.style.willChange = "transform";
 
-  const overlayStyles = window.getComputedStyle(overlayInner);
-  const overlayPaddingTop = Number.parseFloat(overlayStyles.paddingTop) || 0;
+  const { titleStartCenter, titleEndCenter, titleDistance } = measureTitlePositions();
 
   const viewportHeight = Math.max(1, cardsViewport.clientHeight || 0);
   const contentHeight = cardsContainer.scrollHeight;
@@ -4820,37 +5006,23 @@ const renderTeamPreview = () => {
   }
   const overrun = Math.max(48, minCardHeight / 2);
 
-  if (title) {
-    const titleHeight = title.getBoundingClientRect().height || 0;
-    if (titlePlaceholder) {
-      titlePlaceholder.style.height = `${titleHeight}px`;
-    }
-    const overlayRect = overlayInner.getBoundingClientRect();
-    const titleStartCenter = (overlayRect.height || 0) / 2;
-    const titleEndCenter = overlayPaddingTop + titleHeight / 2;
-    title.dataset.startCenter = String(titleStartCenter);
-    title.dataset.endCenter = String(titleEndCenter);
-    title.style.position = "absolute";
-    title.style.left = "50%";
-    title.style.top = `${titleStartCenter}px`;
-    title.style.transform = "translate(-50%, -50%)";
-    title.style.willChange = "transform, top";
-  }
-
   const startOffset = viewportHeight;
   const exitOffset = -(contentHeight + overrun);
   const pixelsPerSecond =
     contentHeight > 0 ? (viewportHeight + minCardHeight) / minDurationSec : 0;
-  cardsContainer.style.transform = `translateY(${startOffset}px)`;
+  const animateTeam = shouldAnimateTeamPreview() && pixelsPerSecond > 0;
+  cardsContainer.style.transform = animateTeam ? `translateY(${startOffset}px)` : "translateY(0)";
 
-  if (pixelsPerSecond <= 0) {
+  if (!animateTeam) {
+    if (activeTitle && titleDistance > 0) {
+      const fallbackCenter = titleEndCenter || titleStartCenter;
+      activeTitle.style.top = `${fallbackCenter}px`;
+      activeTitle.style.transform = "translate(-50%, -50%)";
+    }
     return;
   }
 
   let startTime = null;
-  const titleStartCenter = title ? Number(title.dataset.startCenter) || 0 : 0;
-  const titleEndCenter = title ? Number(title.dataset.endCenter) || 0 : 0;
-  const titleDistance = title ? Math.max(0, titleStartCenter - titleEndCenter) : 0;
 
   const animateScroll = (timestamp) => {
     if (startTime == null) {
@@ -4862,11 +5034,11 @@ const renderTeamPreview = () => {
     const clampedOffset = Math.max(currentOffset, exitOffset);
     cardsContainer.style.transform = `translateY(${clampedOffset}px)`;
 
-    if (title && titleDistance > 0) {
+    if (activeTitle && titleDistance > 0) {
       const titleTraveled = Math.min(titleDistance, elapsedSeconds * pixelsPerSecond);
       const currentCenter = titleStartCenter - titleTraveled;
-      title.style.top = `${currentCenter}px`;
-      title.style.transform = "translate(-50%, -50%)";
+      activeTitle.style.top = `${currentCenter}px`;
+      activeTitle.style.transform = "translate(-50%, -50%)";
     }
 
     if (clampedOffset <= exitOffset) {
@@ -4878,12 +5050,11 @@ const renderTeamPreview = () => {
     teamPreviewFrame = requestAnimationFrame(animateScroll);
   };
 
-  const holdMs = title ? TEAM_TITLE_HOLD_MS : 0;
+  const holdMs = activeTitle ? TEAM_TITLE_HOLD_MS : 0;
   teamPreviewStartTimer = setTimeout(() => {
     teamPreviewFrame = requestAnimationFrame(animateScroll);
   }, holdMs);
 };
-
 const loadTeamBackgroundList = async () => {
   if (!teamBackgroundList) return;
   try {
@@ -6230,6 +6401,18 @@ employeeAvatarInput?.addEventListener("change", () => {
 
 employeeAvatarRemoveButton?.addEventListener("click", () => {
   void removeEmployeeAvatar();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopTeamPreviewRotation();
+    teamPreviewRefreshPending = true;
+    return;
+  }
+  if (teamPreviewStage && teamPreviewIsVisible) {
+    teamPreviewRefreshPending = false;
+    renderTeamPreview();
+  }
 });
 
 // PowerPoint (accueil)

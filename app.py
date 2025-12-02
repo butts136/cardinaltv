@@ -65,6 +65,19 @@ PPT_EXTENSIONS = {".ppt", ".pptx", ".pps", ".ppsx"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".avif"}
 VIDEO_EXTENSIONS = {".mp4", ".m4v", ".mov", ".webm", ".mkv"}
 
+
+def _slide_asset_exists(directory: Path, filename: str) -> bool:
+    """Return True if filename exists under directory (avoids path traversal)."""
+    if not filename:
+        return False
+    try:
+        base_dir = directory.resolve()
+        target = (base_dir / filename).resolve()
+        target.relative_to(base_dir)
+    except (FileNotFoundError, ValueError):
+        return False
+    return target.is_file()
+
 DEFAULT_SETTINGS = {
     "overlay": {
         "enabled": True,
@@ -3380,9 +3393,13 @@ def get_settings() -> Any:
         xmas_bg_path = christmas_slide.get("background_path")
         christmas_background_url = None
         if isinstance(xmas_bg_path, str) and xmas_bg_path:
-            christmas_background_url = url_for(
-                "main.serve_christmas_slide_asset", filename=xmas_bg_path, _external=False
-            )
+            if _slide_asset_exists(CHRISTMAS_SLIDE_ASSETS_DIR, xmas_bg_path):
+                christmas_background_url = url_for(
+                    "main.serve_christmas_slide_asset", filename=xmas_bg_path, _external=False
+                )
+            else:
+                christmas_slide["background_path"] = None
+                christmas_slide["background_mimetype"] = None
         else:
             christmas_slide["background_path"] = None
         christmas_slide["background_url"] = christmas_background_url
