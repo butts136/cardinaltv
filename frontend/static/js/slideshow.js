@@ -1291,19 +1291,19 @@ const ensureBirthdayEmployeesData = async () => {
     if (!displayAllowed) return;
     const key = next.getTime();
     if (!groups.has(key)) {
-      groups.set(key, []);
+      groups.set(key, {
+        birthday: next,
+        announce,
+        variant,
+        daysUntilBirthday: daysToBirthday,
+        daysUntilAnnounce: Math.max(0, daysToAnnounce),
+        employees: [],
+      });
     }
-    groups.get(key).push({
-      birthday: next,
-      announce,
-      variant,
-      daysUntilBirthday: daysToBirthday,
-      daysUntilAnnounce: Math.max(0, daysToAnnounce),
-      employees: [emp],
-    });
+    groups.get(key).employees.push(emp);
   });
 
-  const entries = Array.from(groups.values()).flat();
+  const entries = Array.from(groups.values());
   if (!entries.length) {
     birthdayEmployeesData = null;
     lastBirthdayFetch = now;
