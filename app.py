@@ -613,6 +613,7 @@ def _ensure_number(
         number = maximum
     if integer:
         return int(round(number))
+    return number
 
 
 def _read_birthday_config(variant: str) -> Dict[str, Any]:
@@ -830,7 +831,6 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
     with config_path.open("w", encoding="utf-8") as handle:
         json.dump(normalized, handle, ensure_ascii=True, indent=2)
     return normalized
-    return number
 
 
 def _normalize_time_change_text_options(raw: Any) -> Dict[str, Any]:
