@@ -1557,11 +1557,11 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     const dayLabel =
       daysUntilBirthday === 1 ? DAY_LABEL_PLURAL.singular : DAY_LABEL_PLURAL.plural;
     return text
-      .replace("[days]", daysUntilBirthday != null ? String(daysUntilBirthday) : "")
-      .replace("[day_label]", dayLabel)
-      .replace("[birthday_weekday]", birthdayWeekday)
-      .replace("[date]", birthdayDateText)
-      .replace("[name]", namesText);
+      .replace(/\[days\]/g, daysUntilBirthday != null ? String(daysUntilBirthday) : "")
+      .replace(/\[day_label\]/g, dayLabel)
+      .replace(/\[birthday_weekday\]/g, birthdayWeekday)
+      .replace(/\[date\]/g, birthdayDateText)
+      .replace(/\[name\]/g, namesText);
   };
 
   const durationSeconds = Math.max(
