@@ -122,6 +122,26 @@ const DEFAULT_CHRISTMAS_SLIDE = {
   ],
 };
 
+const DEFAULT_CUSTOM_SLIDE = {
+  enabled: false,
+  order_index: 0,
+  duration: 12,
+};
+const DEFAULT_CUSTOM_TEXT_POSITION = { x: 50, y: 80 };
+const DEFAULT_CUSTOM_TEXT_SIZE = { width: 30, height: 12 };
+const DEFAULT_CUSTOM_TEXT_COLOR = "#e10505";
+const DEFAULT_CUSTOM_TEXT_STYLE = {
+  font_family: "Poppins",
+  bold: false,
+  italic: false,
+  underline: false,
+};
+const DEFAULT_CUSTOM_TEXT_BACKGROUND = { color: "#000000", opacity: 0 };
+const CUSTOM_DATE_FORMAT = new Intl.DateTimeFormat("fr-CA", { dateStyle: "long" });
+const CUSTOM_TIME_FORMAT = new Intl.DateTimeFormat("fr-CA", { timeStyle: "short" });
+const CUSTOM_WEEKDAY_FORMAT = new Intl.DateTimeFormat("fr-CA", { weekday: "long" });
+const CUSTOM_MONTH_FORMAT = new Intl.DateTimeFormat("fr-CA", { month: "long" });
+
 const BIRTHDAY_FIXED_COPY = {
   before: {
     text1: "(Texte 1)",
@@ -174,6 +194,7 @@ const TEAM_SLIDE_ID = "__team_slide_auto__";
 const BIRTHDAY_SLIDE_ID = "__birthday_slide_auto__";
 const TIME_CHANGE_SLIDE_ID = "__time_change_slide_auto__";
 const CHRISTMAS_SLIDE_ID = "__christmas_slide_auto__";
+const CUSTOM_SLIDE_ID = "__custom_slide_auto__";
 const BASE_CANVAS_WIDTH = Number(canvas?.dataset.baseWidth) || 1920;
 const BASE_CANVAS_HEIGHT = Number(canvas?.dataset.baseHeight) || 1080;
 const OVERLAY_DISABLED = true;
@@ -217,6 +238,10 @@ let christmasSlideSettings = { ...DEFAULT_CHRISTMAS_SLIDE };
 let christmasInfo = null;
 let lastChristmasFetch = 0;
 const CHRISTMAS_REFRESH_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+let customSlideSettings = { ...DEFAULT_CUSTOM_SLIDE };
+let customSlidePayload = null;
+let lastCustomSlideFetch = 0;
+const CUSTOM_SLIDE_REFRESH_MS = 15 * 1000;
 let teamEmployeesData = [];
 let teamEmployeesPromise = null;
 let teamRotationTimer = null;
@@ -651,6 +676,10 @@ const refreshOverlaySettings = async () => {
       ...DEFAULT_CHRISTMAS_SLIDE,
       ...(data && data.christmas_slide ? data.christmas_slide : {}),
     };
+    customSlideSettings = {
+      ...DEFAULT_CUSTOM_SLIDE,
+      ...(data && data.custom_slide ? data.custom_slide : {}),
+    };
     await preloadBirthdayVariants();
     await fetchTimeChangeInfo(true);
     await fetchChristmasInfo(true);
@@ -697,6 +726,9 @@ const detectMediaKind = (item) => {
   if (item.christmas_slide) {
     return "christmas";
   }
+  if (item.custom_slide) {
+    return "custom";
+  }
   if (Array.isArray(item.page_urls) && item.page_urls.length) {
     return "document";
   }
@@ -727,6 +759,280 @@ const detectMediaKind = (item) => {
     return "document";
   }
   return "other";
+};
+
+const clampValue = (value, min, max) => Math.min(Math.max(value, min), max);
+const customMeasureCanvas = document.createElement("canvas");
+const customMeasureCtx = customMeasureCanvas.getContext("2d");
+const CUSTOM_MEASUREMENT_FALLBACK_CHAR_WIDTH = 0.6;
+const CUSTOM_MEASUREMENT_SAFETY_RATIO = 0.1;
+const CUSTOM_TEXT_LINE_HEIGHT = 1.2;
+const CUSTOM_CARD_VERTICAL_PADDING_RATIO = 0.08;
+const CUSTOM_CARD_HORIZONTAL_PADDING_RATIO = 0.06;
+const CUSTOM_CARD_MAX_PADDING_RATIO = 0.25;
+const CUSTOM_CARD_MIN_VERTICAL_PADDING = 8;
+const CUSTOM_CARD_MIN_HORIZONTAL_PADDING = 12;
+const CUSTOM_FONT_FALLBACK = '"Poppins", "Helvetica Neue", Arial, sans-serif';
+
+const getCustomFontStack = (fontFamily) => {
+  if (!fontFamily) {
+    return CUSTOM_FONT_FALLBACK;
+  }
+  return `"${fontFamily}", ${CUSTOM_FONT_FALLBACK}`;
+};
+
+const hexToRgb = (value) => {
+  if (typeof value !== "string") {
+    return { r: 0, g: 0, b: 0 };
+  }
+  const hex = value.trim().replace("#", "");
+  if (!hex) {
+    return { r: 0, g: 0, b: 0 };
+  }
+  const normalized = hex.length === 3 ? hex.split("").map((ch) => ch + ch).join("") : hex;
+  const int = Number.parseInt(normalized, 16);
+  if (Number.isNaN(int)) {
+    return { r: 0, g: 0, b: 0 };
+  }
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+};
+
+const buildRgbaColor = (hex, opacity) => {
+  const { r, g, b } = hexToRgb(hex);
+  const alpha = clampValue(Number(opacity) || 0, 0, 1);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const splitTextLines = (value) => {
+  if (!value && value !== 0) {
+    return [""];
+  }
+  return String(value).split(/\r?\n/);
+};
+
+const computeCustomFontSize = (availableHeightPx, lineCount) => {
+  if (!availableHeightPx || !lineCount) {
+    return 8;
+  }
+  const size = availableHeightPx / (lineCount * CUSTOM_TEXT_LINE_HEIGHT);
+  return clampValue(Math.floor(size), 8, 220);
+};
+
+const measureCustomTextBlock = (lines, fontSize, fontStack) => {
+  const normalizedLines = lines && lines.length ? lines : [""];
+  if (!customMeasureCtx) {
+    const fallbackWidth =
+      Math.max(1, Math.max(...normalizedLines.map((line) => (line || "").length)) * fontSize * CUSTOM_MEASUREMENT_FALLBACK_CHAR_WIDTH);
+    const fallbackLineHeight = fontSize * CUSTOM_TEXT_LINE_HEIGHT;
+    return { width: fallbackWidth, height: fallbackLineHeight * normalizedLines.length };
+  }
+  customMeasureCtx.font = `${fontSize}px ${fontStack}`;
+  let maxWidth = 1;
+  let maxAscent = 0;
+  let maxDescent = 0;
+  normalizedLines.forEach((line) => {
+    const metrics = customMeasureCtx.measureText(line || " ");
+    const left = Math.abs(metrics.actualBoundingBoxLeft ?? 0);
+    const right = Math.abs(metrics.actualBoundingBoxRight ?? 0);
+    const boundingWidth = Math.max(metrics.width || 0, left + right);
+    maxWidth = Math.max(maxWidth, boundingWidth);
+    maxAscent = Math.max(maxAscent, metrics.actualBoundingBoxAscent ?? 0);
+    maxDescent = Math.max(maxDescent, metrics.actualBoundingBoxDescent ?? 0);
+  });
+  const safety = fontSize * CUSTOM_MEASUREMENT_SAFETY_RATIO;
+  const lineHeight = Math.max(fontSize * CUSTOM_TEXT_LINE_HEIGHT, maxAscent + maxDescent + safety * 2);
+  const blockHeight = lineHeight * normalizedLines.length;
+  return {
+    width: Math.max(1, maxWidth),
+    height: Math.max(1, blockHeight),
+  };
+};
+
+const startOfDayUTC = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+const parseIsoDate = (value) => {
+  if (!value) return null;
+  const parts = value.split("-");
+  if (parts.length !== 3) return null;
+  const [year, month, day] = parts.map((v) => Number.parseInt(v, 10));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  const parsed = new Date(year, month - 1, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+const getDaysUntil = (eventDate) => {
+  if (!eventDate) return 0;
+  const now = startOfDayUTC(new Date());
+  const target = startOfDayUTC(eventDate);
+  const diff = target.getTime() - now.getTime();
+  return Math.max(0, Math.round(diff / 86400000));
+};
+const formatWeekdayLabel = (date, { capitalize = false } = {}) => {
+  const label = CUSTOM_WEEKDAY_FORMAT.format(date);
+  if (capitalize) {
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+  return label.toLowerCase();
+};
+const formatMonthLabel = (date, { capitalize = false } = {}) => {
+  const label = CUSTOM_MONTH_FORMAT.format(date);
+  if (capitalize) {
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+  return label.toLowerCase();
+};
+const getSeasonForDate = (date, { capitalize = false } = {}) => {
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  let label = "hiver";
+  if ((month === 3 && day >= 20) || month === 4 || month === 5 || (month === 6 && day < 21)) {
+    label = "printemps";
+  } else if ((month === 6 && day >= 21) || month === 7 || month === 8 || (month === 9 && day < 22)) {
+    label = "été";
+  } else if ((month === 9 && day >= 22) || month === 10 || month === 11 || (month === 12 && day < 21)) {
+    label = "automne";
+  }
+  if (!capitalize) {
+    return label;
+  }
+  if (label === "été") {
+    return "Été";
+  }
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+const getDayLabel = (count, { capitalize = false } = {}) => {
+  const base = count === 1 ? "jour" : "jours";
+  if (!capitalize) return base;
+  return base.charAt(0).toUpperCase() + base.slice(1);
+};
+const buildCustomTokenMap = (meta = {}) => {
+  const now = new Date();
+  const eventDate = parseIsoDate(meta.event_date);
+  const daysLeft = getDaysUntil(eventDate);
+  const countdown = `${daysLeft} ${getDayLabel(daysLeft)}`;
+  return {
+    "[slide_name]": meta.name || "",
+    "[date]": CUSTOM_DATE_FORMAT.format(now),
+    "[time]": CUSTOM_TIME_FORMAT.format(now),
+    "[weekday]": formatWeekdayLabel(now, { capitalize: false }),
+    "[Weekday]": formatWeekdayLabel(now, { capitalize: true }),
+    "[month]": formatMonthLabel(now, { capitalize: false }),
+    "[Month]": formatMonthLabel(now, { capitalize: true }),
+    "[year]": String(now.getFullYear()),
+    "[season]": getSeasonForDate(now, { capitalize: false }),
+    "[seasons]": getSeasonForDate(now, { capitalize: true }),
+    "[Season]": getSeasonForDate(now, { capitalize: true }),
+    "[days_left]": String(daysLeft),
+    "[event_countdown]": countdown,
+    "[day_days]": getDayLabel(daysLeft),
+    "[Day_Days]": getDayLabel(daysLeft, { capitalize: true }),
+    "[event_date]": eventDate ? CUSTOM_DATE_FORMAT.format(eventDate) : "",
+    "[event_weekday]": eventDate ? formatWeekdayLabel(eventDate, { capitalize: true }) : "",
+    "[event_month]": eventDate ? formatMonthLabel(eventDate, { capitalize: true }) : "",
+    "[event_year]": eventDate ? String(eventDate.getFullYear()) : "",
+  };
+};
+const resolveCustomTokens = (value, tokenMap) => {
+  if (!value && value !== 0) return "";
+  const source = typeof value === "string" ? value : String(value);
+  let resolved = source;
+  Object.entries(tokenMap).forEach(([token, replacement]) => {
+    if (!token) return;
+    const safeReplacement = replacement ?? "";
+    resolved = resolved.split(token).join(safeReplacement);
+  });
+  return resolved;
+};
+
+const createCustomTextCard = (entry, overlayWidth, overlayHeight, tokenMap) => {
+  const normalizedPosition = entry.position || DEFAULT_CUSTOM_TEXT_POSITION;
+  const normalizedSize = entry.size || DEFAULT_CUSTOM_TEXT_SIZE;
+  const normalizedBackground = entry.background || DEFAULT_CUSTOM_TEXT_BACKGROUND;
+  const normalizedStyle = entry.style || DEFAULT_CUSTOM_TEXT_STYLE;
+  const color = entry.color || DEFAULT_CUSTOM_TEXT_COLOR;
+  const rawValue = entry.value || "";
+  const displayValue = resolveCustomTokens(rawValue, tokenMap || {});
+
+  const card = document.createElement("div");
+  card.className = "custom-slide-text-card";
+  card.style.left = `${clampPercent(normalizedPosition.x)}%`;
+  card.style.top = `${clampPercent(normalizedPosition.y)}%`;
+  card.style.transform = "translate(-50%, -50%)";
+  card.style.position = "absolute";
+  card.style.display = "flex";
+  card.style.alignItems = "center";
+  card.style.justifyContent = "center";
+  card.style.textAlign = "center";
+  card.style.pointerEvents = "none";
+  card.style.boxSizing = "border-box";
+  card.style.borderRadius = "18px";
+  card.style.color = color;
+  card.style.fontFamily = getCustomFontStack(normalizedStyle.font_family);
+  card.style.fontWeight = normalizedStyle.bold ? "700" : "400";
+  card.style.fontStyle = normalizedStyle.italic ? "italic" : "normal";
+  card.style.textDecoration = normalizedStyle.underline ? "underline" : "none";
+  card.style.whiteSpace = "pre";
+  card.style.wordBreak = "normal";
+
+  const content = document.createElement("span");
+  content.className = "custom-slide-text-content";
+  content.textContent = displayValue;
+  card.dataset.rawValue = rawValue;
+  card.dataset.renderedValue = displayValue;
+  card.appendChild(content);
+
+  const widthPercent = clampValue(Number(normalizedSize.width) || DEFAULT_CUSTOM_TEXT_SIZE.width, 5, 90);
+  const heightPercent = clampValue(Number(normalizedSize.height) || DEFAULT_CUSTOM_TEXT_SIZE.height, 5, 90);
+  const cardWidthPx = overlayWidth * (widthPercent / 100);
+  const cardHeightPx = overlayHeight * (heightPercent / 100);
+  const horizontalPaddingPx = Math.min(
+    Math.max(cardWidthPx * CUSTOM_CARD_HORIZONTAL_PADDING_RATIO, CUSTOM_CARD_MIN_HORIZONTAL_PADDING),
+    cardWidthPx * CUSTOM_CARD_MAX_PADDING_RATIO,
+  );
+  const verticalPaddingPx = Math.min(
+    Math.max(cardHeightPx * CUSTOM_CARD_VERTICAL_PADDING_RATIO, CUSTOM_CARD_MIN_VERTICAL_PADDING),
+    cardHeightPx * CUSTOM_CARD_MAX_PADDING_RATIO,
+  );
+
+  card.style.width = `${widthPercent}%`;
+  card.style.height = `${heightPercent}%`;
+  card.style.padding = `${verticalPaddingPx}px ${horizontalPaddingPx}px`;
+
+  const lines = splitTextLines(displayValue);
+  const lineCount = Math.max(1, lines.length);
+  const availableHeightPx = Math.max(4, cardHeightPx - verticalPaddingPx * 2);
+  let fontSize = computeCustomFontSize(availableHeightPx, lineCount);
+  const fontStack = getCustomFontStack(normalizedStyle.font_family);
+  let blockMetrics = measureCustomTextBlock(lines, fontSize, fontStack);
+  if (blockMetrics.height > availableHeightPx) {
+    const ratio = clampValue(availableHeightPx / blockMetrics.height, 0.1, 1);
+    const adjusted = Math.max(8, Math.floor(fontSize * ratio));
+    if (adjusted !== fontSize) {
+      fontSize = adjusted;
+      blockMetrics = measureCustomTextBlock(lines, fontSize, fontStack);
+    }
+  }
+  const availableWidthPx = Math.max(4, cardWidthPx - horizontalPaddingPx * 2);
+  const widthScale = clampValue(availableWidthPx / blockMetrics.width, 0.25, 4);
+
+  card.style.fontSize = `${fontSize}px`;
+  card.style.lineHeight = CUSTOM_TEXT_LINE_HEIGHT;
+
+  content.style.transformOrigin = "center";
+  content.style.transform = `scale(${widthScale}, 1)`;
+  content.style.lineHeight = CUSTOM_TEXT_LINE_HEIGHT;
+
+  const backgroundColor = buildRgbaColor(
+    normalizedBackground.color || DEFAULT_CUSTOM_TEXT_BACKGROUND.color,
+    normalizedBackground.opacity ?? DEFAULT_CUSTOM_TEXT_BACKGROUND.opacity,
+  );
+  card.style.backgroundColor = backgroundColor;
+
+  return card;
 };
 
 const computeSignature = (items) =>
@@ -1834,6 +2140,79 @@ const renderChristmasSlide = (item) => {
   }, durationSeconds * 1000);
 };
 
+const renderCustomSlide = (item) => {
+  clearPlaybackTimer();
+  mediaWrapper.innerHTML = "";
+  currentVideo = null;
+  const payload = item.custom_payload || {};
+  const background = payload.background || null;
+  const texts = Array.isArray(payload.texts)
+    ? payload.texts.filter((entry) => typeof entry.value === "string" && entry.value.trim())
+    : [];
+  const tokenMap = buildCustomTokenMap(payload.meta || {});
+  const durationSeconds = Math.max(
+    1,
+    Math.round(Number(item.duration) || customSlideSettings.duration || DEFAULT_CUSTOM_SLIDE.duration),
+  );
+
+  const stageEl = document.createElement("div");
+  stageEl.className = "custom-slide-stage";
+
+  const backgroundLayer = document.createElement("div");
+  backgroundLayer.className = "custom-slide-background";
+  if (background && background.url) {
+    const mime = (background.mimetype || "").toLowerCase();
+    const isVideo = Boolean(background.is_video) || mime.startsWith("video/");
+    if (isVideo) {
+      const video = document.createElement("video");
+      video.src = background.url;
+      video.muted = true;
+      video.loop = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.setAttribute("playsinline", "");
+      video.className = "custom-slide-media custom-slide-video";
+      backgroundLayer.appendChild(video);
+      currentVideo = video;
+    } else {
+      const img = document.createElement("img");
+      img.src = background.url;
+      img.alt = "Fond Custom";
+      img.className = "custom-slide-media custom-slide-image";
+      backgroundLayer.appendChild(img);
+    }
+  } else {
+    backgroundLayer.classList.add("custom-slide-background--fallback");
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "custom-slide-overlay";
+
+  stageEl.append(backgroundLayer, overlay);
+  mediaWrapper.appendChild(stageEl);
+
+  const layoutTexts = () => {
+    overlay.innerHTML = "";
+    const overlayWidth = BASE_CANVAS_WIDTH;
+    const overlayHeight = BASE_CANVAS_HEIGHT;
+    if (!texts.length) {
+      const placeholder = document.createElement("p");
+      placeholder.className = "custom-slide-placeholder";
+      placeholder.textContent = "Aucun texte configuré.";
+      overlay.appendChild(placeholder);
+      return;
+    }
+    texts.forEach((entry) => {
+      overlay.appendChild(createCustomTextCard(entry, overlayWidth, overlayHeight, tokenMap));
+    });
+  };
+
+  requestAnimationFrame(layoutTexts);
+  playbackTimer = setTimeout(() => {
+    void advanceSlide().catch((error) => console.error(error));
+  }, durationSeconds * 1000);
+};
+
 const renderTimeChangeSlide = (item) => {
   clearPlaybackTimer();
   mediaWrapper.innerHTML = "";
@@ -2025,6 +2404,60 @@ const buildChristmasSlideItem = (christmasData) => {
   };
 };
 
+const fetchCustomSlideData = async (force = false) => {
+  const now = Date.now();
+  if (!force && customSlidePayload && now - lastCustomSlideFetch < CUSTOM_SLIDE_REFRESH_MS) {
+    return customSlidePayload;
+  }
+  try {
+    const data = await fetchJSON("api/custom/slide");
+    customSlidePayload = data;
+    lastCustomSlideFetch = now;
+    return data;
+  } catch (error) {
+    console.warn("Impossible de récupérer la diapo personnalisée:", error);
+    return null;
+  }
+};
+
+<<<<<<< ours
+const buildCustomSlideItem = (customData) => {
+  const background = customData?.background || null;
+  const mimetype = (background && background.mimetype) || "application/x-custom-slide";
+  const duration = Math.max(1, Number(customSlideSettings.duration) || DEFAULT_CUSTOM_SLIDE.duration);
+  const slideName = (customData?.meta && customData.meta.name) || "Custom 1";
+  return {
+    id: CUSTOM_SLIDE_ID,
+    custom_slide: true,
+    original_name: slideName,
+    filename: background?.name || CUSTOM_SLIDE_ID,
+=======
+const buildTestSlideItem = (testData) => {
+  const background = testData?.background || null;
+  const mimetype = (background && background.mimetype) || "application/x-test-slide";
+  const duration = Math.max(1, Number(testSlideSettings.duration) || DEFAULT_TEST_SLIDE.duration);
+  return {
+    id: TEST_SLIDE_ID,
+    test_slide: true,
+    original_name: "Diapo personnalisée",
+    filename: background?.name || TEST_SLIDE_ID,
+>>>>>>> theirs
+    duration,
+    enabled: true,
+    skip_rounds: 0,
+    mimetype,
+    display_mimetype: mimetype,
+    background,
+    order: Number(customSlideSettings.order_index) || 0,
+    custom_payload: {
+      background,
+      texts: Array.isArray(customData?.texts) ? customData.texts : [],
+      meta: customData?.meta || null,
+      signature: customData?.signature || null,
+    },
+  };
+};
+
 const injectAutoSlidesIntoPlaylist = async (items) => {
   const base = Array.isArray(items) ? [...items] : [];
   const autoEntries = [];
@@ -2098,6 +2531,22 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
         id: teamItem.id,
         index: Math.min(teamBaseIndex, base.length + autoEntries.length),
         item: teamItem,
+      });
+    }
+  }
+
+  if (customSlideSettings.enabled) {
+    const customData = await fetchCustomSlideData();
+    if (customData && customData.has_background && customData.has_texts) {
+      const customItem = buildCustomSlideItem(customData);
+      const customBaseIndex = Math.min(
+        Math.max(0, Number.parseInt(customSlideSettings.order_index, 10) || 0),
+        base.length
+      );
+      autoEntries.push({
+        id: customItem.id,
+        index: Math.min(customBaseIndex, base.length + autoEntries.length),
+        item: customItem,
       });
     }
   }
@@ -2213,6 +2662,10 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   }
   if (kind === "christmas") {
     renderChristmasSlide(item);
+    return;
+  }
+  if (kind === "custom") {
+    renderCustomSlide(item);
     return;
   }
 

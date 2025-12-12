@@ -53,6 +53,66 @@ TIME_CHANGE_SLIDE_ASSETS_DIR = DATA_DIR / "time_change" / "background"
 TIME_CHANGE_CONFIG_FILE = DATA_DIR / "time_change" / "config.json"
 CHRISTMAS_SLIDE_ASSETS_DIR = DATA_DIR / "christmas" / "background"
 CHRISTMAS_CONFIG_FILE = DATA_DIR / "christmas" / "config.json"
+TEST_BACKGROUND_DIR = DATA_DIR / "test" / "background"
+TEST_BACKGROUND_DIR.mkdir(parents=True, exist_ok=True)
+TEST_CONFIG_FILE = DATA_DIR / "test" / "config.json"
+DEFAULT_TEST_TEXT_POSITION = {"x": 50.0, "y": 80.0}
+DEFAULT_TEST_TEXT_SIZE = {"width": 30.0, "height": 12.0}
+DEFAULT_TEST_TEXT_COLOR = "#e10505"
+DEFAULT_TEST_TEXT_BACKGROUND = {"color": "#000000", "opacity": 0.0}
+DEFAULT_TEST_SLIDE_SETTINGS = {
+    "enabled": False,
+    "order_index": 0,
+    "duration": 12.0,
+}
+DEFAULT_TEST_FONT_FAMILY = "Poppins"
+AVAILABLE_TEST_FONT_FAMILIES = [
+    "Poppins",
+    "Roboto",
+    "Montserrat",
+    "Playfair Display",
+    "Space Mono",
+    "Open Sans",
+    "Lato",
+    "Raleway",
+    "Merriweather",
+    "Source Sans Pro",
+    "Oswald",
+    "Nunito",
+    "Ubuntu",
+    "Fira Sans",
+    "IBM Plex Sans",
+    "Pacifico",
+    "Bebas Neue",
+    "Caveat",
+    "Inconsolata",
+    "PT Serif",
+]
+DEFAULT_TEST_TEXT_STYLE = {
+    "font_family": DEFAULT_TEST_FONT_FAMILY,
+    "bold": False,
+    "italic": False,
+    "underline": False,
+}
+DEFAULT_TEST_SLIDE_META = {
+    "name": "Diapo personnalisée",
+    "event_date": "",
+}
+FRENCH_WEEKDAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+FRENCH_MONTHS = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+]
 DEFAULT_DURATION_SECONDS = 10
 QUEBEC_TZ = ZoneInfo("America/Toronto")
 TEXT_IMAGE_WIDTH = 1920
@@ -64,19 +124,7 @@ DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".md", ".rtf"}
 PPT_EXTENSIONS = {".ppt", ".pptx", ".pps", ".ppsx"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".avif"}
 VIDEO_EXTENSIONS = {".mp4", ".m4v", ".mov", ".webm", ".mkv"}
-
-
-def _slide_asset_exists(directory: Path, filename: str) -> bool:
-    """Return True if filename exists under directory (avoids path traversal)."""
-    if not filename:
-        return False
-    try:
-        base_dir = directory.resolve()
-        target = (base_dir / filename).resolve()
-        target.relative_to(base_dir)
-    except (FileNotFoundError, ValueError):
-        return False
-    return target.is_file()
+TEST_BACKGROUND_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 DEFAULT_SETTINGS = {
     "overlay": {
@@ -125,6 +173,11 @@ DEFAULT_SETTINGS = {
         # Fine-grained offset in percent relative to the base position.
         "title_offset_x_percent": 0.0,
         "title_offset_y_percent": 0.0,
+    },
+    "test_slide": {
+        "enabled": False,
+        "order_index": 0,
+        "duration": 12.0,
     },
     # Settings for the "Anniversaire" slide.
     "birthday_slide": {
@@ -307,6 +360,10 @@ BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
     "height_percent": 0.0,
     "color": "#ffffff",
     "underline": False,
+    "bold": False,
+    "italic": False,
+    "background_color": None,
+    "background_opacity": 0.0,
     "offset_x_percent": 0.0,
     "offset_y_percent": 0.0,
     "curve": 0.0,
@@ -367,6 +424,10 @@ TIME_CHANGE_TEXT_OPTIONS_DEFAULT = {
     "height_percent": 0.0,
     "color": "#f8fafc",
     "underline": False,
+    "bold": False,
+    "italic": False,
+    "background_color": None,
+    "background_opacity": 0.0,
     "offset_x_percent": 0.0,
     "offset_y_percent": 0.0,
     "curve": 0.0,
@@ -637,6 +698,22 @@ def _read_birthday_config(variant: str) -> Dict[str, Any]:
                 options["color"] = raw["color"]
             if isinstance(raw.get("underline"), bool):
                 options["underline"] = raw["underline"]
+            if isinstance(raw.get("bold"), bool):
+                options["bold"] = raw["bold"]
+            if isinstance(raw.get("italic"), bool):
+                options["italic"] = raw["italic"]
+            if isinstance(raw.get("background_color"), str):
+                options["background_color"] = raw["background_color"] or None
+            if isinstance(raw.get("background_opacity"), (int, float)):
+                try:
+                    opacity = float(raw["background_opacity"])
+                except (TypeError, ValueError):
+                    opacity = options["background_opacity"]
+                if opacity < 0.0:
+                    opacity = 0.0
+                if opacity > 1.0:
+                    opacity = 1.0
+                options["background_opacity"] = opacity
             if isinstance(raw.get("offset_x_percent"), (int, float)):
                 options["offset_x_percent"] = float(raw["offset_x_percent"])
             if isinstance(raw.get("offset_y_percent"), (int, float)):
@@ -739,6 +816,25 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
                 options["color"] = raw["color"]
             if isinstance(raw.get("underline"), bool):
                 options["underline"] = raw["underline"]
+            if isinstance(raw.get("bold"), bool):
+                options["bold"] = raw["bold"]
+            if isinstance(raw.get("italic"), bool):
+                options["italic"] = raw["italic"]
+            if "background_color" in raw:
+                if raw.get("background_color") is None:
+                    options["background_color"] = None
+                elif isinstance(raw.get("background_color"), str):
+                    options["background_color"] = raw["background_color"]
+            if isinstance(raw.get("background_opacity"), (int, float)):
+                try:
+                    opacity = float(raw["background_opacity"])
+                except (TypeError, ValueError):
+                    opacity = options["background_opacity"]
+                if opacity < 0.0:
+                    opacity = 0.0
+                if opacity > 1.0:
+                    opacity = 1.0
+                options["background_opacity"] = opacity
             if isinstance(raw.get("offset_x_percent"), (int, float)):
                 options["offset_x_percent"] = float(raw["offset_x_percent"])
             if isinstance(raw.get("offset_y_percent"), (int, float)):
@@ -830,7 +926,6 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
     with config_path.open("w", encoding="utf-8") as handle:
         json.dump(normalized, handle, ensure_ascii=True, indent=2)
     return normalized
-    return number
 
 
 def _normalize_time_change_text_options(raw: Any) -> Dict[str, Any]:
@@ -848,6 +943,22 @@ def _normalize_time_change_text_options(raw: Any) -> Dict[str, Any]:
             options["color"] = raw["color"]
         if isinstance(raw.get("underline"), bool):
             options["underline"] = raw["underline"]
+        if isinstance(raw.get("bold"), bool):
+            options["bold"] = raw["bold"]
+        if isinstance(raw.get("italic"), bool):
+            options["italic"] = raw["italic"]
+        if isinstance(raw.get("background_color"), str):
+            options["background_color"] = raw["background_color"] or None
+        if isinstance(raw.get("background_opacity"), (int, float)):
+            try:
+                opacity = float(raw["background_opacity"])
+            except (TypeError, ValueError):
+                opacity = options["background_opacity"]
+            if opacity < 0.0:
+                opacity = 0.0
+            if opacity > 1.0:
+                opacity = 1.0
+            options["background_opacity"] = opacity
         if isinstance(raw.get("offset_x_percent"), (int, float)):
             options["offset_x_percent"] = float(raw["offset_x_percent"])
         if isinstance(raw.get("offset_y_percent"), (int, float)):
@@ -1064,6 +1175,10 @@ CHRISTMAS_TEXT_OPTIONS_DEFAULT = {
     "height_percent": 0.0,
     "color": "#f8fafc",
     "underline": False,
+    "bold": False,
+    "italic": False,
+    "background_color": None,
+    "background_opacity": 0.0,
     "offset_x_percent": 0.0,
     "offset_y_percent": 0.0,
     "curve": 0.0,
@@ -1087,6 +1202,22 @@ def _normalize_christmas_text_options(raw: Any) -> Dict[str, Any]:
             options["color"] = raw["color"]
         if isinstance(raw.get("underline"), bool):
             options["underline"] = raw["underline"]
+        if isinstance(raw.get("bold"), bool):
+            options["bold"] = raw["bold"]
+        if isinstance(raw.get("italic"), bool):
+            options["italic"] = raw["italic"]
+        if isinstance(raw.get("background_color"), str):
+            options["background_color"] = raw["background_color"] or None
+        if isinstance(raw.get("background_opacity"), (int, float)):
+            try:
+                opacity = float(raw["background_opacity"])
+            except (TypeError, ValueError):
+                opacity = options["background_opacity"]
+            if opacity < 0.0:
+                opacity = 0.0
+            if opacity > 1.0:
+                opacity = 1.0
+            options["background_opacity"] = opacity
         if isinstance(raw.get("offset_x_percent"), (int, float)):
             options["offset_x_percent"] = float(raw["offset_x_percent"])
         if isinstance(raw.get("offset_y_percent"), (int, float)):
@@ -1324,6 +1455,347 @@ def _guess_mimetype(*names: Optional[str]) -> Optional[str]:
         if guessed:
             return guessed
     return None
+
+
+def _ensure_test_config_file() -> None:
+    TEST_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _read_test_config() -> Dict[str, Any]:
+    if not TEST_CONFIG_FILE.exists():
+        return {}
+    try:
+        with TEST_CONFIG_FILE.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+            if isinstance(data, dict):
+                return data
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
+
+def _write_test_config(config: Dict[str, Any]) -> None:
+    _ensure_test_config_file()
+    with TEST_CONFIG_FILE.open("w", encoding="utf-8") as handle:
+        json.dump(config, handle, ensure_ascii=False, indent=2)
+
+
+def _clamp_percent(value: float, fallback: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if math.isnan(number) or math.isinf(number):
+        return fallback
+    return max(0.0, min(100.0, number))
+
+
+def _clamp_dimension(value: float, fallback: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if math.isnan(number) or math.isinf(number):
+        return fallback
+    return max(1.0, min(200.0, number))
+
+
+def _normalize_text_position(position: Any) -> Dict[str, float]:
+    if not isinstance(position, dict):
+        return dict(DEFAULT_TEST_TEXT_POSITION)
+    x = _clamp_percent(position.get("x"), DEFAULT_TEST_TEXT_POSITION["x"])
+    y = _clamp_percent(position.get("y"), DEFAULT_TEST_TEXT_POSITION["y"])
+    return {"x": x, "y": y}
+
+
+def _normalize_test_meta(raw: Any) -> Dict[str, str]:
+    meta = dict(DEFAULT_TEST_SLIDE_META)
+    if not isinstance(raw, dict):
+        return meta
+    name = raw.get("name")
+    event_date = raw.get("event_date")
+    if isinstance(name, str):
+        stripped = name.strip()
+        if stripped:
+            meta["name"] = stripped
+    if isinstance(event_date, str):
+        meta["event_date"] = event_date.strip()
+    return meta
+
+
+def _read_test_meta(config: Dict[str, Any]) -> Dict[str, str]:
+    raw = {
+        "name": config.get("slide_name"),
+        "event_date": config.get("event_date"),
+    }
+    return _normalize_test_meta(raw)
+
+
+def _write_test_meta(config: Dict[str, Any], meta: Dict[str, str]) -> None:
+    config["slide_name"] = meta.get("name", DEFAULT_TEST_SLIDE_META["name"])
+    config["event_date"] = meta.get("event_date", DEFAULT_TEST_SLIDE_META["event_date"])
+
+
+def _parse_event_date(value: Optional[str]) -> Optional[date]:
+    if not value:
+        return None
+    try:
+        year, month, day = map(int, value.split("-"))
+        return date(year, month, day)
+    except Exception:
+        return None
+
+
+def _days_until(base_date: date, target_date: Optional[date]) -> int:
+    if not target_date:
+        return 0
+    delta = target_date - base_date
+    return max(0, delta.days)
+
+
+def _format_weekday(dt: date, capitalize: bool = False) -> str:
+    label = FRENCH_WEEKDAYS[dt.weekday()]
+    return label.capitalize() if capitalize else label
+
+
+def _format_month(dt: date, capitalize: bool = False) -> str:
+    label = FRENCH_MONTHS[dt.month - 1]
+    if capitalize:
+        if label == "août":
+            return "Août"
+        return label.capitalize()
+    return label
+
+
+def _season_for_date(dt: date, capitalize: bool = False) -> str:
+    month = dt.month
+    day = dt.day
+    label = "hiver"
+    if (month == 3 and day >= 20) or month in {4, 5} or (month == 6 and day < 21):
+        label = "printemps"
+    elif (month == 6 and day >= 21) or month in {7, 8} or (month == 9 and day < 22):
+        label = "été"
+    elif (month == 9 and day >= 22) or month in {10, 11} or (month == 12 and day < 21):
+        label = "automne"
+    if capitalize:
+        if label == "été":
+            return "Été"
+        return label.capitalize()
+    return label
+
+
+def _pluralize_day(days: int, capitalize: bool = False) -> str:
+    base = "jour" if days == 1 else "jours"
+    if capitalize:
+        return base.capitalize()
+    return base
+
+
+def _build_test_token_map(meta: Dict[str, str]) -> Dict[str, str]:
+    now = datetime.now(QUEBEC_TZ)
+    today = now.date()
+    event_date = _parse_event_date(meta.get("event_date"))
+    days_left = _days_until(today, event_date)
+    countdown = f"{days_left} {_pluralize_day(days_left)}"
+    date_label = f"{today.day} {_format_month(today, capitalize=True)} {today.year}"
+    event_date_label = (
+        f"{event_date.day} {_format_month(event_date, capitalize=True)} {event_date.year}"
+        if event_date
+        else ""
+    )
+    return {
+        "[slide_name]": meta.get("name") or DEFAULT_TEST_SLIDE_META["name"],
+        "[date]": date_label,
+        "[time]": now.strftime("%H:%M"),
+        "[weekday]": _format_weekday(today),
+        "[Weekday]": _format_weekday(today, capitalize=True),
+        "[month]": _format_month(today),
+        "[Month]": _format_month(today, capitalize=True),
+        "[year]": str(today.year),
+        "[season]": _season_for_date(today),
+        "[seasons]": _season_for_date(today, capitalize=True),
+        "[Season]": _season_for_date(today, capitalize=True),
+        "[days_left]": str(days_left),
+        "[event_countdown]": countdown,
+        "[day_days]": _pluralize_day(days_left),
+        "[Day_Days]": _pluralize_day(days_left, capitalize=True),
+        "[event_date]": event_date_label,
+        "[event_weekday]": _format_weekday(event_date, capitalize=True) if event_date else "",
+        "[event_month]": _format_month(event_date, capitalize=True) if event_date else "",
+        "[event_year]": str(event_date.year) if event_date else "",
+    }
+
+
+def _resolve_test_tokens(value: str, token_map: Dict[str, str]) -> str:
+    if not value:
+        return ""
+    resolved = value
+    for token, replacement in token_map.items():
+        resolved = resolved.replace(token, replacement or "")
+    return resolved
+
+
+def _normalize_text_entry(raw: Any) -> Dict[str, Any]:
+    if isinstance(raw, dict):
+        value = raw.get("value") or ""
+        position_data = raw.get("position")
+        size_data = raw.get("size")
+        color_value = raw.get("color")
+        style_data = raw.get("style")
+    else:
+        value = raw or ""
+        position_data = None
+        size_data = None
+        color_value = None
+        style_data = None
+    return {
+        "value": str(value),
+        "position": _normalize_text_position(position_data),
+        "size": _normalize_text_size(size_data),
+        "color": _normalize_text_color(color_value),
+        "background": _normalize_text_background(raw.get("background") if isinstance(raw, dict) else None),
+        "style": _normalize_text_style(style_data),
+    }
+
+
+def _normalize_text_size(raw: Any) -> Dict[str, float]:
+    if not isinstance(raw, dict):
+        return dict(DEFAULT_TEST_TEXT_SIZE)
+    width = _clamp_dimension(raw.get("width"), DEFAULT_TEST_TEXT_SIZE["width"])
+    height = _clamp_dimension(raw.get("height"), DEFAULT_TEST_TEXT_SIZE["height"])
+    return {"width": width, "height": height}
+
+
+def _normalize_text_color(raw: Any) -> str:
+    if isinstance(raw, str):
+        value = raw.strip()
+        if value and re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", value):
+            if len(value) == 4:
+                # Normalize #RGB values into #RRGGBB for consistency.
+                return f"#{value[1]*2}{value[2]*2}{value[3]*2}".lower()
+            return value.lower()
+    return DEFAULT_TEST_TEXT_COLOR
+
+
+def _normalize_text_background(raw: Any) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        raw = {}
+    color_value = raw.get("color")
+    color = _normalize_text_color(color_value) if isinstance(color_value, str) else DEFAULT_TEST_TEXT_BACKGROUND["color"]
+    try:
+        opacity = float(raw.get("opacity"))
+    except (TypeError, ValueError):
+        opacity = DEFAULT_TEST_TEXT_BACKGROUND["opacity"]
+    if math.isnan(opacity) or math.isinf(opacity):
+        opacity = DEFAULT_TEST_TEXT_BACKGROUND["opacity"]
+    opacity = max(0.0, min(1.0, opacity))
+    return {"color": color, "opacity": opacity}
+
+
+def _coerce_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lower = value.strip().lower()
+        if lower in {"1", "true", "yes", "on"}:
+            return True
+        if lower in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _normalize_text_style(raw: Any) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        raw = {}
+    font_family = raw.get("font_family")
+    if isinstance(font_family, str):
+        font_family = font_family.strip()
+    if not font_family or font_family not in AVAILABLE_TEST_FONT_FAMILIES:
+        font_family = DEFAULT_TEST_TEXT_STYLE["font_family"]
+    return {
+        "font_family": font_family,
+        "bold": _coerce_bool(raw.get("bold"), DEFAULT_TEST_TEXT_STYLE["bold"]),
+        "italic": _coerce_bool(raw.get("italic"), DEFAULT_TEST_TEXT_STYLE["italic"]),
+        "underline": _coerce_bool(raw.get("underline"), DEFAULT_TEST_TEXT_STYLE["underline"]),
+    }
+
+
+def _collect_text_entries(config: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    raw_texts = config.get("texts")
+    normalized: Dict[str, Dict[str, Any]] = {}
+    if isinstance(raw_texts, dict):
+        for name, raw in raw_texts.items():
+            entry = _normalize_text_entry(raw)
+            if entry.get("value") and entry["value"].strip():
+                normalized[name] = entry
+    return normalized
+
+
+def _text_name_is_valid(name: str) -> bool:
+    return bool(re.fullmatch(r"text\d+", name))
+
+
+def _build_test_slide_payload() -> Dict[str, Any]:
+    config = _read_test_config()
+    texts = []
+    entries = _collect_text_entries(config)
+    meta = _read_test_meta(config)
+    token_map = _build_test_token_map(meta)
+    for name in sorted(
+        entries.keys(),
+        key=lambda n: int(n.replace("text", "")) if n.startswith("text") and n[4:].isdigit() else n,
+    ):
+        entry = entries[name]
+        resolved_value = _resolve_test_tokens(entry.get("value") or "", token_map)
+        texts.append(
+            {
+                "name": name,
+                "value": entry.get("value") or "",
+                "resolved_value": resolved_value,
+                "position": entry.get("position") or dict(DEFAULT_TEST_TEXT_POSITION),
+                "size": entry.get("size") or dict(DEFAULT_TEST_TEXT_SIZE),
+                "color": entry.get("color") or DEFAULT_TEST_TEXT_COLOR,
+                "style": entry.get("style") or dict(DEFAULT_TEST_TEXT_STYLE),
+                "background": entry.get("background") or dict(DEFAULT_TEST_TEXT_BACKGROUND),
+            }
+        )
+
+    background_name = config.get("background")
+    background_data: Optional[Dict[str, Any]] = None
+    has_background = False
+    if isinstance(background_name, str) and background_name:
+        target = TEST_BACKGROUND_DIR / background_name
+        if target.exists() and target.is_file():
+            has_background = True
+            mimetype = _guess_mimetype(background_name) or "application/octet-stream"
+            background_data = {
+                "name": background_name,
+                "url": url_for("main.serve_test_background", filename=background_name, _external=False),
+                "mimetype": mimetype,
+                "is_video": mimetype.startswith("video/"),
+            }
+
+    try:
+        signature_source = TEST_CONFIG_FILE.stat().st_mtime
+    except OSError:
+        signature_source = None
+    signature_parts = [
+        background_name or "",
+        str(signature_source or ""),
+        str(len(texts)),
+        meta.get("name") or "",
+        meta.get("event_date") or "",
+    ]
+    return {
+        "background": background_data,
+        "texts": texts,
+        "has_background": has_background,
+        "has_texts": any((entry["value"] or "").strip() for entry in texts),
+        "meta": meta,
+        "signature": "|".join(signature_parts),
+    }
 
 
 def _build_document_directory(base_name: str, media_id: str) -> Path:
@@ -1918,6 +2390,30 @@ class MediaStore:
                 result["title_offset_y_percent"] = offset_y
         return result
 
+    def _normalize_test_slide(
+        self, test_slide: Dict[str, Any], base: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        result = copy.deepcopy(base or DEFAULT_SETTINGS["test_slide"])
+        if not isinstance(test_slide, dict):
+            return result
+        for key, value in test_slide.items():
+            if key == "enabled":
+                result["enabled"] = bool(value)
+            elif key == "order_index":
+                try:
+                    index = int(value)
+                except (TypeError, ValueError):
+                    continue
+                result["order_index"] = max(0, index)
+            elif key == "duration":
+                try:
+                    duration = float(value)
+                except (TypeError, ValueError):
+                    continue
+                duration = max(1.0, min(600.0, duration))
+                result["duration"] = duration
+        return result
+
     def _normalize_birthday_slide(
         self, birthday_slide: Dict[str, Any], base: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -2038,6 +2534,9 @@ class MediaStore:
         team_slide = settings.get("team_slide")
         if not isinstance(team_slide, dict):
             team_slide = {}
+        test_slide = settings.get("test_slide")
+        if not isinstance(test_slide, dict):
+            test_slide = {}
         birthday_slide = settings.get("birthday_slide")
         if not isinstance(birthday_slide, dict):
             birthday_slide = {}
@@ -2049,6 +2548,7 @@ class MediaStore:
             christmas_slide = {}
         normalized_overlay = self._normalize_overlay(overlay, DEFAULT_SETTINGS["overlay"])
         normalized_team = self._normalize_team_slide(team_slide, DEFAULT_SETTINGS["team_slide"])
+        normalized_test = self._normalize_test_slide(test_slide, DEFAULT_SETTINGS["test_slide"])
         normalized_birthday = self._normalize_birthday_slide(
             birthday_slide, DEFAULT_SETTINGS["birthday_slide"]
         )
@@ -2061,6 +2561,7 @@ class MediaStore:
         normalized_settings = {
             "overlay": normalized_overlay,
             "team_slide": normalized_team,
+            "test_slide": normalized_test,
             "birthday_slide": normalized_birthday,
             "time_change_slide": normalized_time_change,
             "christmas_slide": normalized_christmas,
@@ -2095,6 +2596,14 @@ class MediaStore:
                 current_team = self._data["settings"].get("team_slide") or DEFAULT_SETTINGS["team_slide"]
                 normalized_team = self._normalize_team_slide(team_updates, current_team)
                 self._data["settings"]["team_slide"] = normalized_team
+                handled = True
+            if "test_slide" in updates:
+                test_updates = updates["test_slide"]
+                if not isinstance(test_updates, dict):
+                    raise ValueError("Le bloc test_slide doit être un objet.")
+                current_test = self._data["settings"].get("test_slide") or DEFAULT_SETTINGS["test_slide"]
+                normalized_test = self._normalize_test_slide(test_updates, current_test)
+                self._data["settings"]["test_slide"] = normalized_test
                 handled = True
             if "birthday_slide" in updates:
                 birthday_updates = updates["birthday_slide"]
@@ -3075,6 +3584,11 @@ def team() -> Any:
     return render_template("team.html")
 
 
+@bp.route("/diaporama/test", endpoint="test")
+def test_page() -> Any:
+    return render_template("test.html")
+
+
 @bp.route("/diaporama/anniversaire")
 def birthday() -> Any:
     return render_template("birthday.html")
@@ -3323,6 +3837,258 @@ def service_worker() -> Any:
     )
 
 
+@bp.post("/api/test/background")
+def upload_test_background() -> Any:
+    uploaded = request.files.get("file")
+    if not uploaded or not getattr(uploaded, "filename"):
+        abort(400, description="Aucun fichier reçu.")
+    filename = os.path.basename(str(uploaded.filename))
+    if not filename:
+        abort(400, description="Nom de fichier invalide.")
+    extension = Path(filename).suffix.lower()
+    if extension not in TEST_BACKGROUND_EXTENSIONS:
+        abort(400, description="Format non supporté.")
+    target = TEST_BACKGROUND_DIR / filename
+    uploaded.save(target)
+    return jsonify({"status": "ok", "filename": filename})
+
+
+@bp.post("/api/test/background/active")
+def set_test_background_active() -> Any:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or "filename" not in payload:
+        abort(400, description="Nom de fichier requis.")
+    filename = os.path.basename(str(payload["filename"]))
+    if not filename:
+        abort(400, description="Nom de fichier invalide.")
+    target = TEST_BACKGROUND_DIR / filename
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+    config = _read_test_config()
+    config["background"] = filename
+    _write_test_config(config)
+    return jsonify({"status": "ok", "active": filename})
+
+
+@bp.delete("/api/test/background/<path:filename>")
+def delete_test_background(filename: str) -> Any:
+    safe_name = os.path.basename(filename)
+    if not safe_name:
+        abort(404, description="Fichier introuvable.")
+    target = TEST_BACKGROUND_DIR / safe_name
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+    try:
+        target.unlink()
+    except OSError:
+        abort(500, description="Impossible de supprimer le fichier.")
+    config = _read_test_config()
+    if config.get("background") == safe_name:
+        config.pop("background", None)
+        _write_test_config(config)
+    return jsonify({"status": "ok", "deleted": safe_name})
+
+
+@bp.get("/api/test/texts")
+def list_test_texts() -> Any:
+    config = _read_test_config()
+    meta = _read_test_meta(config)
+    token_map = _build_test_token_map(meta)
+    texts = _collect_text_entries(config)
+    entries = []
+    for name in sorted(
+        texts.keys(),
+        key=lambda n: int(n.replace("text", "")) if n.startswith("text") and n[4:].isdigit() else n,
+    ):
+        entry = texts[name]
+        style_value = entry.get("style") or DEFAULT_TEST_TEXT_STYLE
+        resolved_value = _resolve_test_tokens(entry.get("value") or "", token_map)
+        entries.append(
+            {
+                "name": name,
+                "value": entry.get("value") or "",
+                "resolved_value": resolved_value,
+                "position": entry.get("position") or dict(DEFAULT_TEST_TEXT_POSITION),
+                "size": entry.get("size") or dict(DEFAULT_TEST_TEXT_SIZE),
+                "color": entry.get("color") or DEFAULT_TEST_TEXT_COLOR,
+                "background": entry.get("background") or dict(DEFAULT_TEST_TEXT_BACKGROUND),
+                "style": dict(style_value),
+            }
+        )
+    return jsonify(entries)
+
+
+@bp.post("/api/test/texts")
+def add_test_text() -> Any:
+    config = _read_test_config()
+    texts = _collect_text_entries(config)
+    index = 1
+    while True:
+        candidate = f"text{index}"
+        if candidate not in texts:
+            break
+        index += 1
+    texts[candidate] = {
+        "value": "[texte]",
+        "position": dict(DEFAULT_TEST_TEXT_POSITION),
+        "size": dict(DEFAULT_TEST_TEXT_SIZE),
+        "color": DEFAULT_TEST_TEXT_COLOR,
+        "background": dict(DEFAULT_TEST_TEXT_BACKGROUND),
+        "style": dict(DEFAULT_TEST_TEXT_STYLE),
+    }
+    config["texts"] = texts
+    _write_test_config(config)
+    return jsonify({"status": "ok", "name": candidate})
+
+
+@bp.put("/api/test/texts/<text_name>")
+def update_test_text(text_name: str) -> Any:
+    if not _text_name_is_valid(text_name):
+        abort(400, description="Nom de texte invalide.")
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Payload invalide.")
+    config = _read_test_config()
+    texts = _collect_text_entries(config)
+    entry = texts.get(text_name)
+    if not entry:
+        abort(404, description="Texte introuvable.")
+    meta = _read_test_meta(config)
+    token_map = _build_test_token_map(meta)
+    if "value" in payload:
+        value = str(payload["value"] or "")
+        if not value.strip():
+            texts.pop(text_name, None)
+            if texts:
+                config["texts"] = texts
+            else:
+                config.pop("texts", None)
+            _write_test_config(config)
+            return jsonify({"status": "ok", "name": text_name, "deleted": True})
+        entry["value"] = value
+    if "position" in payload:
+        entry["position"] = _normalize_text_position(payload["position"])
+    if "size" in payload:
+        entry["size"] = _normalize_text_size(payload["size"])
+    if "color" in payload:
+        entry["color"] = _normalize_text_color(payload["color"])
+    if "background" in payload:
+        entry["background"] = _normalize_text_background(payload["background"])
+    if "style" in payload:
+        entry["style"] = _normalize_text_style(payload["style"])
+    texts[text_name] = entry
+    config["texts"] = texts
+    _write_test_config(config)
+    return jsonify(
+        {
+            "status": "ok",
+            "name": text_name,
+            "value": entry["value"],
+            "resolved_value": _resolve_test_tokens(entry["value"], token_map),
+            "position": entry["position"],
+            "size": entry["size"],
+            "color": entry.get("color", DEFAULT_TEST_TEXT_COLOR),
+            "background": entry.get("background", dict(DEFAULT_TEST_TEXT_BACKGROUND)),
+            "style": dict(entry.get("style") or DEFAULT_TEST_TEXT_STYLE),
+        }
+    )
+
+
+@bp.get("/api/test/slide")
+def get_test_slide() -> Any:
+    settings = store.get_settings().get("test_slide") or dict(DEFAULT_TEST_SLIDE_SETTINGS)
+    payload = _build_test_slide_payload()
+    try:
+        duration = float(settings.get("duration", DEFAULT_TEST_SLIDE_SETTINGS["duration"]))
+    except (TypeError, ValueError):
+        duration = DEFAULT_TEST_SLIDE_SETTINGS["duration"]
+    response = {
+        "enabled": bool(settings.get("enabled")),
+        "order_index": int(settings.get("order_index") or 0),
+        "duration": max(1.0, min(600.0, duration)),
+        "background": payload["background"],
+        "texts": payload["texts"],
+        "has_background": payload["has_background"],
+        "has_texts": payload["has_texts"],
+        "meta": payload.get("meta", dict(DEFAULT_TEST_SLIDE_META)),
+        "signature": payload["signature"],
+    }
+    return jsonify(response)
+
+
+@bp.delete("/api/test/texts/<text_name>")
+def delete_test_text(text_name: str) -> Any:
+    if not _text_name_is_valid(text_name):
+        abort(400, description="Nom de texte invalide.")
+    config = _read_test_config()
+    texts = _collect_text_entries(config)
+    if text_name not in texts:
+        abort(404, description="Texte introuvable.")
+    texts.pop(text_name, None)
+    if texts:
+        config["texts"] = texts
+    else:
+        config.pop("texts", None)
+    _write_test_config(config)
+    return jsonify({"status": "ok", "deleted": text_name})
+
+
+@bp.get("/api/test/meta")
+def get_test_meta() -> Any:
+    config = _read_test_config()
+    meta = _read_test_meta(config)
+    return jsonify(meta)
+
+
+@bp.patch("/api/test/meta")
+def update_test_meta() -> Any:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Payload invalide.")
+    config = _read_test_config()
+    current = _read_test_meta(config)
+    merged = {**current, **payload}
+    normalized = _normalize_test_meta(merged)
+    _write_test_meta(config, normalized)
+    _write_test_config(config)
+    return jsonify(normalized)
+
+@bp.get("/api/test/backgrounds")
+def list_test_backgrounds() -> Any:
+    entries = []
+    config = _read_test_config()
+    active_name = config.get("background")
+    for child in sorted(TEST_BACKGROUND_DIR.iterdir()):
+        if not child.is_file():
+            continue
+        name = child.name
+        entries.append(
+            {
+                "name": name,
+                "url": url_for("main.serve_test_background", filename=name, _external=False),
+                "mimetype": _guess_mimetype(name) or "application/octet-stream",
+                "is_active": name == active_name,
+            }
+        )
+    return jsonify(entries)
+
+
+@bp.route("/test/background/<path:filename>")
+def serve_test_background(filename: str) -> Any:
+    safe_name = os.path.basename(filename)
+    if not safe_name:
+        abort(404, description="Fichier introuvable.")
+    target = TEST_BACKGROUND_DIR / safe_name
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+    return send_from_directory(
+        TEST_BACKGROUND_DIR,
+        safe_name,
+        as_attachment=False,
+        mimetype=_guess_mimetype(safe_name) or "application/octet-stream",
+    )
+
+
 @bp.get("/api/settings")
 def get_settings() -> Any:
     # Normalize logo_path so the frontend always receives a usable URL for the
@@ -3365,15 +4131,10 @@ def get_settings() -> Any:
         birthday_background_url = None
         birthday_background_source = None
         if isinstance(bg_upload_path, str) and bg_upload_path:
-            if _slide_asset_exists(BIRTHDAY_SLIDE_ASSETS_DIR, bg_upload_path):
-                birthday_background_url = url_for(
-                    "main.serve_birthday_slide_asset", filename=bg_upload_path, _external=False
-                )
-                birthday_background_source = "upload"
-            else:
-                birthday_slide["background_media_id"] = None
-                birthday_slide["background_path"] = None
-                birthday_slide["background_mimetype"] = None
+            birthday_background_url = url_for(
+                "main.serve_birthday_slide_asset", filename=bg_upload_path, _external=False
+            )
+            birthday_background_source = "upload"
         else:
             birthday_slide["background_media_id"] = None
             birthday_slide["background_path"] = None
@@ -3398,13 +4159,9 @@ def get_settings() -> Any:
         xmas_bg_path = christmas_slide.get("background_path")
         christmas_background_url = None
         if isinstance(xmas_bg_path, str) and xmas_bg_path:
-            if _slide_asset_exists(CHRISTMAS_SLIDE_ASSETS_DIR, xmas_bg_path):
-                christmas_background_url = url_for(
-                    "main.serve_christmas_slide_asset", filename=xmas_bg_path, _external=False
-                )
-            else:
-                christmas_slide["background_path"] = None
-                christmas_slide["background_mimetype"] = None
+            christmas_background_url = url_for(
+                "main.serve_christmas_slide_asset", filename=xmas_bg_path, _external=False
+            )
         else:
             christmas_slide["background_path"] = None
         christmas_slide["background_url"] = christmas_background_url
