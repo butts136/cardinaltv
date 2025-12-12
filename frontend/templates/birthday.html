@@ -4,7 +4,7 @@
 
 {% block page_title %}Anniversaire{% endblock %}
 {% block page_subtitle %}
-  <p class="page-subtitle">Paramétrez les variantes de la diapositive Anniversaire.</p>
+  <p class="page-subtitle">Activez la diapositive, choisissez un fond et personnalisez le texte.</p>
 {% endblock %}
 {% block header_actions %}
   <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
@@ -12,4 +12,25 @@
 
 {% block content %}
   {% include "partials/birthday_section.html" %}
+
+  {% set editor_prefix = "birthday" %}
+  {% set editor_kind = "birthday" %}
+  {% set editor_variant = "before" %}
+  {% set editor_title = "Aperçu" %}
+  {% set editor_description = "Déplacez et redimensionnez les textes dans l'aperçu." %}
+  {% set show_meta = False %}
+  {% set show_enabled_toggle = False %}
+  {% set editor_tokens = [
+    {"code": "[name]", "label": "Nom de la personne"},
+    {"code": "[days]", "label": "Jours restants avant l'anniversaire"},
+    {"code": "[day_label]", "label": "jour/jours"},
+    {"code": "[birthday_weekday]", "label": "Jour de la semaine (ex. Dimanche)"},
+    {"code": "[date]", "label": "Date de l'anniversaire (ex. 4 juin 2025)"},
+  ] %}
+  {% include "partials/live_editor_section.html" %}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/live_editor.js') }}"></script>
 {% endblock %}

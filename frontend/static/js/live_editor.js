@@ -9,44 +9,617 @@
       return;
     }
 
-    const testBackgroundDropZone = document.querySelector("#test-background-drop-zone");
-    const testBackgroundInput = document.querySelector("#test-background-input");
-    const testBackgroundFeedback = document.querySelector("#test-background-feedback");
-    const testBackgroundProgress = document.querySelector("#test-background-progress");
-    const testBackgroundProgressBar = document.querySelector("#test-background-progress-bar");
-    const testBackgroundProgressText = document.querySelector("#test-background-progress-text");
-    const testBackgroundList = document.querySelector("#test-background-list");
-    const previewFrame = document.querySelector(".preview-frame");
-    const previewStage = document.querySelector("#test-preview-stage");
-    const testPreviewMedia = document.querySelector("#test-preview-media");
-    const testPreviewTextOverlay = document.querySelector("#test-preview-texts");
-    const testTextAddButton = document.querySelector("#test-text-add");
-    const slideNameInput = document.querySelector("#test-slide-name");
-    const slideDateInput = document.querySelector("#test-slide-date");
-    const variablesModal = document.querySelector("#test-variables-modal");
-    const variablesOpenButton = document.querySelector("#test-variables-open");
-    const variablesCloseButton = document.querySelector("#test-variables-close");
-    const variableButtons = document.querySelectorAll(".test-variable-button");
-    const selectedTextPanel = document.querySelector("#selected-text-panel");
-    const selectedTextTitle = document.querySelector("#selected-text-title");
-    const selectedTextTextarea = document.querySelector("#selected-text-input");
-    const selectedTextPlaceholder = document.querySelector("#selected-text-placeholder");
-    const selectedTextFontSelect = document.querySelector("#selected-text-font");
-    const textStyleToggleButtons = document.querySelectorAll(".text-style-toggle");
-    const selectedTextColorInput = document.querySelector("#selected-text-color");
-    const selectedTextColorValue = document.querySelector("#selected-text-color-value");
-    const selectedTextBackgroundColorInput = document.querySelector("#selected-text-background-color");
-    const selectedTextBackgroundColorValue = document.querySelector("#selected-text-background-color-value");
-    const selectedTextBackgroundOpacityInput = document.querySelector("#selected-text-background-opacity");
-    const selectedTextBackgroundOpacityValue = document.querySelector("#selected-text-background-opacity-value");
-    const selectedTextDeleteButton = document.querySelector("#selected-text-delete");
-    const testSlideToggle = document.querySelector("#halloween-enabled");
-    const testTextFeedback = document.querySelector("#test-text-feedback");
-    const testMetaFeedback = document.querySelector("#test-meta-feedback");
+    const editorRoot = document.querySelector("[data-editor-kind]") || document.querySelector("#custom-section");
+    const editorKind = editorRoot?.dataset?.editorKind || "test";
+    let editorVariant = editorRoot?.dataset?.editorVariant || "";
+    if (!editorRoot) {
+      return;
+    }
+
+    const editorPrefix = editorRoot?.dataset?.editorPrefix || "test-editor";
+    const sharedRenderers = window.CardinalSlideRenderers || null;
+    const q = (selector) => editorRoot.querySelector(selector);
+    const byId = (suffix) =>
+      q(`#${editorPrefix}-${suffix}`) || document.getElementById(`${editorPrefix}-${suffix}`);
+
+    const testBackgroundDropZone = byId("background-drop-zone");
+    const testBackgroundInput = byId("background-input");
+    const testBackgroundFeedback = byId("background-feedback");
+    const testBackgroundProgress = byId("background-progress");
+    const testBackgroundProgressBar = byId("background-progress-bar");
+    const testBackgroundProgressText = byId("background-progress-text");
+    const testBackgroundList = byId("background-list");
+    const previewFrame = q(".preview-frame");
+    const previewStage = byId("preview-stage");
+    const testPreviewMedia = byId("preview-media");
+    const testPreviewTextOverlay = byId("preview-texts");
+    const testTextAddButton = byId("text-add");
+    const useCustomDateToggle = byId("use-custom-date");
+    const customDateInput = byId("custom-date");
+    const variablesModal = byId("variables-modal");
+    const variablesOpenButton = byId("variables-open");
+    const variablesCloseButton = byId("variables-close");
+    const variableButtons = variablesModal
+      ? variablesModal.querySelectorAll(".editor-variable-button")
+      : [];
+    const selectedTextPanel = q("#selected-text-panel");
+    const selectedTextTitle = q("#selected-text-title");
+    const selectedTextTextarea = q("#selected-text-input");
+    const selectedTextPlaceholder = q("#selected-text-placeholder");
+    const selectedTextFontSelect = q("#selected-text-font");
+    const textStyleToggleButtons = editorRoot.querySelectorAll(".text-style-toggle");
+    const selectedTextColorInput = q("#selected-text-color");
+    const selectedTextColorValue = q("#selected-text-color-value");
+    const selectedTextBackgroundColorInput = q("#selected-text-background-color");
+    const selectedTextBackgroundColorValue = q("#selected-text-background-color-value");
+    const selectedTextBackgroundOpacityInput = q("#selected-text-background-opacity");
+    const selectedTextBackgroundOpacityValue = q("#selected-text-background-opacity-value");
+    const selectedTextDeleteButton = q("#selected-text-delete");
+    const testSlideToggle = byId("live-enabled");
+    const testTextFeedback = byId("text-feedback");
+    const testMetaFeedback = byId("meta-feedback");
+    const testMetaNameInput = byId("meta-name");
+    const testMetaEventDateInput = byId("meta-event-date");
+    const birthdayVariantButtons = document.querySelectorAll(".birthday-variant-pill");
 
     const DEFAULT_TEXT_SIZE = { width: 30, height: 12 };
     const DEFAULT_TEXT_COLOR = "#E10505";
     const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+    const DEFAULT_OPTIONS_BY_KIND = {
+      test: { color: DEFAULT_TEXT_COLOR },
+      custom: { color: DEFAULT_TEXT_COLOR },
+      birthday: { color: "#ffffff" },
+      time_change: { color: "#f8fafc" },
+      christmas: { color: "#f8fafc" },
+    };
+    const DEFAULT_LINE_OPTIONS = {
+      font_size: 48,
+      font_family: "",
+      width_percent: DEFAULT_TEXT_SIZE.width,
+      height_percent: DEFAULT_TEXT_SIZE.height,
+      color: DEFAULT_TEXT_COLOR,
+      underline: false,
+      bold: false,
+      italic: false,
+      background_color: null,
+      background_opacity: 0,
+      offset_x_percent: 0,
+      offset_y_percent: 0,
+      curve: 0,
+      angle: 0,
+    };
+    const clampPercent = (value) => clamp(Number(value) || 0, 0, 100);
+    const clampOffset = (value) => clamp(Number(value) || 0, -100, 100);
+    const normalizeLineOptions = (options, defaults) => ({
+      ...defaults,
+      ...(options || {}),
+    });
+    const offsetsFromPosition = (position) => {
+      const x = clampPercent(position?.x ?? 50);
+      const y = clampPercent(position?.y ?? 50);
+      return {
+        offset_x_percent: clampOffset(x - 50),
+        offset_y_percent: clampOffset(50 - y),
+      };
+    };
+    const positionFromOffsets = (offsetX, offsetY) => ({
+      x: clampPercent(50 + (Number(offsetX) || 0)),
+      y: clampPercent(50 - (Number(offsetY) || 0)),
+    });
+    const lineToEntry = (line, index, defaults) => {
+      const opts = normalizeLineOptions(line?.options, defaults);
+      const name = line?.name || `text${index + 1}`;
+      const position = positionFromOffsets(opts.offset_x_percent, opts.offset_y_percent);
+      const width = Number.isFinite(Number(opts.width_percent))
+        ? Number(opts.width_percent)
+        : DEFAULT_TEXT_SIZE.width;
+      const height = Number.isFinite(Number(opts.height_percent))
+        ? Number(opts.height_percent)
+        : DEFAULT_TEXT_SIZE.height;
+      const angle = Number.isFinite(Number(opts.angle)) ? Number(opts.angle) : defaults.angle || 0;
+      return {
+        name,
+        value: line?.text || "",
+        resolved_value: line?.text || "",
+        position,
+        size: {
+          width,
+          height,
+        },
+        angle,
+        color: opts.color || defaults.color || DEFAULT_TEXT_COLOR,
+        style: {
+          font_family: opts.font_family || DEFAULT_TEXT_STYLE.font_family,
+          font_size: Number.isFinite(Number(opts.font_size)) ? Number(opts.font_size) : defaults.font_size,
+          bold: Boolean(opts.bold),
+          italic: Boolean(opts.italic),
+          underline: Boolean(opts.underline),
+        },
+        background: {
+          color: opts.background_color || DEFAULT_TEXT_BACKGROUND.color,
+          opacity: clamp(Number(opts.background_opacity) || 0, 0, 1),
+        },
+      };
+    };
+    const entryToLine = (entry, existing, defaults) => {
+      const base = normalizeLineOptions(existing, defaults);
+      const offsets = offsetsFromPosition(entry?.position);
+      return {
+        text: entry?.value || "",
+        options: {
+          ...base,
+          width_percent: Number.isFinite(Number(entry?.size?.width))
+            ? Number(entry?.size?.width)
+            : base.width_percent,
+          height_percent: Number.isFinite(Number(entry?.size?.height))
+            ? Number(entry?.size?.height)
+            : base.height_percent,
+          color: entry?.color || base.color,
+          font_size: Number.isFinite(Number(entry?.style?.font_size))
+            ? Number(entry.style.font_size)
+            : base.font_size,
+          font_family: entry?.style?.font_family || base.font_family,
+          underline:
+            typeof entry?.style?.underline === "boolean" ? entry.style.underline : base.underline,
+          bold: typeof entry?.style?.bold === "boolean" ? entry.style.bold : base.bold,
+          italic: typeof entry?.style?.italic === "boolean" ? entry.style.italic : base.italic,
+          background_color: entry?.background?.color || base.background_color,
+          background_opacity:
+            entry?.background?.opacity !== undefined
+              ? clamp(Number(entry.background.opacity) || 0, 0, 1)
+              : base.background_opacity,
+          offset_x_percent: offsets.offset_x_percent,
+          offset_y_percent: offsets.offset_y_percent,
+          angle: Number.isFinite(Number(entry?.angle)) ? Number(entry.angle) : base.angle,
+        },
+      };
+    };
+    const SETTINGS_KEY_BY_KIND = {
+      test: "test_slide",
+      birthday: "birthday_slide",
+      time_change: "time_change_slide",
+      christmas: "christmas_slide",
+    };
+    const createEditorAdapter = (kind, variant) => {
+      if (kind === "custom") {
+        const slideId = editorRoot?.dataset?.editorSlideId || "";
+        const safeSlideId = slideId ? encodeURIComponent(slideId) : "";
+        const endpointPrefix = safeSlideId
+          ? `api/custom-slides/${safeSlideId}`
+          : "api/custom-slides";
+
+        const lineDefaults = {
+          ...DEFAULT_LINE_OPTIONS,
+          color: DEFAULT_TEXT_COLOR,
+        };
+
+        const fetchSettings = async () => {
+          if (!safeSlideId) return {};
+          const data = await fetchJSON(`${endpointPrefix}/settings`);
+          return data || {};
+        };
+
+        const updateSettings = async (patch) => {
+          if (!safeSlideId) return patch || {};
+          const response = await fetchJSON(`${endpointPrefix}/settings`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch || {}),
+          });
+          return response || patch || {};
+        };
+
+        const metaApi = {
+          async fetchMeta() {
+            if (!safeSlideId) return {};
+            const meta = await fetchJSON(`${endpointPrefix}/meta`);
+            return meta || {};
+          },
+          async updateMeta(patch) {
+            if (!safeSlideId) return patch || {};
+            const response = await fetchJSON(`${endpointPrefix}/meta`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(patch || {}),
+            });
+            return response || patch || {};
+          },
+        };
+
+        const backgroundApi = {
+          uploadUrl: `${endpointPrefix}/background`,
+          async list() {
+            if (!safeSlideId) return [];
+            const data = await fetchJSON(`${endpointPrefix}/backgrounds`);
+            const items = Array.isArray(data?.items) ? data.items : [];
+            return items.map((item) => ({
+              name: item.filename,
+              url: item.url,
+              mimetype: item.mimetype,
+              is_active: Boolean(item.is_active),
+              is_video: Boolean(item.is_video),
+              size: item.size,
+            }));
+          },
+          async setActive(filename) {
+            if (!safeSlideId) return { filename };
+            return fetchJSON(`${endpointPrefix}/background/active`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ filename }),
+            });
+          },
+          async remove(filename) {
+            if (!safeSlideId) return { filename };
+            return fetchJSON(
+              `${endpointPrefix}/background/${encodeURIComponent(filename)}`,
+              { method: "DELETE" },
+            );
+          },
+        };
+
+        const linesApi = {
+          async list() {
+            if (!safeSlideId) return [];
+            const data = await fetchJSON(`${endpointPrefix}/texts`);
+            const items = Array.isArray(data?.items) ? data.items : [];
+            return items;
+          },
+          async add() {
+            if (!safeSlideId) throw new Error("Slide id manquant");
+            return fetchJSON(`${endpointPrefix}/texts`, { method: "POST" });
+          },
+          async update(name, payload) {
+            if (!safeSlideId) throw new Error("Slide id manquant");
+            return fetchJSON(`${endpointPrefix}/texts/${encodeURIComponent(name)}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload || {}),
+            });
+          },
+          async remove(name) {
+            if (!safeSlideId) throw new Error("Slide id manquant");
+            return fetchJSON(`${endpointPrefix}/texts/${encodeURIComponent(name)}`, {
+              method: "DELETE",
+            });
+          },
+        };
+
+        return {
+          kind,
+          settingsKey: null,
+          supportsMeta: true,
+          lineDefaults,
+          fetchSettings,
+          updateSettings,
+          fetchMeta: metaApi.fetchMeta,
+          updateMeta: metaApi.updateMeta,
+          backgroundApi,
+          linesApi,
+        };
+      }
+
+      const settingsKey = SETTINGS_KEY_BY_KIND[kind] || "test_slide";
+      const lineDefaults = {
+        ...DEFAULT_LINE_OPTIONS,
+        color: DEFAULT_OPTIONS_BY_KIND[kind]?.color || DEFAULT_TEXT_COLOR,
+      };
+
+      const fetchSettings = async () => {
+        const data = await fetchJSON("api/settings");
+        return (data && data[settingsKey]) || {};
+      };
+
+      const updateSettings = async (patch) => {
+        const payload = { [settingsKey]: patch };
+        const response = await fetchJSON("api/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        return (response && response[settingsKey]) || patch;
+      };
+
+      const metaApi =
+        kind === "test"
+          ? {
+              async fetchMeta() {
+                const meta = await fetchJSON("api/test/meta");
+                return meta || {};
+              },
+              async updateMeta(patch) {
+                const response = await fetchJSON("api/test/meta", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(patch),
+                });
+                return response || patch;
+              },
+            }
+          : {
+              async fetchMeta() {
+                return {};
+              },
+              async updateMeta(patch) {
+                return patch || {};
+              },
+            };
+
+      const backgroundApi = (() => {
+        if (kind === "test") {
+          return {
+            uploadUrl: "api/test/background",
+            async list() {
+              return fetchJSON("api/test/backgrounds");
+            },
+            async setActive(filename) {
+              return fetchJSON("api/test/background/active", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ filename }),
+              });
+            },
+            async remove(filename) {
+              return fetchJSON(`api/test/background/${encodeURIComponent(filename)}`, {
+                method: "DELETE",
+              });
+            },
+            async currentSettings() {
+              return fetchSettings();
+            },
+          };
+        }
+
+        const endpointPrefix =
+          kind === "birthday"
+            ? "api/birthday-slide"
+            : kind === "time_change"
+            ? "api/time-change-slide"
+            : "api/christmas-slide";
+
+        const listEndpoint = `${endpointPrefix}/backgrounds`;
+        const uploadUrl = `${endpointPrefix}/background`;
+        const deletePrefix = `${endpointPrefix}/background/`;
+
+        const list = async () => {
+          const [data, settings] = await Promise.all([fetchJSON(listEndpoint), fetchSettings()]);
+          const items = Array.isArray(data?.items) ? data.items : [];
+          const active = (settings && settings.background_path) || data?.current?.filename || null;
+          return items.map((item) => ({
+            name: item.filename,
+            url: item.url,
+            mimetype: item.mimetype,
+            is_active: active ? item.filename === active : false,
+          }));
+        };
+
+        const setActive = async (filename, mimetype) => {
+          const patch = {
+            background_path: filename,
+            background_mimetype: mimetype || null,
+          };
+          return updateSettings(patch);
+        };
+
+        const remove = async (filename) =>
+          fetchJSON(`${deletePrefix}${encodeURIComponent(filename)}`, { method: "DELETE" });
+
+        return {
+          uploadUrl,
+          list,
+          setActive,
+          remove,
+          currentSettings: fetchSettings,
+        };
+      })();
+
+      const birthdayConfigApi = {
+        async fetchConfig() {
+          const v = variant || "before";
+          const data = await fetchJSON(`api/birthday-slide/config/${encodeURIComponent(v)}`);
+          return (data && data.config) || {};
+        },
+        async updateConfig(patch) {
+          const v = variant || "before";
+          const response = await fetchJSON(`api/birthday-slide/config/${encodeURIComponent(v)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+          });
+          return (response && response.config) || patch;
+        },
+      };
+
+      const deriveLinesFromSettings = (settings) => {
+        const base = settings || {};
+        if (Array.isArray(base.lines) && base.lines.length) {
+          return base.lines;
+        }
+        const fallback = [];
+        ["text1", "text2", "text3"].forEach((key, idx) => {
+          if (typeof base[key] === "string" && base[key].trim()) {
+            fallback.push({
+              text: base[key],
+              options: base[`${key}_options`] || { ...lineDefaults },
+              name: `text${idx + 1}`,
+            });
+          }
+        });
+        return fallback;
+      };
+
+      const linesApi = (() => {
+        if (kind === "test") {
+          return {
+            async list() {
+              return fetchJSON("api/test/texts");
+            },
+            async add() {
+              return fetchJSON("api/test/texts", { method: "POST" });
+            },
+            async update(name, payload) {
+              return fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+            },
+            async remove(name) {
+              return fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, { method: "DELETE" });
+            },
+          };
+        }
+
+        if (kind === "birthday") {
+          return {
+            async list() {
+              const config = await birthdayConfigApi.fetchConfig();
+              const lines = deriveLinesFromSettings(config);
+              return lines.map((line, idx) => lineToEntry(line, idx, lineDefaults));
+            },
+            async add() {
+              const config = await birthdayConfigApi.fetchConfig();
+              const lines = [...deriveLinesFromSettings(config)];
+              const newEntry = lineToEntry({ text: "[texte]", options: { ...lineDefaults } }, lines.length, lineDefaults);
+              lines.push(entryToLine(newEntry, lineDefaults, lineDefaults));
+              const updated = await birthdayConfigApi.updateConfig({ lines });
+              const normalizedLines = Array.isArray(updated?.lines) ? updated.lines : lines;
+              return lineToEntry(normalizedLines[normalizedLines.length - 1], normalizedLines.length - 1, lineDefaults);
+            },
+            async update(name, payload) {
+              const config = await birthdayConfigApi.fetchConfig();
+              const lines = [...deriveLinesFromSettings(config)];
+              const index = lines.findIndex((_, idx) => `text${idx + 1}` === name || `line${idx + 1}` === name || idx === name);
+              if (index < 0) {
+                const baseEntry = {
+                  text: typeof payload?.value === "string" ? payload.value : "[texte]",
+                  options: { ...lineDefaults },
+                };
+                const newLine = entryToLine(lineToEntry(baseEntry, lines.length, lineDefaults), lineDefaults, lineDefaults);
+                lines.push(newLine);
+                const created = await birthdayConfigApi.updateConfig({ lines });
+                const normalizedLines = Array.isArray(created?.lines) ? created.lines : lines;
+                return lineToEntry(normalizedLines[normalizedLines.length - 1], normalizedLines.length - 1, lineDefaults);
+              }
+              const existing = lines[index];
+              const merged = {
+                ...existing,
+                text: payload.value !== undefined ? payload.value : existing?.text,
+              options: normalizeLineOptions(existing?.options, lineDefaults),
+              };
+              const entry = lineToEntry({ ...merged, name }, index, lineDefaults);
+              const updatedLine = entryToLine(
+                {
+                  ...entry,
+                  ...payload,
+                  name,
+                },
+                merged.options,
+                lineDefaults
+              );
+              lines[index] = updatedLine;
+              if (payload.value !== undefined && !String(payload.value || "").trim()) {
+                lines.splice(index, 1);
+              }
+              const removed = payload.value !== undefined && !String(payload.value || "").trim();
+              const nextConfig = await birthdayConfigApi.updateConfig({ lines });
+              if (removed) {
+                return { deleted: name };
+              }
+              const normalizedLines = Array.isArray(nextConfig?.lines) ? nextConfig.lines : lines;
+              const currentLine = normalizedLines[Math.min(index, normalizedLines.length - 1)];
+              return lineToEntry(currentLine || updatedLine, Math.min(index, normalizedLines.length - 1), lineDefaults);
+            },
+            async remove(name) {
+              const config = await birthdayConfigApi.fetchConfig();
+              const lines = Array.isArray(config?.lines) ? [...config.lines] : [];
+              const index = lines.findIndex((_, idx) => `text${idx + 1}` === name || `line${idx + 1}` === name || idx === name);
+              if (index < 0) {
+                throw new Error("Texte introuvable");
+              }
+              lines.splice(index, 1);
+              await birthdayConfigApi.updateConfig({ lines });
+              return { deleted: name };
+            },
+          };
+        }
+
+        const linesDefaults = lineDefaults;
+
+        return {
+          async list() {
+            const settings = await fetchSettings();
+            const lines = deriveLinesFromSettings(settings);
+            return lines.map((line, idx) => lineToEntry(line, idx, linesDefaults));
+          },
+          async add() {
+            const settings = await fetchSettings();
+            const lines = [...deriveLinesFromSettings(settings)];
+            const newEntry = lineToEntry({ text: "[texte]", options: { ...linesDefaults } }, lines.length, linesDefaults);
+            lines.push(entryToLine(newEntry, linesDefaults, linesDefaults));
+            const updated = await updateSettings({ lines });
+            const normalizedLines = Array.isArray(updated?.lines) ? updated.lines : lines;
+            return lineToEntry(normalizedLines[normalizedLines.length - 1], normalizedLines.length - 1, linesDefaults);
+          },
+          async update(name, payload) {
+            const settings = await fetchSettings();
+            const lines = [...deriveLinesFromSettings(settings)];
+            const index = lines.findIndex((_, idx) => `text${idx + 1}` === name || `line${idx + 1}` === name || idx === name);
+            if (index < 0) {
+              const baseEntry = {
+                text: typeof payload?.value === "string" ? payload.value : "[texte]",
+                options: { ...linesDefaults },
+              };
+              const newLine = entryToLine(lineToEntry(baseEntry, lines.length, linesDefaults), linesDefaults, linesDefaults);
+              lines.push(newLine);
+              const created = await updateSettings({ lines });
+              const normalizedLines = Array.isArray(created?.lines) ? created.lines : lines;
+              return lineToEntry(normalizedLines[normalizedLines.length - 1], normalizedLines.length - 1, linesDefaults);
+            }
+            const existing = lines[index] || {};
+            const mergedOptions = normalizeLineOptions(existing.options, linesDefaults);
+            const entry = lineToEntry({ ...existing, name }, index, linesDefaults);
+            const updatedLine = entryToLine({ ...entry, ...payload, name }, mergedOptions, linesDefaults);
+            lines[index] = updatedLine;
+            if (payload.value !== undefined && !String(payload.value || "").trim()) {
+              lines.splice(index, 1);
+            }
+            const updatedSettings = await updateSettings({ lines });
+            const removed = payload.value !== undefined && !String(payload.value || "").trim();
+            if (removed) {
+              return { deleted: name };
+            }
+            const normalizedLines = Array.isArray(updatedSettings?.lines) ? updatedSettings.lines : lines;
+            const currentLine = normalizedLines[Math.min(index, normalizedLines.length - 1)];
+            return lineToEntry(currentLine || updatedLine, Math.min(index, normalizedLines.length - 1), linesDefaults);
+          },
+          async remove(name) {
+            const settings = await fetchSettings();
+            const lines = Array.isArray(settings?.lines) ? [...settings.lines] : [];
+            const index = lines.findIndex((_, idx) => `text${idx + 1}` === name || `line${idx + 1}` === name || idx === name);
+            if (index < 0) {
+              throw new Error("Texte introuvable");
+            }
+            lines.splice(index, 1);
+            await updateSettings({ lines });
+            return { deleted: name };
+          },
+        };
+      })();
+
+      return {
+        kind,
+        settingsKey,
+        supportsMeta: kind === "test",
+        lineDefaults,
+        fetchSettings,
+        updateSettings,
+        fetchMeta: metaApi.fetchMeta,
+        updateMeta: metaApi.updateMeta,
+        backgroundApi,
+        linesApi,
+      };
+    };
     const AVAILABLE_FONTS = [
       "Poppins",
       "Roboto",
@@ -69,30 +642,16 @@
       "Inconsolata",
       "PT Serif",
     ];
-<<<<<<< ours
-    const DEFAULT_TEST_SLIDE_SETTINGS = { enabled: false, order_index: 0, duration: 12 };
-    let currentTestSlideSettings = { ...DEFAULT_TEST_SLIDE_SETTINGS };
-    const DEFAULT_TEST_META = {
-<<<<<<< ours
-=======
-<<<<<<< ours
-    const DEFAULT_CUSTOM_SLIDE_SETTINGS = { enabled: false, order_index: 0, duration: 12 };
-    let currentCustomSlideSettings = { ...DEFAULT_CUSTOM_SLIDE_SETTINGS };
-    const DEFAULT_CUSTOM_META = {
->>>>>>> theirs
-      name: "Custom 1",
-=======
-    const DEFAULT_TEST_SLIDE_SETTINGS = { enabled: false, order_index: 0, duration: 12 };
+    const DEFAULT_TEST_SLIDE_SETTINGS = {
+      enabled: false,
+      order_index: 0,
+      duration: 12,
+      use_custom_date: false,
+      custom_date: "",
+    };
     let currentTestSlideSettings = { ...DEFAULT_TEST_SLIDE_SETTINGS };
     const DEFAULT_TEST_META = {
       name: "Diapo personnalisée",
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
-      name: "Diapo personnalisée",
->>>>>>> theirs
       event_date: "",
     };
     const DEFAULT_TEXT_STYLE = {
@@ -105,8 +664,8 @@
       color: "#000000",
       opacity: 0,
     };
-    const MIN_TEXT_SIZE = 1;
-    const MAX_TEXT_SIZE = 200;
+    const MIN_TEXT_SIZE = 5;
+    const MAX_TEXT_SIZE = 90;
     const resizeHandles = {
       "top-middle": { axis: "vertical", directionY: -1 },
       "bottom-middle": { axis: "vertical", directionY: 1 },
@@ -118,10 +677,44 @@
       "bottom-right": { axis: "both", directionX: 1, directionY: 1, keepRatio: true },
     };
 
-  const dragState = {
-    card: null,
-    name: null,
-    pointerId: null,
+    const CENTER_GUIDE_TOLERANCE_PERCENT = 1.5;
+    let verticalCenterGuide = null;
+    let horizontalCenterGuide = null;
+
+    const ensureCenterGuides = () => {
+      if (!testPreviewTextOverlay) return;
+      verticalCenterGuide =
+        testPreviewTextOverlay.querySelector(".preview-center-line--vertical") || null;
+      horizontalCenterGuide =
+        testPreviewTextOverlay.querySelector(".preview-center-line--horizontal") || null;
+
+      if (!verticalCenterGuide) {
+        verticalCenterGuide = document.createElement("div");
+        verticalCenterGuide.className = "preview-center-line preview-center-line--vertical";
+        testPreviewTextOverlay.prepend(verticalCenterGuide);
+      }
+      if (!horizontalCenterGuide) {
+        horizontalCenterGuide = document.createElement("div");
+        horizontalCenterGuide.className = "preview-center-line preview-center-line--horizontal";
+        testPreviewTextOverlay.prepend(horizontalCenterGuide);
+      }
+    };
+
+    const setCenterGuideVisibility = (showVertical, showHorizontal) => {
+      if (verticalCenterGuide) {
+        verticalCenterGuide.classList.toggle("is-visible", Boolean(showVertical));
+      }
+      if (horizontalCenterGuide) {
+        horizontalCenterGuide.classList.toggle("is-visible", Boolean(showHorizontal));
+      }
+    };
+
+    const hideCenterGuides = () => setCenterGuideVisibility(false, false);
+
+	  const dragState = {
+	    card: null,
+	    name: null,
+	    pointerId: null,
     position: null,
     startX: null,
     startY: null,
@@ -141,11 +734,39 @@
   let metaUpdateTimer = null;
   let pendingMetaChanges = {};
   let lastFocusedModalTrigger = null;
+  let editorAdapter = createEditorAdapter(editorKind, editorVariant);
 
   const highlightTestBackgroundDropZone = (active) => {
     if (!testBackgroundDropZone) return;
     testBackgroundDropZone.classList.toggle("drag-over", Boolean(active));
   };
+
+  const setActiveVariantUI = (variant) => {
+    if (!birthdayVariantButtons || !birthdayVariantButtons.length) return;
+    birthdayVariantButtons.forEach((btn) => {
+      const isActive = btn.dataset.variant === variant;
+      btn.classList.toggle("is-active", isActive);
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  };
+
+  const switchEditorVariant = (variant) => {
+    if (editorKind !== "birthday") return;
+    if (!variant || variant === editorVariant) return;
+    editorVariant = variant;
+    if (editorRoot) {
+      editorRoot.dataset.editorVariant = variant;
+    }
+    editorAdapter = createEditorAdapter(editorKind, editorVariant);
+    currentSelectedTextName = null;
+    hideSelectedTextPanel();
+    setActiveVariantUI(variant);
+	    void refreshTestSlideSettings();
+	    void refreshTestMeta();
+	    void refreshTestBackgroundList();
+	    void refreshTestTextsList();
+	    void refreshTokenInfo({ force: true });
+	  };
 
   const setTestBackgroundFeedback = (message, status = "info") => {
     if (!testBackgroundFeedback) return;
@@ -171,7 +792,8 @@
     setTestBackgroundFeedback(`Téléversement de ${file.name}…`);
     setTestBackgroundProgress(0, "0%");
     const xhr = new XMLHttpRequest();
-    const endpoint = buildApiUrl("api/test/background");
+    const uploadUrl = editorAdapter.backgroundApi.uploadUrl || "api/test/background";
+    const endpoint = buildApiUrl(uploadUrl);
     xhr.open("POST", endpoint);
     xhr.upload.addEventListener("progress", (event) => {
       if (!event.lengthComputable) return;
@@ -241,6 +863,7 @@
 
   const MEASUREMENT_FALLBACK_CHAR_WIDTH = 0.6;
   const MEASUREMENT_SAFETY_RATIO = 0.1;
+  const VARIABLE_TOKEN_PATTERN = /\[[^\]]+\]/;
 
   const getOverlayDimensions = () => ({
     width: previewBaseWidth,
@@ -267,6 +890,7 @@
     }
     const scale = Math.min(rect.width / previewBaseWidth, rect.height / previewBaseHeight);
     previewStage.style.setProperty("--preview-scale", scale.toString());
+    previewStage.style.setProperty("--slideshow-scale", scale.toString());
   };
 
   const setupPreviewStageScaling = () => {
@@ -275,6 +899,8 @@
     }
     previewStage.style.setProperty("--preview-base-width", `${previewBaseWidth}px`);
     previewStage.style.setProperty("--preview-base-height", `${previewBaseHeight}px`);
+    previewStage.style.setProperty("--slideshow-base-width", `${previewBaseWidth}px`);
+    previewStage.style.setProperty("--slideshow-base-height", `${previewBaseHeight}px`);
     if ("ResizeObserver" in window) {
       const observer = new ResizeObserver(updatePreviewStageScale);
       observer.observe(previewFrame);
@@ -323,16 +949,19 @@
     }
     return fallback;
   };
-  const normalizeFontFamily = (value) => (AVAILABLE_FONTS.includes(value) ? value : DEFAULT_TEXT_STYLE.font_family);
-  const normalizeStylePayload = (raw) => {
-    const source = typeof raw === "object" && raw ? raw : {};
-    return {
-      font_family: normalizeFontFamily(source.font_family),
-      bold: toBoolean(source.bold, DEFAULT_TEXT_STYLE.bold),
-      italic: toBoolean(source.italic, DEFAULT_TEXT_STYLE.italic),
-      underline: toBoolean(source.underline, DEFAULT_TEXT_STYLE.underline),
+    const normalizeFontFamily = (value) => (AVAILABLE_FONTS.includes(value) ? value : DEFAULT_TEXT_STYLE.font_family);
+    const normalizeStylePayload = (raw) => {
+      const source = typeof raw === "object" && raw ? raw : {};
+      return {
+        font_family: normalizeFontFamily(source.font_family),
+        font_size: Number.isFinite(Number(source.font_size))
+          ? Number(source.font_size)
+          : DEFAULT_LINE_OPTIONS.font_size,
+        bold: toBoolean(source.bold, DEFAULT_TEXT_STYLE.bold),
+        italic: toBoolean(source.italic, DEFAULT_TEXT_STYLE.italic),
+        underline: toBoolean(source.underline, DEFAULT_TEXT_STYLE.underline),
+      };
     };
-  };
   const normalizeTestSlideSettings = (raw) => {
     const base = { ...DEFAULT_TEST_SLIDE_SETTINGS };
     if (!raw || typeof raw !== "object") {
@@ -348,14 +977,20 @@
         result.order_index = idx;
       }
     }
-    if ("duration" in raw) {
-      const val = Number(raw.duration);
-      if (Number.isFinite(val) && val >= 1 && val <= 600) {
-        result.duration = val;
-      }
-    }
-    return result;
-  };
+	    if ("duration" in raw) {
+	      const val = Number(raw.duration);
+	      if (Number.isFinite(val) && val >= 1 && val <= 600) {
+	        result.duration = val;
+	      }
+	    }
+	    if ("use_custom_date" in raw) {
+	      result.use_custom_date = Boolean(raw.use_custom_date);
+	    }
+	    if ("custom_date" in raw) {
+	      result.custom_date = typeof raw.custom_date === "string" ? raw.custom_date : "";
+	    }
+	    return result;
+	  };
 
   const updateTestSlideToggleUI = () => {
     if (testSlideToggle) {
@@ -363,36 +998,46 @@
     }
   };
 
+  const updateDateControlUI = (settings = currentTestSlideSettings) => {
+    if (!useCustomDateToggle && !customDateInput) {
+      return;
+    }
+    const enabled = Boolean(settings?.use_custom_date);
+    if (useCustomDateToggle) {
+      useCustomDateToggle.checked = enabled;
+    }
+    if (customDateInput) {
+      customDateInput.disabled = !enabled;
+      customDateInput.value = (settings?.custom_date || "").slice(0, 10);
+    }
+  };
+
   const refreshTestSlideSettings = async () => {
     try {
-      const data = await fetchJSON("api/settings");
-      const raw = (data && data.test_slide) || DEFAULT_TEST_SLIDE_SETTINGS;
+      const raw = (await editorAdapter.fetchSettings()) || DEFAULT_TEST_SLIDE_SETTINGS;
       currentTestSlideSettings = normalizeTestSlideSettings(raw);
       updateTestSlideToggleUI();
+      updateDateControlUI(currentTestSlideSettings);
     } catch (error) {
       console.warn("Impossible de charger les paramètres de la diapo personnalisée:", error);
     }
   };
 
-  const persistTestSlideSettings = async (patch) => {
-    const payload = { test_slide: patch };
-    try {
-      const response = await fetchJSON("api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const raw = (response && response.test_slide) || patch;
-      currentTestSlideSettings = normalizeTestSlideSettings({
-        ...currentTestSlideSettings,
-        ...raw,
-      });
-      updateTestSlideToggleUI();
-      return currentTestSlideSettings;
-    } catch (error) {
-      console.error("Erreur lors de la mise à jour de la diapo personnalisée:", error);
-      throw error;
-    }
+	  const persistTestSlideSettings = async (patch) => {
+	    try {
+	      const raw = (await editorAdapter.updateSettings(patch)) || patch;
+	      currentTestSlideSettings = normalizeTestSlideSettings({
+	        ...currentTestSlideSettings,
+	        ...raw,
+	      });
+	      updateTestSlideToggleUI();
+	      updateDateControlUI(currentTestSlideSettings);
+	      void refreshTokenInfo({ force: true });
+	      return currentTestSlideSettings;
+	    } catch (error) {
+	      console.error("Erreur lors de la mise à jour de la diapo personnalisée:", error);
+	      throw error;
+	    }
   };
   const normalizeBackgroundOptions = (raw) => {
     if (!raw || typeof raw !== "object") {
@@ -424,6 +1069,7 @@
   const getCardStyleFromDataset = (card) =>
     normalizeStylePayload({
       font_family: card?.dataset?.fontFamily,
+      font_size: Number(card?.dataset?.fontSize),
       bold: card?.dataset?.bold === "true" || card?.dataset?.bold === "1",
       italic: card?.dataset?.italic === "true" || card?.dataset?.italic === "1",
       underline: card?.dataset?.underline === "true" || card?.dataset?.underline === "1",
@@ -446,6 +1092,10 @@
     card.style.fontWeight = resolved.bold ? "700" : "400";
     card.style.fontStyle = resolved.italic ? "italic" : "normal";
     card.style.textDecoration = resolved.underline ? "underline" : "none";
+    if (resolved.font_size) {
+      card.dataset.fontSize = resolved.font_size;
+      card.style.fontSize = `${resolved.font_size}px`;
+    }
   };
 
   const applyCardBackground = (card, background) => {
@@ -503,36 +1153,61 @@
     };
   };
 
-  const applyTextCardFontSizing = (card) => {
-    if (!card) return;
-    const rawValue = card.dataset.rawValue || "";
-    const displayValue = card.dataset.renderedValue || rawValue;
-    const cardColor = normalizeColorValue(card.dataset.color);
+	  const applyTextCardFontSizing = (card) => {
+	    if (!card) return;
+	    const rawValue = card.dataset.rawValue || "";
+	    const displayValue = card.dataset.renderedValue || rawValue;
+	    const cardColor = normalizeColorValue(card.dataset.color);
     card.dataset.color = cardColor;
     card.style.color = cardColor;
     const cardStyle = getCardStyleFromDataset(card);
     applyCardTypography(card, cardStyle);
     applyCardBackground(card, getCardBackgroundFromDataset(card));
-    const width = clamp(parseFloat(card.dataset.width) || DEFAULT_TEXT_SIZE.width, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
-    const height = clamp(parseFloat(card.dataset.height) || DEFAULT_TEXT_SIZE.height, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
-    const overlayRect = getOverlayDimensions();
-    const overlayWidth = Math.max(overlayRect.width, 1);
-    const overlayHeight = Math.max(overlayRect.height, 1);
-    const cardWidthPx = overlayWidth * (width / 100);
-    const cardHeightPx = overlayHeight * (height / 100);
-    const horizontalPaddingPx = Math.min(
-      Math.max(cardWidthPx * CARD_HORIZONTAL_PADDING_RATIO, MIN_HORIZONTAL_PADDING_PX),
-      cardWidthPx * CARD_MAX_PADDING_RATIO
+
+	    const widthPercent = clamp(parseFloat(card.dataset.width) || DEFAULT_TEXT_SIZE.width, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+	    const heightPercent = clamp(parseFloat(card.dataset.height) || DEFAULT_TEXT_SIZE.height, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+	    card.dataset.width = widthPercent;
+	    card.dataset.height = heightPercent;
+
+	    const { width: overlayWidth, height: overlayHeight } = getOverlayDimensions();
+	    const contentEl = card.querySelector(".preview-text-content");
+	    if (editorKind === "test") {
+	      if (sharedRenderers?.layoutCustomTextCard) {
+	        sharedRenderers.layoutCustomTextCard(card, overlayWidth, overlayHeight);
+	        return;
+	      }
+	    } else if (sharedRenderers?.layoutOverlayTextLine && contentEl) {
+	      const opts = {
+	        ...DEFAULT_LINE_OPTIONS,
+	        width_percent: widthPercent,
+	        height_percent: heightPercent,
+	        font_family: cardStyle.font_family,
+	        angle: Number(card.dataset.angle) || 0,
+	      };
+	      sharedRenderers.layoutOverlayTextLine(
+	        card,
+	        contentEl,
+	        displayValue,
+	        rawValue,
+	        opts,
+	        overlayWidth,
+	        overlayHeight,
+	      );
+	      return;
+	    }
+	    const cardWidthPx = overlayWidth * (widthPercent / 100);
+	    const cardHeightPx = overlayHeight * (heightPercent / 100);
+	    const horizontalPaddingPx = Math.min(
+	      Math.max(cardWidthPx * CARD_HORIZONTAL_PADDING_RATIO, MIN_HORIZONTAL_PADDING_PX),
+	      cardWidthPx * CARD_MAX_PADDING_RATIO,
     );
     const verticalPaddingPx = Math.min(
       Math.max(cardHeightPx * CARD_VERTICAL_PADDING_RATIO, MIN_VERTICAL_PADDING_PX),
-      cardHeightPx * CARD_MAX_PADDING_RATIO
+      cardHeightPx * CARD_MAX_PADDING_RATIO,
     );
-    const availableHeightPx = Math.max(4, cardHeightPx - verticalPaddingPx * 2);
-    let computedFontSize = computeFontSizeForCard(availableHeightPx, displayValue);
-    card.style.width = `${width}%`;
-    card.style.height = `${height}%`;
-    card.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+
+    card.style.width = `${widthPercent}%`;
+    card.style.height = `${heightPercent}%`;
     card.style.display = "flex";
     card.style.justifyContent = "center";
     card.style.alignItems = "center";
@@ -540,39 +1215,55 @@
     card.style.textAlign = "center";
     card.style.whiteSpace = "pre";
     card.style.wordBreak = "normal";
-    card.style.overflow = "hidden";
+    card.style.overflow = "visible";
     card.style.boxSizing = "border-box";
-    const content = card.querySelector(".preview-text-content");
-    if (!content) return;
-    const availableWidthPx = Math.max(4, cardWidthPx - horizontalPaddingPx * 2);
+
     const lines = displayValue.split(/\r?\n/);
+    const availableHeightPx = Math.max(4, cardHeightPx - verticalPaddingPx * 2);
+    let fontSize = computeFontSizeForCard(availableHeightPx, displayValue);
     const fontStack = getFontStack(cardStyle.font_family);
-    let blockMetrics = measureTextBlock(lines, computedFontSize, fontStack);
+    let blockMetrics = measureTextBlock(lines, fontSize, fontStack);
     if (blockMetrics.height > availableHeightPx) {
       const ratio = clamp(availableHeightPx / blockMetrics.height, 0.1, 1);
-      const adjustedFontSize = Math.max(MIN_FONT_SIZE, Math.floor(computedFontSize * ratio));
-      if (adjustedFontSize !== computedFontSize) {
-        computedFontSize = adjustedFontSize;
-        blockMetrics = measureTextBlock(lines, computedFontSize, fontStack);
+      const adjusted = Math.max(MIN_FONT_SIZE, Math.floor(fontSize * ratio));
+      if (adjusted !== fontSize) {
+        fontSize = adjusted;
+        blockMetrics = measureTextBlock(lines, fontSize, fontStack);
       }
     }
-    card.style.fontSize = `${computedFontSize}px`;
-    const widthScale = clamp(availableWidthPx / blockMetrics.width, 0.25, 4);
-    content.style.transform = `scale(${widthScale}, 1)`;
-    content.style.lineHeight = TEXT_LINE_HEIGHT.toString();
-    content.style.transformOrigin = "center";
-    content.style.alignItems = "center";
-    content.style.justifyContent = "center";
-    content.style.textAlign = "center";
-  };
+    const availableWidthPx = Math.max(4, cardWidthPx - horizontalPaddingPx * 2);
+    const hasVariables = VARIABLE_TOKEN_PATTERN.test(rawValue);
+    const widthScale = hasVariables ? 1 : clamp(availableWidthPx / blockMetrics.width, 0.25, 4);
+
+	    card.dataset.fontSize = fontSize;
+	    card.style.fontSize = `${fontSize}px`;
+	    card.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+	    if (contentEl) {
+	      contentEl.style.transformOrigin = "center";
+	      contentEl.style.transform = hasVariables ? "none" : `scale(${widthScale}, 1)`;
+	      contentEl.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+	      contentEl.style.alignItems = "center";
+	      contentEl.style.justifyContent = "center";
+	      contentEl.style.textAlign = "center";
+	      contentEl.style.fontSize = `${fontSize}px`;
+	    }
+	  };
 
   const createPreviewTextCard = (entry) => {
     if (!entry) return null;
     const rawValue = entry.value || "";
     if (!rawValue.trim()) return null;
-    const card = document.createElement("div");
-    card.className = "preview-text-card";
-    card.innerHTML = "";
+	    const card = document.createElement("div");
+	    const extraClasses =
+	      editorKind === "test"
+	        ? " custom-slide-text-card"
+	        : editorKind === "time_change"
+	        ? " time-change-line"
+	        : editorKind === "christmas"
+	        ? " christmas-line"
+	        : "";
+	    card.className = `preview-text-card${extraClasses}`;
+	    card.innerHTML = "";
     const content = document.createElement("span");
     content.className = "preview-text-content";
     const resolvedValue = entry.resolved_value || resolveTokens(rawValue);
@@ -586,13 +1277,14 @@
     const background = getEntryBackground(entry);
     card.dataset.backgroundColor = background.color;
     card.dataset.backgroundOpacity = background.opacity;
-    const size = entry.size || DEFAULT_TEXT_SIZE;
-    card.dataset.width = size.width;
-    card.dataset.height = size.height;
-    applyCardTypography(card, getEntryStyle(entry));
-    card.style.left = `${entry.position?.x ?? 50}%`;
-    card.style.top = `${entry.position?.y ?? 50}%`;
-    card.style.transform = "translate(-50%, -50%)";
+	    const size = entry.size || DEFAULT_TEXT_SIZE;
+	    card.dataset.width = size.width;
+	    card.dataset.height = size.height;
+	    card.dataset.angle = Number.isFinite(Number(entry.angle)) ? String(entry.angle) : "0";
+	    applyCardTypography(card, getEntryStyle(entry));
+	    card.style.left = `${entry.position?.x ?? 50}%`;
+	    card.style.top = `${entry.position?.y ?? 50}%`;
+	    card.style.transform = "translate(-50%, -50%)";
     applyTextCardFontSizing(card);
     card.addEventListener("pointerdown", handleTextPointerDown);
     card.addEventListener("pointerup", handleTextPointerUp);
@@ -610,6 +1302,8 @@
   const updateTestPreviewTexts = (items) => {
     if (!testPreviewTextOverlay) return;
     testPreviewTextOverlay.innerHTML = "";
+    ensureCenterGuides();
+    hideCenterGuides();
     const texts = (Array.isArray(items) ? items : []).filter((entry) => entry.value && entry.value.trim());
     if (!texts.length) {
       const placeholder = document.createElement("p");
@@ -674,6 +1368,7 @@
     if (selectedTextBackgroundOpacityInput) {
       selectedTextBackgroundOpacityInput.value = `${DEFAULT_TEXT_BACKGROUND.opacity * 100}`;
       selectedTextBackgroundOpacityInput.disabled = true;
+      selectedTextBackgroundOpacityInput.style.setProperty("--opacity-percent", "0%");
     }
     if (selectedTextBackgroundOpacityValue) {
       selectedTextBackgroundOpacityValue.textContent = `${Math.round(DEFAULT_TEXT_BACKGROUND.opacity * 100)}%`;
@@ -687,6 +1382,12 @@
     if (variablesModal && variablesModal.classList.contains("is-visible")) {
       closeVariablesModal();
     }
+  };
+
+  const updateOpacitySliderFill = (percent) => {
+    if (!selectedTextBackgroundOpacityInput) return;
+    const clamped = clamp(Number(percent) || 0, 0, 100);
+    selectedTextBackgroundOpacityInput.style.setProperty("--opacity-percent", `${clamped}%`);
   };
 
   const updateSelectedTextPanel = (name) => {
@@ -735,7 +1436,9 @@
     }
     if (selectedTextBackgroundOpacityInput) {
       selectedTextBackgroundOpacityInput.disabled = false;
-      selectedTextBackgroundOpacityInput.value = `${Math.round(background.opacity * 100)}`;
+      const percent = Math.round(background.opacity * 100);
+      selectedTextBackgroundOpacityInput.value = `${percent}`;
+      updateOpacitySliderFill(percent);
     }
     if (selectedTextBackgroundOpacityValue) {
       selectedTextBackgroundOpacityValue.textContent = `${Math.round(background.opacity * 100)}%`;
@@ -756,6 +1459,12 @@
     return value.replace(/([\\.\[\]:"'=<>!#$&*+~^`|])/g, "\\$1");
   };
 
+  const getPreviewCardByName = (name) => {
+    if (!name || !testPreviewTextOverlay) return null;
+    const selector = `.preview-text-card[data-name="${escapeSelectorValue(name)}"]`;
+    return testPreviewTextOverlay.querySelector(selector);
+  };
+
   const reselectCurrentText = () => {
     if (!currentSelectedTextName || !testPreviewTextOverlay) return;
     const selector = `.preview-text-card[data-name="${escapeSelectorValue(currentSelectedTextName)}"]`;
@@ -773,15 +1482,27 @@
     }
     if (card) {
       card.classList.add("is-selected");
+      currentSelectedTextName = card.dataset.name || null;
       updateSelectedTextPanel(card.dataset.name);
     } else {
+      currentSelectedTextName = null;
       hideSelectedTextPanel();
     }
+  };
+  const clearSelection = () => {
+    const current = testPreviewTextOverlay?.querySelector(".preview-text-card.is-selected");
+    if (current) {
+      current.classList.remove("is-selected");
+    }
+    currentSelectedTextName = null;
+    hideSelectedTextPanel();
   };
 
   const handleTextPointerDown = (event) => {
     const card = event.currentTarget;
     if (!card) return;
+    ensureCenterGuides();
+    hideCenterGuides();
     selectPreviewTextCard(card);
     dragState.card = card;
     dragState.name = card.dataset.name;
@@ -794,7 +1515,7 @@
     dragState.resizeHandle = null;
     dragState.resizeSize = null;
     event.preventDefault();
-    event.stopPropagation();
+    // Ne pas stopPropagation pour autoriser les clics à remonter sur l'overlay si nécessaire.
     if (card.setPointerCapture) {
       card.setPointerCapture(event.pointerId);
     }
@@ -803,6 +1524,8 @@
   const handleResizePointerDown = (event) => {
     event.stopPropagation();
     event.preventDefault();
+    ensureCenterGuides();
+    hideCenterGuides();
     const direction = event.currentTarget.dataset.direction;
     if (!direction) return;
     const card = event.currentTarget.closest(".preview-text-card");
@@ -839,11 +1562,12 @@
   const handleTextPointerMove = (event) => {
     if (!dragState.card || !testPreviewTextOverlay) return;
     if (dragState.pointerId && event.pointerId !== dragState.pointerId) return;
-    const rect = testPreviewTextOverlay.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    if (dragState.isResizing) {
-      const handleConfig = resizeHandles[dragState.resizeHandle];
-      if (!handleConfig) return;
+	    const rect = testPreviewTextOverlay.getBoundingClientRect();
+	    if (!rect.width || !rect.height) return;
+	    if (dragState.isResizing) {
+	      hideCenterGuides();
+	      const handleConfig = resizeHandles[dragState.resizeHandle];
+	      if (!handleConfig) return;
       const rawDeltaX = ((event.clientX - (dragState.startX || 0)) / rect.width) * 100;
       const rawDeltaY = ((event.clientY - (dragState.startY || 0)) / rect.height) * 100;
       const horizontalDirection = handleConfig.directionX ?? handleConfig.direction ?? 1;
@@ -877,17 +1601,22 @@
       dragState.isDragging = true;
     }
     const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
-    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
-    dragState.card.style.left = `${x}%`;
-    dragState.card.style.top = `${y}%`;
-    dragState.position = { x, y };
-  };
+	    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+	    dragState.card.style.left = `${x}%`;
+	    dragState.card.style.top = `${y}%`;
+	    dragState.position = { x, y };
+	    ensureCenterGuides();
+	    const nearCenterX = Math.abs(x - 50) <= CENTER_GUIDE_TOLERANCE_PERCENT;
+	    const nearCenterY = Math.abs(y - 50) <= CENTER_GUIDE_TOLERANCE_PERCENT;
+	    setCenterGuideVisibility(nearCenterX, nearCenterY);
+	  };
 
-  const handleTextPointerUp = (event) => {
-    if (!dragState.card) return;
-    if (dragState.card.hasPointerCapture && event.pointerId === dragState.pointerId) {
-      dragState.card.releasePointerCapture(event.pointerId);
-    }
+	  const handleTextPointerUp = (event) => {
+	    if (!dragState.card) return;
+	    hideCenterGuides();
+	    if (dragState.card.hasPointerCapture && event.pointerId === dragState.pointerId) {
+	      dragState.card.releasePointerCapture(event.pointerId);
+	    }
     if (dragState.position) {
       void updateTestTextPosition(dragState.name, dragState.position);
     }
@@ -917,18 +1646,22 @@
   };
 
   const applyMetaToInputs = () => {
-    if (slideNameInput) {
-      slideNameInput.value = currentTestMeta.name || "";
+    if (testMetaNameInput) {
+      testMetaNameInput.value = currentTestMeta.name || "";
     }
-    if (slideDateInput) {
-      slideDateInput.value = currentTestMeta.event_date || "";
+    if (testMetaEventDateInput) {
+      testMetaEventDateInput.value = (currentTestMeta.event_date || "").slice(0, 10);
     }
     updateTestPreviewTexts(currentTestTexts);
   };
 
   const refreshTestMeta = async () => {
+    if (!editorAdapter.supportsMeta) {
+      applyMetaToInputs();
+      return;
+    }
     try {
-      const meta = await fetchJSON("api/test/meta");
+      const meta = await editorAdapter.fetchMeta();
       currentTestMeta = { ...DEFAULT_TEST_META, ...(meta || {}) };
       applyMetaToInputs();
     } catch (error) {
@@ -937,15 +1670,11 @@
   };
 
   const persistTestMeta = async (patch) => {
-    if (!patch || !Object.keys(patch).length) {
+    if (!patch || !Object.keys(patch).length || !editorAdapter.supportsMeta) {
       return;
     }
     try {
-      const response = await fetchJSON("api/test/meta", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
+      const response = await editorAdapter.updateMeta(patch);
       currentTestMeta = { ...DEFAULT_TEST_META, ...(response || {}) };
       applyMetaToInputs();
       setTestMetaFeedback("Informations enregistrées.", "success");
@@ -956,6 +1685,9 @@
   };
 
   const queueMetaUpdate = (patch) => {
+    if (!editorAdapter.supportsMeta) {
+      return;
+    }
     pendingMetaChanges = { ...pendingMetaChanges, ...patch };
     if (metaUpdateTimer) {
       clearTimeout(metaUpdateTimer);
@@ -968,12 +1700,30 @@
     }, 500);
   };
 
+  if (testMetaNameInput) {
+    testMetaNameInput.addEventListener("input", () => {
+      const value = testMetaNameInput.value || "";
+      currentTestMeta = { ...currentTestMeta, name: value };
+      applyMetaToInputs();
+      queueMetaUpdate({ name: value });
+    });
+  }
+
+  if (testMetaEventDateInput) {
+    testMetaEventDateInput.addEventListener("input", () => {
+      const value = testMetaEventDateInput.value || "";
+      currentTestMeta = { ...currentTestMeta, event_date: value };
+      applyMetaToInputs();
+      queueMetaUpdate({ event_date: value });
+    });
+  }
+
   const openVariablesModal = () => {
     if (!variablesModal) return;
     variablesModal.classList.add("is-visible");
     variablesModal.setAttribute("aria-hidden", "false");
     lastFocusedModalTrigger = document.activeElement;
-    const firstButton = variablesModal.querySelector(".test-variable-button");
+    const firstButton = variablesModal.querySelector(".editor-variable-button");
     firstButton?.focus();
     window.addEventListener("keydown", handleVariableModalKeydown);
   };
@@ -1067,43 +1817,342 @@
     }
     return label.charAt(0).toUpperCase() + label.slice(1);
   };
-  const getDayLabel = (count, { capitalize = false } = {}) => {
-    const base = count === 1 ? "jour" : "jours";
-    if (!capitalize) return base;
-    return base.charAt(0).toUpperCase() + base.slice(1);
-  };
-  const buildTokenMap = () => {
-    const now = new Date();
-    const eventDate = parseEventDateString(currentTestMeta.event_date);
-    const daysLeft = getDaysUntilEvent(eventDate);
-    const countdown = `${daysLeft} ${getDayLabel(daysLeft)}`;
-    const weekdayLower = formatWeekday(now, { capitalize: false });
-    const weekdayUpper = formatWeekday(now, { capitalize: true });
-    const monthLower = formatMonth(now, { capitalize: false });
-    const monthUpper = formatMonth(now, { capitalize: true });
-    const tokens = {
-      "[slide_name]": currentTestMeta.name || "",
-      "[date]": FRENCH_DATE_FORMAT.format(now),
-      "[time]": FRENCH_TIME_FORMAT.format(now),
-      "[weekday]": weekdayLower,
-      "[Weekday]": weekdayUpper,
-      "[month]": monthLower,
-      "[Month]": monthUpper,
-      "[year]": String(now.getFullYear()),
-      "[season]": getSeasonLabel(now, { capitalize: false }),
-      "[seasons]": getSeasonLabel(now, { capitalize: true }),
-      "[Season]": getSeasonLabel(now, { capitalize: true }),
-      "[days_left]": String(daysLeft),
-      "[event_countdown]": countdown,
-      "[day_days]": getDayLabel(daysLeft),
-      "[Day_Days]": getDayLabel(daysLeft, { capitalize: true }),
-      "[event_date]": eventDate ? FRENCH_DATE_FORMAT.format(eventDate) : "",
-      "[event_weekday]": eventDate ? formatWeekday(eventDate, { capitalize: true }) : "",
-      "[event_month]": eventDate ? formatMonth(eventDate, { capitalize: true }) : "",
-      "[event_year]": eventDate ? String(eventDate.getFullYear()) : "",
-    };
-    return tokens;
-  };
+	  const getDayLabel = (count, { capitalize = false } = {}) => {
+	    const base = count === 1 ? "jour" : "jours";
+	    if (!capitalize) return base;
+	    return base.charAt(0).toUpperCase() + base.slice(1);
+	  };
+
+	  const BIRTHDAY_WEEKDAY_KEYS = [
+	    "sunday",
+	    "monday",
+	    "tuesday",
+	    "wednesday",
+	    "thursday",
+	    "friday",
+	    "saturday",
+	  ];
+
+	  const DEFAULT_OPEN_DAYS = {
+	    monday: true,
+	    tuesday: true,
+	    wednesday: true,
+	    thursday: true,
+	    friday: true,
+	    saturday: false,
+	    sunday: false,
+	  };
+
+	  const normalizeOpenDays = (raw = {}) => {
+	    const base = { ...DEFAULT_OPEN_DAYS };
+	    if (!raw || typeof raw !== "object") {
+	      return base;
+	    }
+	    return Object.keys(base).reduce((acc, day) => {
+	      acc[day] = raw[day] === undefined ? base[day] : Boolean(raw[day]);
+	      return acc;
+	    }, {});
+	  };
+
+	  const computeNextBirthdayDate = (birthdayStr) => {
+	    if (!birthdayStr) return null;
+	    const parts = String(birthdayStr).split("-");
+	    if (parts.length < 2) return null;
+
+	    const tryBuild = (m, d) => {
+	      if (!Number.isFinite(m) || !Number.isFinite(d) || m < 1 || m > 12 || d < 1 || d > 31) {
+	        return null;
+	      }
+	      const now = new Date();
+	      const thisYear = now.getFullYear();
+	      const candidate = new Date(Date.UTC(thisYear, m - 1, d));
+	      const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+	      if (candidate < todayUtc) {
+	        candidate.setUTCFullYear(thisYear + 1);
+	      }
+	      return candidate;
+	    };
+
+	    if (parts.length === 3) {
+	      return tryBuild(Number(parts[1]), Number(parts[2]));
+	    }
+
+	    return tryBuild(Number(parts[0]), Number(parts[1])) || tryBuild(Number(parts[1]), Number(parts[0]));
+	  };
+
+	  const computeBirthdayAnnounceDate = (targetDate, openDays) => {
+	    const normalized = normalizeOpenDays(openDays);
+	    if (!(targetDate instanceof Date) || Number.isNaN(targetDate)) {
+	      return targetDate;
+	    }
+	    const candidate = new Date(targetDate.getTime());
+	    for (let i = 0; i < 7; i += 1) {
+	      const key = BIRTHDAY_WEEKDAY_KEYS[candidate.getUTCDay()];
+	      if (normalized[key]) {
+	        return candidate;
+	      }
+	      candidate.setUTCDate(candidate.getUTCDate() - 1);
+	    }
+	    return targetDate;
+	  };
+
+	  const formatBirthdayMeta = (birthdayDate) => {
+	    if (!(birthdayDate instanceof Date) || Number.isNaN(birthdayDate)) {
+	      return { weekday: "", fullDate: "" };
+	    }
+	    let weekday = "";
+	    try {
+	      weekday = new Intl.DateTimeFormat("fr-CA", { timeZone: "UTC", weekday: "long" }).format(
+	        birthdayDate,
+	      );
+	      weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+	    } catch (error) {
+	      weekday = "";
+	    }
+	    let fullDate = "";
+	    try {
+	      fullDate = new Intl.DateTimeFormat("fr-CA", {
+	        timeZone: "UTC",
+	        day: "numeric",
+	        month: "long",
+	        year: "numeric",
+	      }).format(birthdayDate);
+	    } catch (error) {
+	      fullDate = birthdayDate.toISOString().slice(0, 10);
+	    }
+	    return { weekday, fullDate };
+	  };
+
+	  let timeChangeTokenInfo = null;
+	  let christmasTokenInfo = null;
+	  let birthdayTokenInfo = null;
+	  let tokenInfoFetchedAt = 0;
+	  let tokenInfoFetchPromise = null;
+	  const TOKEN_INFO_TTL_MS = 30_000;
+
+	  const computeBirthdayTokenInfo = (employeesList, settings) => {
+	    const openDays = normalizeOpenDays(settings?.open_days);
+	    const daysBeforeRaw = Number(settings?.days_before);
+	    const daysBefore =
+	      Number.isFinite(daysBeforeRaw) && daysBeforeRaw >= 0 && daysBeforeRaw <= 365
+	        ? daysBeforeRaw
+	        : 3;
+
+	    const now = new Date();
+	    const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+	    const dayMs = 24 * 60 * 60 * 1000;
+
+	    const displayableGroups = new Map();
+	    const upcomingGroups = new Map();
+
+	    const addToGroup = (map, key, payload) => {
+	      if (!map.has(key)) {
+	        map.set(key, payload);
+	      } else {
+	        const existing = map.get(key);
+	        existing.employees.push(...payload.employees);
+	      }
+	    };
+
+	    const employees = Array.isArray(employeesList) ? employeesList : [];
+	    employees.forEach((emp) => {
+	      const next = computeNextBirthdayDate(emp?.birthday);
+	      if (!next) return;
+	      const announce = computeBirthdayAnnounceDate(next, openDays);
+	      const daysToBirthday = Math.round((next - todayUtc) / dayMs);
+	      const daysToAnnounce = Math.round((announce - todayUtc) / dayMs);
+	      if (!Number.isFinite(daysToBirthday) || daysToBirthday < 0) return;
+
+	      const shiftedForClosure = announce.getTime() !== next.getTime();
+	      let variant = "before";
+	      if (daysToBirthday === 0) {
+	        variant = "day";
+	      } else if (shiftedForClosure && daysToAnnounce === 0) {
+	        variant = "weekend";
+	      }
+
+	      const displayAllowed =
+	        variant === "day" ||
+	        (variant === "before" && daysToBirthday <= daysBefore) ||
+	        (variant === "weekend" && daysToAnnounce === 0);
+
+	      const groupKey = next.getTime();
+	      const targetMap = displayAllowed ? displayableGroups : upcomingGroups;
+	      addToGroup(targetMap, groupKey, {
+	        birthday: next,
+	        daysUntilBirthday: daysToBirthday,
+	        employees: [emp],
+	      });
+	    });
+
+	    const pickEarliest = (map) => {
+	      const values = Array.from(map.values());
+	      if (!values.length) return null;
+	      values.sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
+	      return values[0];
+	    };
+
+	    const chosen = pickEarliest(displayableGroups) || pickEarliest(upcomingGroups);
+	    if (!chosen) return null;
+
+	    const names = chosen.employees
+	      .map((e) => (e && typeof e.name === "string" ? e.name.trim() : ""))
+	      .filter(Boolean);
+	    const namesText =
+	      names.length === 0
+	        ? ""
+	        : names.length === 1
+	          ? names[0]
+	          : `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
+	    const { weekday, fullDate } = formatBirthdayMeta(chosen.birthday);
+
+	    return {
+	      namesText,
+	      days: chosen.daysUntilBirthday,
+	      weekday,
+	      fullDate,
+	    };
+	  };
+
+	  const refreshTokenInfo = async ({ force = false } = {}) => {
+	    if (editorKind === "test") {
+	      tokenInfoFetchedAt = Date.now();
+	      updateTestPreviewTexts(currentTestTexts);
+	      if (currentSelectedTextName) {
+	        reselectCurrentText();
+	      }
+	      return;
+	    }
+
+	    const nowMs = Date.now();
+	    if (!force && nowMs - tokenInfoFetchedAt < TOKEN_INFO_TTL_MS) {
+	      return;
+	    }
+	    if (tokenInfoFetchPromise) {
+	      return tokenInfoFetchPromise;
+	    }
+
+	    tokenInfoFetchPromise = (async () => {
+	      try {
+	        if (editorKind === "time_change") {
+	          const data = await fetchJSON("api/time-change-slide/next");
+	          timeChangeTokenInfo = data && data.change ? data.change : null;
+	        } else if (editorKind === "christmas") {
+	          const data = await fetchJSON("api/christmas-slide/next");
+	          christmasTokenInfo = data && data.christmas ? data.christmas : null;
+	        } else if (editorKind === "birthday") {
+	          const [employeesData, settings] = await Promise.all([
+	            fetchJSON("api/employees").catch(() => ({ employees: [] })),
+	            editorAdapter.fetchSettings().catch(() => ({})),
+	          ]);
+	          const employees = Array.isArray(employeesData?.employees) ? employeesData.employees : [];
+	          birthdayTokenInfo = computeBirthdayTokenInfo(employees, settings);
+	        }
+	      } catch (error) {
+	        console.warn("Impossible de rafraîchir les variables d'aperçu:", error);
+	      } finally {
+	        tokenInfoFetchedAt = Date.now();
+	        tokenInfoFetchPromise = null;
+	        updateTestPreviewTexts(currentTestTexts);
+	        if (currentSelectedTextName) {
+	          reselectCurrentText();
+	        }
+	      }
+	    })();
+
+	    return tokenInfoFetchPromise;
+	  };
+
+	  const buildTestTokenMap = () => {
+	    const now = new Date();
+	    const eventDate = parseEventDateString(currentTestMeta.event_date);
+	    const daysLeft = getDaysUntilEvent(eventDate);
+	    const countdown = `${daysLeft} ${getDayLabel(daysLeft)}`;
+	    const weekdayLower = formatWeekday(now, { capitalize: false });
+	    const weekdayUpper = formatWeekday(now, { capitalize: true });
+	    const monthLower = formatMonth(now, { capitalize: false });
+	    const monthUpper = formatMonth(now, { capitalize: true });
+	    return {
+	      "[slide_name]": currentTestMeta.name || "",
+	      "[date]": FRENCH_DATE_FORMAT.format(now),
+	      "[time]": FRENCH_TIME_FORMAT.format(now),
+	      "[weekday]": weekdayLower,
+	      "[Weekday]": weekdayUpper,
+	      "[month]": monthLower,
+	      "[Month]": monthUpper,
+	      "[year]": String(now.getFullYear()),
+	      "[season]": getSeasonLabel(now, { capitalize: false }),
+	      "[seasons]": getSeasonLabel(now, { capitalize: true }),
+	      "[Season]": getSeasonLabel(now, { capitalize: true }),
+	      "[days_left]": String(daysLeft),
+	      "[event_countdown]": countdown,
+	      "[day_days]": getDayLabel(daysLeft),
+	      "[Day_Days]": getDayLabel(daysLeft, { capitalize: true }),
+	      "[event_date]": eventDate ? FRENCH_DATE_FORMAT.format(eventDate) : "",
+	      "[event_weekday]": eventDate ? formatWeekday(eventDate, { capitalize: true }) : "",
+	      "[event_month]": eventDate ? formatMonth(eventDate, { capitalize: true }) : "",
+	      "[event_year]": eventDate ? String(eventDate.getFullYear()) : "",
+	    };
+	  };
+
+	  const buildTimeChangeTokenMap = () => {
+	    const change = timeChangeTokenInfo || {};
+	    const days = Number.isFinite(Number(change.days_until)) ? Number(change.days_until) : null;
+	    const seasonWord =
+	      change.season === "winter"
+	        ? "hiver"
+	        : change.season === "summer"
+	          ? "été"
+	          : (change.season_label || "").replace("d'", "").replace("de ", "") || "";
+	    return {
+	      "[change_weekday]": change.weekday_label || "",
+	      "[change_date]": change.date_label || "",
+	      "[change_time]": change.time_label || "",
+	      "[direction_verb]":
+	        change.direction_label || (change.direction === "backward" ? "reculer" : "avancer"),
+	      "[offset_hours]": change.offset_hours != null ? String(change.offset_hours) : "1",
+	      "[offset_from]": change.offset_from || "",
+	      "[offset_to]": change.offset_to || "",
+	      "[days_until]": days != null ? String(days) : "",
+	      "[days_left]": days != null ? String(days) : "",
+	      "[days_label]": getDayLabel(days != null ? days : 0),
+	      "[season_label]": change.season_label || "",
+	      "[seasons]": seasonWord,
+	    };
+	  };
+
+	  const buildChristmasTokenMap = () => {
+	    const info = christmasTokenInfo || {};
+	    const days = Number.isFinite(Number(info.days_until)) ? Number(info.days_until) : null;
+	    return {
+	      "[days_until]": days != null ? String(days) : "",
+	      "[days_left]": days != null ? String(days) : "",
+	      "[days_label]": getDayLabel(days != null ? days : 0),
+	      "[christmas_date]": info.date_label || "25 décembre",
+	      "[christmas_weekday]": info.weekday_label || "",
+	      "[year]": info.year != null ? String(info.year) : String(new Date().getFullYear()),
+	    };
+	  };
+
+	  const buildBirthdayTokenMap = () => {
+	    const data = birthdayTokenInfo || {};
+	    const days = Number.isFinite(Number(data.days)) ? Number(data.days) : null;
+	    return {
+	      "[name]": data.namesText || "",
+	      "[days]": days != null ? String(days) : "",
+	      "[day_label]": getDayLabel(days != null ? days : 0),
+	      "[birthday_weekday]": data.weekday || "",
+	      "[date]": data.fullDate || "",
+	    };
+	  };
+
+	  const buildTokenMap = () => {
+	    if (editorKind === "test") return buildTestTokenMap();
+	    if (editorKind === "time_change") return buildTimeChangeTokenMap();
+	    if (editorKind === "christmas") return buildChristmasTokenMap();
+	    if (editorKind === "birthday") return buildBirthdayTokenMap();
+	    return {};
+	  };
   const resolveTokens = (value) => {
     if (!value && value !== 0) return "";
     const source = typeof value === "string" ? value : String(value);
@@ -1134,7 +2183,7 @@
 
   const refreshTestTextsList = async () => {
     try {
-      const items = await fetchJSON("api/test/texts");
+      const items = await editorAdapter.linesApi.list();
       renderTestTextsList(items);
     } catch (error) {
       console.error("Erreur lors du chargement des textes de test :", error);
@@ -1154,14 +2203,12 @@
     textUpdateTimers.set(name, timer);
   };
 
-  const updateTestText = async (name, value) => {
+  const updateTestText = async (name, patch) => {
     if (!name) return;
+    const payload =
+      patch && typeof patch === "object" && !Array.isArray(patch) ? patch : { value: patch };
     try {
-      const response = await fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value }),
-      });
+      const response = await editorAdapter.linesApi.update(name, payload);
       if (response?.deleted) {
         currentTestTexts = currentTestTexts.filter((entry) => entry.name !== name);
         updateTestPreviewTexts(currentTestTexts);
@@ -1172,54 +2219,61 @@
         return;
       }
       setTestTextFeedback(`Texte ${name} enregistré.`, "success");
-      const index = currentTestTexts.findIndex((entry) => entry.name === name);
-      if (index >= 0) {
-        currentTestTexts[index] = {
-          ...currentTestTexts[index],
-          value: response.value,
-          resolved_value: response.resolved_value || resolveTokens(response.value || ""),
-          position: response.position,
-          size: response.size,
-          color: response.color,
-          style: response.style,
-          background: response.background,
-        };
-      } else {
-        currentTestTexts.push({
-          name,
-          value: response.value,
-          resolved_value: response.resolved_value || resolveTokens(response.value || ""),
-          position: response.position,
-          size: response.size,
-          color: response.color,
-          style: response.style,
-          background: response.background,
-        });
-      }
-      updateTestPreviewTexts(currentTestTexts);
-      if (currentSelectedTextName === name) {
-        updateSelectedTextPanel(name);
-      }
+      mergeUpdatedTextEntry(name, response);
     } catch (error) {
       console.error("Erreur lors de l'enregistrement du texte :", error);
       setTestTextFeedback("Erreur lors de l'enregistrement du texte.", "error");
     }
   };
 
+	  const mergeUpdatedTextEntry = (name, response) => {
+	    if (!response) return;
+	    if (response.deleted) {
+      currentTestTexts = currentTestTexts.filter((entry) => entry.name !== name);
+      updateTestPreviewTexts(currentTestTexts);
+      if (currentSelectedTextName === name) {
+        hideSelectedTextPanel();
+      }
+      return;
+    }
+	    const normalizedPosition = response.position || { x: 50, y: 50 };
+	    const normalizedSize = response.size || { ...DEFAULT_TEXT_SIZE };
+	    const existingAngle = currentTestTexts.find((entry) => entry.name === name)?.angle;
+	    const normalizedAngle = Number.isFinite(Number(response.angle))
+	      ? Number(response.angle)
+	      : Number.isFinite(Number(existingAngle))
+	      ? Number(existingAngle)
+	      : 0;
+	    const normalized = {
+	      name,
+	      value: response.value || "",
+	      resolved_value: response.resolved_value || resolveTokens(response.value || ""),
+	      position: normalizedPosition,
+	      size: normalizedSize,
+	      angle: normalizedAngle,
+	      color: response.color || DEFAULT_TEXT_COLOR,
+	      style: getEntryStyle(response),
+	      background: getEntryBackground(response),
+	    };
+    const index = currentTestTexts.findIndex((entry) => entry.name === name);
+    if (index >= 0) {
+      currentTestTexts[index] = { ...currentTestTexts[index], ...normalized };
+    } else {
+      currentTestTexts.push(normalized);
+    }
+    updateTestPreviewTexts(currentTestTexts);
+    if (currentSelectedTextName === name) {
+      updateSelectedTextPanel(name);
+      reselectCurrentText();
+    }
+  };
+
   const updateTestTextPosition = async (name, position) => {
     if (!name || !position) return;
     try {
-      await fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ position }),
-      });
+      const response = await editorAdapter.linesApi.update(name, { position });
       setTestTextFeedback(`Position de ${name} enregistrée.`, "success");
-      const index = currentTestTexts.findIndex((entry) => entry.name === name);
-      if (index >= 0) {
-        currentTestTexts[index] = { ...currentTestTexts[index], position };
-        updateTestPreviewTexts(currentTestTexts);
-      }
+      mergeUpdatedTextEntry(name, response);
     } catch (error) {
       console.error("Erreur lors de la mise à jour de la position :", error);
       setTestTextFeedback("Erreur lors de la mise à jour de la position.", "error");
@@ -1229,18 +2283,10 @@
   const updateTestTextSize = async (name, size) => {
     if (!name || !size) return;
     try {
-      const response = await fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ size }),
-      });
+      const response = await editorAdapter.linesApi.update(name, { size });
       setTestTextFeedback(`Taille de ${name} enregistrée.`, "success");
-      const index = currentTestTexts.findIndex((entry) => entry.name === name);
-      if (index >= 0) {
-        const returnedSize = response.size || size;
-        currentTestTexts[index] = { ...currentTestTexts[index], size: returnedSize };
-        updateTestPreviewTexts(currentTestTexts);
-      }
+      const returnedSize = response?.size || size;
+      mergeUpdatedTextEntry(name, { ...response, size: returnedSize });
     } catch (error) {
       console.error("Erreur lors de la mise à jour de la taille :", error);
       setTestTextFeedback("Erreur lors de la mise à jour de la taille.", "error");
@@ -1251,24 +2297,16 @@
     if (!name || !isValidHexColor(color)) return;
     const normalizedColor = normalizeColorValue(color);
     try {
-      const response = await fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ color: normalizedColor }),
-      });
+      const response = await editorAdapter.linesApi.update(name, { color: normalizedColor });
       setTestTextFeedback(`Couleur de ${name} enregistrée.`, "success");
-      const index = currentTestTexts.findIndex((entry) => entry.name === name);
-      if (index >= 0) {
-        const returnedColor = response.color || normalizedColor;
-        currentTestTexts[index] = { ...currentTestTexts[index], color: returnedColor };
-        updateTestPreviewTexts(currentTestTexts);
-        if (currentSelectedTextName === name) {
-          if (selectedTextColorInput) {
-            selectedTextColorInput.value = returnedColor;
-          }
-          if (selectedTextColorValue) {
-            selectedTextColorValue.textContent = formatColorLabel(returnedColor);
-          }
+      const returnedColor = response?.color || normalizedColor;
+      mergeUpdatedTextEntry(name, { ...response, color: returnedColor });
+      if (currentSelectedTextName === name) {
+        if (selectedTextColorInput) {
+          selectedTextColorInput.value = returnedColor;
+        }
+        if (selectedTextColorValue) {
+          selectedTextColorValue.textContent = formatColorLabel(returnedColor);
         }
       }
     } catch (error) {
@@ -1281,23 +2319,15 @@
     if (!name) return;
     const normalizedStyle = normalizeStylePayload(style);
     try {
-      const response = await fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ style: normalizedStyle }),
-      });
+      const response = await editorAdapter.linesApi.update(name, { style: normalizedStyle });
       setTestTextFeedback(`Style de ${name} enregistré.`, "success");
-      const index = currentTestTexts.findIndex((entry) => entry.name === name);
-      if (index >= 0) {
-        const returnedStyle = normalizeStylePayload(response.style || normalizedStyle);
-        currentTestTexts[index] = { ...currentTestTexts[index], style: returnedStyle };
-        updateTestPreviewTexts(currentTestTexts);
-        if (currentSelectedTextName === name) {
-          if (selectedTextFontSelect) {
-            selectedTextFontSelect.value = returnedStyle.font_family;
-          }
-          updateStyleToggleUI(returnedStyle, true);
+      const returnedStyle = normalizeStylePayload(response?.style || normalizedStyle);
+      mergeUpdatedTextEntry(name, { ...response, style: returnedStyle });
+      if (currentSelectedTextName === name) {
+        if (selectedTextFontSelect) {
+          selectedTextFontSelect.value = returnedStyle.font_family;
         }
+        updateStyleToggleUI(returnedStyle, true);
       }
     } catch (error) {
       console.error("Erreur lors de la mise à jour du style :", error);
@@ -1309,30 +2339,22 @@
     if (!name) return;
     const normalizedBackground = normalizeBackgroundOptions(background);
     try {
-      const response = await fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ background: normalizedBackground }),
-      });
+      const response = await editorAdapter.linesApi.update(name, { background: normalizedBackground });
       setTestTextFeedback(`Fond de ${name} enregistré.`, "success");
-      const index = currentTestTexts.findIndex((entry) => entry.name === name);
-      if (index >= 0) {
-        const returnedBackground = normalizeBackgroundOptions(response.background || normalizedBackground);
-        currentTestTexts[index] = { ...currentTestTexts[index], background: returnedBackground };
-        updateTestPreviewTexts(currentTestTexts);
-        if (currentSelectedTextName === name) {
-          if (selectedTextBackgroundColorInput) {
-            selectedTextBackgroundColorInput.value = returnedBackground.color;
-          }
-          if (selectedTextBackgroundColorValue) {
-            selectedTextBackgroundColorValue.textContent = formatColorLabel(returnedBackground.color);
-          }
-          if (selectedTextBackgroundOpacityInput) {
-            selectedTextBackgroundOpacityInput.value = `${Math.round(returnedBackground.opacity * 100)}`;
-          }
-          if (selectedTextBackgroundOpacityValue) {
-            selectedTextBackgroundOpacityValue.textContent = `${Math.round(returnedBackground.opacity * 100)}%`;
-          }
+      const returnedBackground = normalizeBackgroundOptions(response?.background || normalizedBackground);
+      mergeUpdatedTextEntry(name, { ...response, background: returnedBackground });
+      if (currentSelectedTextName === name) {
+        if (selectedTextBackgroundColorInput) {
+          selectedTextBackgroundColorInput.value = returnedBackground.color;
+        }
+        if (selectedTextBackgroundColorValue) {
+          selectedTextBackgroundColorValue.textContent = formatColorLabel(returnedBackground.color);
+        }
+        if (selectedTextBackgroundOpacityInput) {
+          selectedTextBackgroundOpacityInput.value = `${Math.round(returnedBackground.opacity * 100)}`;
+        }
+        if (selectedTextBackgroundOpacityValue) {
+          selectedTextBackgroundOpacityValue.textContent = `${Math.round(returnedBackground.opacity * 100)}%`;
         }
       }
     } catch (error) {
@@ -1345,10 +2367,8 @@
     if (!testTextAddButton) return;
     setTestTextFeedback("Création d'un nouveau texte...");
     try {
-      const response = await fetchJSON("api/test/texts", {
-        method: "POST",
-      });
-      const newName = response.name;
+      const response = await editorAdapter.linesApi.add();
+      const newName = response?.name;
       setTestTextFeedback("Nouveau texte ajouté.", "success");
       await refreshTestTextsList();
       if (newName) {
@@ -1365,9 +2385,7 @@
   const deleteTestText = async (name) => {
     if (!name) return;
     try {
-      await fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, {
-        method: "DELETE",
-      });
+      await editorAdapter.linesApi.remove(name);
       setTestTextFeedback(`Texte ${name} supprimé.`, "success");
       currentTestTexts = currentTestTexts.filter((entry) => entry.name !== name);
       updateTestPreviewTexts(currentTestTexts);
@@ -1395,15 +2413,40 @@
     void updateTestTextStyle(name, nextStyle);
   };
 
-  const applyBackgroundChanges = (name, changes) => {
+  const applyColorChanges = (name, color, persist = false) => {
+    if (!name || !isValidHexColor(color)) return;
+    const nextColor = normalizeColorValue(color);
+    const index = currentTestTexts.findIndex((item) => item.name === name);
+    if (index >= 0) {
+      currentTestTexts[index] = { ...currentTestTexts[index], color: nextColor };
+    }
+    const card = getPreviewCardByName(name);
+    if (card) {
+      card.dataset.color = nextColor;
+      card.style.color = nextColor;
+    }
+    if (currentSelectedTextName === name && selectedTextColorValue) {
+      selectedTextColorValue.textContent = formatColorLabel(nextColor);
+    }
+    if (persist) {
+      void updateTestTextColor(name, nextColor);
+    }
+  };
+
+  const applyBackgroundChanges = (name, changes, persist = false) => {
     if (!name) return;
     const entry = currentTestTexts.find((item) => item.name === name);
     const baseBackground = getEntryBackground(entry || {});
     const nextBackground = normalizeBackgroundOptions({ ...baseBackground, ...changes });
+    const index = currentTestTexts.findIndex((item) => item.name === name);
+    if (index >= 0) {
+      currentTestTexts[index] = { ...currentTestTexts[index], background: nextBackground };
+    }
+    const card = getPreviewCardByName(name);
+    if (card) {
+      applyCardBackground(card, nextBackground);
+    }
     if (currentSelectedTextName === name) {
-      if (selectedTextBackgroundColorInput && Object.prototype.hasOwnProperty.call(changes, "color")) {
-        selectedTextBackgroundColorInput.value = nextBackground.color;
-      }
       if (selectedTextBackgroundColorValue && Object.prototype.hasOwnProperty.call(changes, "color")) {
         selectedTextBackgroundColorValue.textContent = formatColorLabel(nextBackground.color);
       }
@@ -1420,7 +2463,9 @@
         selectedTextBackgroundOpacityValue.textContent = `${Math.round(nextBackground.opacity * 100)}%`;
       }
     }
-    void updateTestTextBackground(name, nextBackground);
+    if (persist) {
+      void updateTestTextBackground(name, nextBackground);
+    }
   };
 
   const createTestBackgroundThumb = (entry) => {
@@ -1459,7 +2504,7 @@
     useButton.textContent = entry.is_active ? "Utilisé" : "Utiliser ce fond";
     useButton.disabled = Boolean(entry.is_active);
     useButton.addEventListener("click", () => {
-      void setTestBackgroundActive(entry.name);
+      void setTestBackgroundActive(entry.name, entry.mimetype);
     });
 
     const deleteButton = document.createElement("button");
@@ -1500,26 +2545,24 @@
   const refreshTestBackgroundList = async () => {
     if (!testBackgroundList) return;
     try {
-      const items = await fetchJSON("api/test/backgrounds");
+      const items = await editorAdapter.backgroundApi.list();
       renderTestBackgroundList(items);
     } catch (error) {
       console.error("Erreur lors du chargement des fonds de test :", error);
     }
   };
 
-  async function setTestBackgroundActive(filename) {
+  async function setTestBackgroundActive(filename, mimetype) {
     if (!filename) return;
     setTestBackgroundFeedback(`Utilisation de ${filename}…`);
     try {
-      await fetchJSON("api/test/background/active", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename }),
-      });
+      if (editorAdapter.backgroundApi.setActive) {
+        await editorAdapter.backgroundApi.setActive(filename, mimetype);
+      }
       setTestBackgroundFeedback(`Fond ${filename} actif.`, "success");
       await refreshTestBackgroundList();
     } catch (error) {
-      console.error("Erreur lors de la sélection du fond test :", error);
+      console.error("Erreur lors de la sélection du fond :", error);
       setTestBackgroundFeedback("Erreur lors de l'activation du fond.", "error");
     }
   }
@@ -1532,13 +2575,13 @@
     }
     setTestBackgroundFeedback(`Suppression de ${filename}…`);
     try {
-      await fetchJSON(`api/test/background/${encodeURIComponent(filename)}`, {
-        method: "DELETE",
-      });
+      if (editorAdapter.backgroundApi.remove) {
+        await editorAdapter.backgroundApi.remove(filename);
+      }
       setTestBackgroundFeedback(`Fond ${filename} supprimé.`, "success");
       await refreshTestBackgroundList();
     } catch (error) {
-      console.error("Erreur lors de la suppression du fond test :", error);
+      console.error("Erreur lors de la suppression du fond :", error);
       setTestBackgroundFeedback("Erreur lors de la suppression.", "error");
     }
   }
@@ -1577,18 +2620,43 @@
     testTextAddButton?.addEventListener("click", () => {
       void addTestText();
     });
-    slideNameInput?.addEventListener("input", (event) => {
-      const value = (event.target.value || "").slice(0, 120);
-      currentTestMeta = { ...currentTestMeta, name: value };
-      queueMetaUpdate({ name: value });
-      updateTestPreviewTexts(currentTestTexts);
-    });
-    slideDateInput?.addEventListener("input", (event) => {
-      const value = event.target.value || "";
-      currentTestMeta = { ...currentTestMeta, event_date: value };
-      queueMetaUpdate({ event_date: value });
-      updateTestPreviewTexts(currentTestTexts);
-    });
+    if (editorKind === "birthday" && birthdayVariantButtons?.length) {
+      birthdayVariantButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const variant = btn.dataset.variant || "";
+          switchEditorVariant(variant);
+        });
+      });
+      setActiveVariantUI(editorVariant || "before");
+    }
+    if (useCustomDateToggle || customDateInput) {
+      updateDateControlUI(currentTestSlideSettings);
+
+      useCustomDateToggle?.addEventListener("change", (event) => {
+        const enabled = Boolean(event.target.checked);
+        if (customDateInput) {
+          customDateInput.disabled = !enabled;
+        }
+        void persistTestSlideSettings({
+          use_custom_date: enabled,
+          custom_date: customDateInput?.value || "",
+        });
+      });
+
+      customDateInput?.addEventListener("input", (event) => {
+        const value = event.target.value || "";
+        if (useCustomDateToggle) {
+          useCustomDateToggle.checked = Boolean(value);
+        }
+        if (customDateInput) {
+          customDateInput.disabled = !value;
+        }
+        void persistTestSlideSettings({
+          use_custom_date: Boolean(value),
+          custom_date: value,
+        });
+      });
+    }
     variablesOpenButton?.addEventListener("click", () => {
       if (variablesOpenButton.disabled) {
         return;
@@ -1615,16 +2683,23 @@
       if (!currentSelectedTextName) return;
       const value = event.target.value;
       if (!isValidHexColor(value)) return;
-      if (selectedTextColorValue) {
-        selectedTextColorValue.textContent = formatColorLabel(value);
-      }
-      void updateTestTextColor(currentSelectedTextName, value);
+      applyColorChanges(currentSelectedTextName, value, false);
+    });
+    selectedTextColorInput?.addEventListener("change", (event) => {
+      if (!currentSelectedTextName) return;
+      const value = event.target.value;
+      if (!isValidHexColor(value)) return;
+      applyColorChanges(currentSelectedTextName, value, true);
     });
     selectedTextBackgroundColorInput?.addEventListener("input", (event) => {
       if (!currentSelectedTextName) return;
       const value = normalizeColorValue(event.target.value);
-      event.target.value = value;
-      applyBackgroundChanges(currentSelectedTextName, { color: value });
+      applyBackgroundChanges(currentSelectedTextName, { color: value }, false);
+    });
+    selectedTextBackgroundColorInput?.addEventListener("change", (event) => {
+      if (!currentSelectedTextName) return;
+      const value = normalizeColorValue(event.target.value);
+      applyBackgroundChanges(currentSelectedTextName, { color: value }, true);
     });
     selectedTextBackgroundOpacityInput?.addEventListener("input", (event) => {
       if (!currentSelectedTextName) return;
@@ -1633,7 +2708,14 @@
       if (selectedTextBackgroundOpacityValue) {
         selectedTextBackgroundOpacityValue.textContent = `${percent}%`;
       }
-      applyBackgroundChanges(currentSelectedTextName, { opacity: percent / 100 });
+      updateOpacitySliderFill(percent);
+      applyBackgroundChanges(currentSelectedTextName, { opacity: percent / 100 }, false);
+    });
+    selectedTextBackgroundOpacityInput?.addEventListener("change", (event) => {
+      if (!currentSelectedTextName) return;
+      const percent = clamp(Number(event.target.value) || 0, 0, 100);
+      updateOpacitySliderFill(percent);
+      applyBackgroundChanges(currentSelectedTextName, { opacity: percent / 100 }, true);
     });
     selectedTextFontSelect?.addEventListener("change", (event) => {
       if (!currentSelectedTextName) return;
@@ -1673,9 +2755,16 @@
     window.addEventListener("pointermove", handleTextPointerMove);
     window.addEventListener("pointerup", handleTextPointerUp);
     window.addEventListener("pointercancel", handleTextPointerUp);
-    void refreshTestBackgroundList();
-    void refreshTestTextsList();
-  };
+	    testPreviewTextOverlay?.addEventListener("pointerdown", (event) => {
+	      const targetCard = event.target?.closest?.(".preview-text-card");
+	      if (!targetCard) {
+	        clearSelection();
+	      }
+	    });
+	    void refreshTestBackgroundList();
+	    void refreshTestTextsList();
+	    void refreshTokenInfo({ force: true });
+	  };
 
     if (document.readyState === "loading") {
       window.addEventListener("DOMContentLoaded", init);

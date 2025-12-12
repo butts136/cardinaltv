@@ -1,0 +1,76 @@
+{% extends "diaporama_base.html" %}
+
+{% set test_tokens = [
+  {"code": "[slide_name]", "label": "Nom de la diapo"},
+  {"code": "[date]", "label": "Date du jour (ex. 4 juin 2025)"},
+  {"code": "[time]", "label": "Heure locale (HH:MM)"},
+  {"code": "[weekday]", "label": "Jour en minuscules (ex. lundi)"},
+  {"code": "[Weekday]", "label": "Jour capitalisé (ex. Lundi)"},
+  {"code": "[month]", "label": "Mois en minuscules (ex. juin)"},
+  {"code": "[Month]", "label": "Mois capitalisé (ex. Juin)"},
+  {"code": "[year]", "label": "Année sur 4 chiffres"},
+  {"code": "[season]", "label": "Saison en minuscules"},
+  {"code": "[seasons]", "label": "Saison capitalisée"},
+  {"code": "[Season]", "label": "Saison capitalisée (variant)"},
+  {"code": "[days_left]", "label": "Jours restants avant la date"},
+  {"code": "[event_countdown]", "label": "Compte à rebours (ex. 3 jours)"},
+  {"code": "[day_days]", "label": "Libellé jour/jours"},
+  {"code": "[Day_Days]", "label": "Libellé jour/jours capitalisé"},
+  {"code": "[event_date]", "label": "Date de l'évènement"},
+  {"code": "[event_weekday]", "label": "Jour de l'évènement"},
+  {"code": "[event_month]", "label": "Mois de l'évènement"},
+  {"code": "[event_year]", "label": "Année de l'évènement"},
+] %}
+
+{% set editor_prefix = "custom-" ~ slide.id %}
+{% set id_prefix = editor_prefix ~ "-editor" %}
+
+{% block title %}{{ slide.name }} · Cardinal TV{% endblock %}
+
+{% block page_title %}{{ slide.name }}{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Éditez votre diapo personnalisée avec le live-editor.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.custom_slides') }}" class="secondary-button">Retour à la liste</a>
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card custom-meta-card">
+    <div class="section-header">
+      <div>
+        <h2>Informations de la diapo</h2>
+        <p class="playlist-subtitle">Nom affiché dans la navigation et date de l'évènement.</p>
+      </div>
+    </div>
+    <div class="section-content">
+      <div class="form-row dual">
+        <div>
+          <label for="{{ id_prefix }}-meta-name">Nom de la diapo</label>
+          <input id="{{ id_prefix }}-meta-name" type="text" placeholder="{{ slide.name }}" />
+        </div>
+        <div>
+          <label for="{{ id_prefix }}-meta-event-date">Date de l'évènement</label>
+          <input id="{{ id_prefix }}-meta-event-date" type="date" />
+        </div>
+      </div>
+      <span id="{{ id_prefix }}-meta-feedback" class="playlist-subtitle small" aria-live="polite"></span>
+    </div>
+  </section>
+
+  {% set editor_kind = "custom" %}
+  {% set editor_id_prefix = id_prefix %}
+  {% set editor_slide_id = slide.id %}
+  {% set editor_title = "Éditeur de diapositive" %}
+  {% set editor_description = "Téléversez un fond, ajoutez vos textes et prévisualisez la diapo." %}
+  {% set editor_tokens = test_tokens %}
+  {% set show_meta = False %}
+  {% include "partials/live_editor_section.html" %}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/live_editor.js') }}"></script>
+{% endblock %}
+

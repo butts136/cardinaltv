@@ -75,6 +75,9 @@ const birthdayVariantPills = document.querySelectorAll(".birthday-variant-pill")
 const birthdayOpeningBlock = document.querySelector(".birthday-opening");
 const birthdayOpeningBody = document.querySelector(".birthday-opening-body");
 const birthdayOpeningToggle = document.querySelector("#birthday-opening-toggle");
+const birthdayCountdownBlock = document.querySelector(".birthday-countdown");
+const birthdayDaysBeforeInput = document.querySelector("#birthday-days-before");
+const birthdaySectionRoot = document.querySelector("#birthday-section");
 const birthdayTextList = document.querySelector("#birthday-text-list");
 const birthdayTextTemplate = document.querySelector("#birthday-text-template");
 const birthdayTextAddButton = document.querySelector("#birthday-text-add");
@@ -196,10 +199,6 @@ let teamPreviewStartTimer = null;
 let teamPreviewCanvas = null;
 let teamPreviewResizeObserver = null;
 let teamPreviewResizeListenerAttached = false;
-let teamPreviewVisibilityObserver = null;
-let teamPreviewIsVisible = true;
-let teamPreviewRefreshPending = false;
-let teamPreviewRenderedSource = null;
 let birthdayPreviewCanvas = null;
 let birthdayPreviewResizeObserver = null;
 let birthdayPreviewRenderedSource = null;
@@ -213,6 +212,7 @@ let timeChangePreviewCanvas = null;
 let timeChangePreviewResizeObserver = null;
 let timeChangePreviewRenderedSource = null;
 let timeChangeLines = [];
+let timeChangeInfoRefreshTimer = null;
 let christmasBackgroundOptions = [];
 let christmasInfo = null;
 let christmasPreviewCanvas = null;
@@ -220,6 +220,9 @@ let christmasPreviewResizeObserver = null;
 let christmasPreviewRenderedSource = null;
 let christmasLines = [];
 let christmasSlideSettings = null;
+let customSlideSettings = null;
+let customSlides = [];
+let autoSlideDisplayableMap = null;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const buildArray = (value) => (Array.isArray(value) ? value.slice() : []);
@@ -255,6 +258,12 @@ const DEFAULT_TEAM_SLIDE_SETTINGS = {
   title_offset_y_percent: 0,
 };
 
+const DEFAULT_CUSTOM_SLIDE_SETTINGS = {
+  enabled: false,
+  order_index: 0,
+  duration: 12,
+};
+
 const DEFAULT_OPEN_DAYS = {
   monday: true,
   tuesday: true,
@@ -269,6 +278,7 @@ const DEFAULT_BIRTHDAY_SLIDE_SETTINGS = {
   enabled: false,
   order_index: 0,
   duration: 12,
+  days_before: 3,
   background_path: null,
   background_mimetype: null,
   background_media_id: null,
@@ -289,6 +299,10 @@ const BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
   height_percent: 0,
   color: "#ffffff",
   underline: false,
+  bold: false,
+  italic: false,
+  background_color: null,
+  background_opacity: 0,
   offset_x_percent: 0,
   offset_y_percent: 0,
   curve: 0,
@@ -363,6 +377,26 @@ const BIRTHDAY_FONT_CHOICES = [
 ];
 
 const TIME_CHANGE_TEXT_OPTIONS_DEFAULT = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" };
+const clampPercent = (value) => Math.min(100, Math.max(0, value));
+const clamp01 = (value) => Math.min(1, Math.max(0, Number(value) || 0));
+const hexToRgb = (value) => {
+  if (typeof value !== "string") return { r: 0, g: 0, b: 0 };
+  const hex = value.trim().replace("#", "");
+  const normalized = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex.padEnd(6, "0").slice(0, 6);
+  const num = parseInt(normalized, 16);
+  if (Number.isNaN(num)) return { r: 0, g: 0, b: 0 };
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+};
+const applyLineBackground = (element, opts) => {
+  if (!element || !opts) return;
+  const opacity = clamp01(opts.background_opacity);
+  if (!opts.background_color || opacity <= 0) {
+    element.style.backgroundColor = "transparent";
+    return;
+  }
+  const { r, g, b } = hexToRgb(opts.background_color);
+  element.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
 
 const DEFAULT_TIME_CHANGE_SETTINGS = {
   enabled: false,
@@ -372,6 +406,8 @@ const DEFAULT_TIME_CHANGE_SETTINGS = {
   background_url: null,
   background_mimetype: null,
   days_before: 7,
+  use_custom_date: false,
+  custom_date: "",
   offset_hours: 1,
   title_text: "Annonce Changement d'heure (Été / Hiver)",
   message_template:
@@ -514,15 +550,20 @@ const TEAM_TITLE_HOLD_MS = 3000;
 
 const TEAM_CARDS_PER_PAGE = 4;
 const TEAM_SLIDE_CARD_ID = "__team_slide__";
+const CUSTOM_SLIDE_CARD_ID = "__custom_slide__";
 const BIRTHDAY_SLIDE_CARD_ID = "__birthday_slide__";
 const TIME_CHANGE_SLIDE_CARD_ID = "__time_change_slide__";
 const CHRISTMAS_SLIDE_CARD_ID = "__christmas_slide__";
+const CUSTOM_AVAILABILITY_PREFIX = "custom:";
+const buildCustomAvailabilityKey = (slideId) => `${CUSTOM_AVAILABILITY_PREFIX}${slideId}`;
+const buildCustomCardId = (slideId) => `${CUSTOM_SLIDE_CARD_ID}-${slideId}`;
 const TEAM_PREVIEW_BASE_WIDTH = 1920;
 const TEAM_PREVIEW_BASE_HEIGHT = 1080;
 const BIRTHDAY_PREVIEW_BASE_WIDTH = 1920;
 const BIRTHDAY_PREVIEW_BASE_HEIGHT = 1080;
 const TIME_CHANGE_PREVIEW_BASE_WIDTH = 1920;
 const TIME_CHANGE_PREVIEW_BASE_HEIGHT = 1080;
+const TIME_CHANGE_INFO_REFRESH_INTERVAL_MS = 60000;
 
 // ---------------------------------------------------------------------------
 // Utilitaires
@@ -566,11 +607,6 @@ const buildApiUrl = (path) => {
   return `${APP_BASE_URL}${path}`;
 };
 
-const resolveMediaUrl = (value) => {
-  if (!value || typeof value !== "string") return null;
-  return buildApiUrl(value);
-};
-
 const fetchJSON = async (url, options) => {
   const response = await fetch(buildApiUrl(url), options);
   if (!response.ok) {
@@ -578,6 +614,14 @@ const fetchJSON = async (url, options) => {
     throw new Error(text || "Requête échouée");
   }
   return response.json();
+};
+
+const clampValue = (value, min, max) => Math.min(Math.max(value, min), max);
+
+window.CardinalApp = {
+  buildApiUrl,
+  fetchJSON,
+  clampValue,
 };
 
 const formatFileSize = (size) => {
@@ -619,34 +663,6 @@ const highlightDropZone = (active) => {
   } else {
     dropZone.classList.remove("drag-over");
   }
-};
-
-const showBackgroundMediaError = (wrapper, message) => {
-  if (!wrapper) return;
-  wrapper.innerHTML = "";
-  const fallback = document.createElement("div");
-  fallback.className = "team-background-item-error";
-  fallback.textContent = message || "Prévisualisation indisponible.";
-  wrapper.appendChild(fallback);
-};
-
-const showPreviewBackgroundFallback = (backdrop, message) => {
-  if (!backdrop) return;
-  const fallbackClass = backdrop.classList.contains("birthday-slide-backdrop")
-    ? "birthday-slide-backdrop--fallback"
-    : "time-change-slide-backdrop--fallback";
-  backdrop.classList.add(fallbackClass);
-  backdrop.innerHTML = "";
-  const placeholder = document.createElement("div");
-  placeholder.className = "time-change-slide-fallback-message";
-  placeholder.textContent = message || "Arrière-plan indisponible.";
-  backdrop.appendChild(placeholder);
-};
-
-const setUploadFeedback = (message, status = "info") => {
-  if (!uploadFeedback) return;
-  uploadFeedback.textContent = message;
-  uploadFeedback.dataset.status = status;
 };
 
 const renderEmptyState = () => {
@@ -741,6 +757,30 @@ const normalizeTeamSlideSettings = (raw) => {
   return result;
 };
 
+const normalizeCustomSlideSettings = (raw) => {
+  const base = { ...DEFAULT_CUSTOM_SLIDE_SETTINGS };
+  if (!raw || typeof raw !== "object") {
+    return base;
+  }
+  const result = { ...base };
+  if ("enabled" in raw) {
+    result.enabled = Boolean(raw.enabled);
+  }
+  if ("order_index" in raw) {
+    const idx = Number.parseInt(raw.order_index, 10);
+    if (Number.isFinite(idx) && idx >= 0) {
+      result.order_index = idx;
+    }
+  }
+  if ("duration" in raw) {
+    const val = Number(raw.duration);
+    if (Number.isFinite(val) && val >= 1 && val <= 600) {
+      result.duration = val;
+    }
+  }
+  return result;
+};
+
 const normalizeOpenDays = (raw = {}) => {
   const base = { ...DEFAULT_OPEN_DAYS };
   if (!raw || typeof raw !== "object") {
@@ -773,6 +813,12 @@ const normalizeBirthdaySlideSettings = (raw) => {
       result.duration = d;
     }
   }
+  if ("days_before" in raw) {
+    const val = Number.parseInt(raw.days_before, 10);
+    if (Number.isFinite(val) && val >= 0 && val <= 365) {
+      result.days_before = val;
+    }
+  }
   if (typeof raw.background_path === "string") {
     result.background_path = raw.background_path || null;
   }
@@ -783,9 +829,7 @@ const normalizeBirthdaySlideSettings = (raw) => {
     result.background_mimetype = raw.background_mimetype || null;
   }
   if (typeof raw.background_url === "string") {
-    result.background_url = resolveMediaUrl(raw.background_url);
-  } else if (result.background_path) {
-    result.background_url = buildApiUrl(`birthday-slide-assets/${result.background_path}`);
+    result.background_url = raw.background_url;
   }
   if (typeof raw.background_source === "string") {
     result.background_source = raw.background_source;
@@ -841,6 +885,12 @@ const normalizeTimeChangeSettings = (raw) => {
     if (Number.isFinite(days) && days >= 0 && days <= 365) {
       result.days_before = days;
     }
+  }
+  if ("use_custom_date" in raw) {
+    result.use_custom_date = Boolean(raw.use_custom_date);
+  }
+  if (typeof raw.custom_date === "string") {
+    result.custom_date = raw.custom_date.trim();
   }
   if (typeof raw.background_path === "string") {
     result.background_path = raw.background_path || null;
@@ -1014,6 +1064,7 @@ const loadOverlayAndSlideSettings = async () => {
   renderTimeChangePreview();
   bindPreviewFullscreen(timeChangePreviewStage);
   void loadTimeChangeInfo();
+  startTimeChangeAutoRefresh();
   void loadTimeChangeBackgroundList();
 
   // Team slide
@@ -1033,6 +1084,9 @@ const loadOverlayAndSlideSettings = async () => {
   bindPreviewFullscreen(christmasPreviewStage);
   void loadChristmasInfo();
   void loadChristmasBackgroundList();
+
+  const rawCustom = data && data.test_slide ? data.test_slide : {};
+  customSlideSettings = normalizeCustomSlideSettings(rawCustom);
 };
 
 // ---------------------------------------------------------------------------
@@ -1322,21 +1376,22 @@ const createMediaCard = (item, globalIndex, displayNumber, mediaCount, autoCount
   titleContainer.append(title, meta, renameButton);
   titleRow.appendChild(titleContainer);
 
-  const body = document.createElement("div");
-  body.className = "media-card-body";
-
-  header.append(orderColumn, titleRow);
-
-  const controls = document.createElement("div");
-  controls.className = "media-card-controls";
-
   const enabledInput = document.createElement("input");
   enabledInput.type = "checkbox";
   enabledInput.checked = Boolean(item.enabled);
   enabledInput.dataset.field = "enabled";
-  controls.appendChild(createVisibilitySwitch(enabledInput));
+  const visibilitySwitch = createVisibilitySwitch(enabledInput);
+
+  const headerActions = document.createElement("div");
+  headerActions.className = "media-card-header-actions";
+  headerActions.appendChild(visibilitySwitch);
+
+  header.append(orderColumn, titleRow, headerActions);
 
   const kind = detectMediaKind(item);
+  const controls = document.createElement("div");
+  controls.className = "media-card-controls";
+
   let muteInput = null;
   if (kind === "video") {
     muteInput = document.createElement("input");
@@ -1442,7 +1497,11 @@ const createMediaCard = (item, globalIndex, displayNumber, mediaCount, autoCount
 
   actions.append(saveButton, deleteButton);
 
-  card.append(header, body, controls, grid, actions);
+  if (controls.childElementCount > 0) {
+    card.append(header, controls, grid, actions);
+  } else {
+    card.append(header, grid, actions);
+  }
   return card;
 };
 
@@ -1556,10 +1615,36 @@ const createOrderHeader = (
   return header;
 };
 
+const getAutoAvailability = (type) => {
+  const raw = autoSlideDisplayableMap?.[type];
+  if (raw && typeof raw === "object") {
+    const displayable =
+      typeof raw.displayable === "boolean" ? raw.displayable : undefined;
+    const nextDateLabel =
+      typeof raw.nextDateLabel === "string" && raw.nextDateLabel.trim()
+        ? raw.nextDateLabel.trim()
+        : null;
+    return { displayable, nextDateLabel };
+  }
+  if (typeof raw === "boolean") {
+    return { displayable: raw, nextDateLabel: null };
+  }
+  return { displayable: undefined, nextDateLabel: null };
+};
+
+const applyAutoAvailability = (card, type) => {
+  if (!card) return;
+  const { displayable } = getAutoAvailability(type);
+  if (displayable === false) {
+    card.classList.add("is-unavailable");
+  }
+};
+
 const createTeamSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) => {
   const card = document.createElement("article");
   card.className = "media-card team-slide-card-special auto-slide-card";
   card.dataset.id = TEAM_SLIDE_CARD_ID;
+  applyAutoAvailability(card, "team");
 
   const header = createOrderHeader(TEAM_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
 
@@ -1567,7 +1652,16 @@ const createTeamSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) =
   body.className = "media-card-body";
   const title = document.createElement("h3");
   title.textContent = "Diapositive « Notre Équipe »";
-  body.append(title);
+  const status = document.createElement("p");
+  status.className = "field-hint";
+  const { displayable, nextDateLabel } = getAutoAvailability("team");
+  status.textContent =
+    displayable === false
+      ? nextDateLabel
+        ? `Activée (Prochain affichage dès le ${nextDateLabel})`
+        : "Activée (pas encore affichable)"
+      : "Activée";
+  body.append(title, status);
 
   card.append(header, body);
   return card;
@@ -1577,6 +1671,7 @@ const createBirthdaySlideCard = (globalIndex, displayNumber, autoCount, totalAut
   const card = document.createElement("article");
   card.className = "media-card birthday-slide-card auto-slide-card";
   card.dataset.id = BIRTHDAY_SLIDE_CARD_ID;
+  applyAutoAvailability(card, "birthday");
 
   const header = createOrderHeader(BIRTHDAY_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
 
@@ -1586,7 +1681,15 @@ const createBirthdaySlideCard = (globalIndex, displayNumber, autoCount, totalAut
   title.textContent = "Diapositive « Anniversaire »";
   const status = document.createElement("p");
   status.className = "field-hint";
-  status.textContent = birthdaySlideSettings && birthdaySlideSettings.enabled ? "Activée" : "Désactivée";
+  const { displayable, nextDateLabel } = getAutoAvailability("birthday");
+  status.textContent =
+    birthdaySlideSettings && birthdaySlideSettings.enabled
+      ? displayable === false
+        ? nextDateLabel
+          ? `Activée (Prochain affichage dès le ${nextDateLabel})`
+          : "Activée (pas encore affichable)"
+        : "Activée"
+      : "Désactivée";
   body.append(title, status);
 
   card.append(header, body);
@@ -1597,6 +1700,7 @@ const createTimeChangeSlideCard = (globalIndex, displayNumber, autoCount, totalA
   const card = document.createElement("article");
   card.className = "media-card time-change-slide-card auto-slide-card";
   card.dataset.id = TIME_CHANGE_SLIDE_CARD_ID;
+  applyAutoAvailability(card, "time-change");
 
   const header = createOrderHeader(TIME_CHANGE_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
 
@@ -1607,7 +1711,17 @@ const createTimeChangeSlideCard = (globalIndex, displayNumber, autoCount, totalA
   const status = document.createElement("p");
   status.className = "field-hint";
   status.textContent =
-    timeChangeSlideSettings && timeChangeSlideSettings.enabled ? "Activée" : "Désactivée";
+    timeChangeSlideSettings && timeChangeSlideSettings.enabled
+      ? (() => {
+          const { displayable, nextDateLabel } = getAutoAvailability("time-change");
+          if (displayable === false) {
+            return nextDateLabel
+              ? `Activée (Prochain affichage dès le ${nextDateLabel})`
+              : "Activée (pas encore affichable)";
+          }
+          return "Activée";
+        })()
+      : "Désactivée";
   body.append(title, status);
 
   card.append(header, body);
@@ -1618,6 +1732,7 @@ const createChristmasSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   const card = document.createElement("article");
   card.className = "media-card christmas-slide-card auto-slide-card";
   card.dataset.id = CHRISTMAS_SLIDE_CARD_ID;
+  applyAutoAvailability(card, "christmas");
 
   const header = createOrderHeader(CHRISTMAS_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
 
@@ -1628,37 +1743,90 @@ const createChristmasSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   const status = document.createElement("p");
   status.className = "field-hint";
   status.textContent =
-    christmasSlideSettings && christmasSlideSettings.enabled ? "Activée" : "Désactivée";
+    christmasSlideSettings && christmasSlideSettings.enabled
+      ? (() => {
+          const { displayable, nextDateLabel } = getAutoAvailability("christmas");
+          if (displayable === false) {
+            return nextDateLabel
+              ? `Activée (Prochain affichage dès le ${nextDateLabel})`
+              : "Activée (pas encore affichable)";
+          }
+          return "Activée";
+        })()
+      : "Désactivée";
   body.append(title, status);
 
   card.append(header, body);
   return card;
 };
 
-const getAutoEntries = () => {
-  const entries = [];
-  const insertAuto = (entry, orderIndex) => {
-    const idx = Number.isFinite(orderIndex) ? clamp(orderIndex, 0, entries.length) : entries.length;
-    entries.splice(idx, 0, entry);
-  };
+const createCustomSlideCard = (slide, entryId, globalIndex, displayNumber, autoCount, totalAuto) => {
+  const card = document.createElement("article");
+  card.className = "media-card custom-slide-card auto-slide-card";
+  card.dataset.id = entryId;
 
-  if (teamSlideSettings) {
-    const orderIndex = Number.parseInt(teamSlideSettings.order_index, 10);
-    insertAuto({ type: "team", id: TEAM_SLIDE_CARD_ID }, orderIndex);
-  }
-  if (birthdaySlideSettings) {
-    const orderIndex = Number.parseInt(birthdaySlideSettings.order_index, 10);
-    insertAuto({ type: "birthday", id: BIRTHDAY_SLIDE_CARD_ID }, orderIndex);
-  }
-  if (timeChangeSlideSettings) {
-    const orderIndex = Number.parseInt(timeChangeSlideSettings.order_index, 10);
-    insertAuto({ type: "time-change", id: TIME_CHANGE_SLIDE_CARD_ID }, orderIndex);
-  }
-  if (christmasSlideSettings) {
-    const orderIndex = Number.parseInt(christmasSlideSettings.order_index, 10);
-    insertAuto({ type: "christmas", id: CHRISTMAS_SLIDE_CARD_ID }, orderIndex);
-  }
-  return entries;
+  const availabilityKey = slide?.id ? buildCustomAvailabilityKey(slide.id) : "custom";
+  applyAutoAvailability(card, availabilityKey);
+
+  const header = createOrderHeader(entryId, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+
+  const body = document.createElement("div");
+  body.className = "media-card-body";
+  const title = document.createElement("h3");
+  const slideName =
+    (slide?.meta && slide.meta.name) || slide?.name || "Diapo personnalisée";
+  title.textContent = `Diapositive « ${slideName} »`;
+  const status = document.createElement("p");
+  status.className = "field-hint";
+  const { displayable } = getAutoAvailability(availabilityKey);
+  status.textContent =
+    slide && slide.enabled
+      ? displayable === false
+        ? "Activée (pas encore affichable)"
+        : "Activée"
+      : "Désactivée";
+  body.append(title, status);
+
+  card.append(header, body);
+  return card;
+};
+
+const AUTO_ENTRY_PRIORITY = ["team", "birthday", "time-change", "christmas", "custom"];
+
+const getAutoEntries = () => {
+  const sources = [
+    { type: "team", id: TEAM_SLIDE_CARD_ID, settings: teamSlideSettings },
+    { type: "birthday", id: BIRTHDAY_SLIDE_CARD_ID, settings: birthdaySlideSettings },
+    { type: "time-change", id: TIME_CHANGE_SLIDE_CARD_ID, settings: timeChangeSlideSettings },
+    { type: "christmas", id: CHRISTMAS_SLIDE_CARD_ID, settings: christmasSlideSettings },
+  ];
+
+  const customSources = buildArray(customSlides).map((slide) => ({
+    type: "custom",
+    id: buildCustomCardId(slide.id),
+    slideId: slide.id,
+    settings: slide,
+  }));
+
+  return [...sources, ...customSources]
+    .filter((src) => src.settings?.enabled)
+    .map((src) => {
+      const rawIndex = Number.parseInt(src.settings.order_index, 10);
+      const orderIndex =
+        Number.isFinite(rawIndex) && rawIndex >= 0 ? rawIndex : Number.POSITIVE_INFINITY;
+      const rawPriority = AUTO_ENTRY_PRIORITY.indexOf(src.type);
+      const priority = rawPriority === -1 ? AUTO_ENTRY_PRIORITY.length : rawPriority;
+      return { type: src.type, id: src.id, slideId: src.slideId || null, orderIndex, priority };
+    })
+    .sort((a, b) => {
+      if (a.orderIndex !== b.orderIndex) return a.orderIndex - b.orderIndex;
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.type === "custom" && b.type === "custom") {
+        return String(a.slideId || "").localeCompare(String(b.slideId || ""));
+      }
+      return 0;
+    })
+    .map(({ type, id, slideId }) => ({ type, id, slideId }));
 };
 
 const buildMediaRenderList = () => {
@@ -1682,10 +1850,12 @@ const renderMedia = () => {
   }
   const autoContainer = document.createElement("div");
   autoContainer.className = "media-auto-group";
-  const autoTitle = document.createElement("p");
-  autoTitle.className = "media-auto-group-title";
-  autoTitle.textContent = "Diapositives automatiques";
-  autoContainer.append(autoTitle);
+  if (autoCount > 0) {
+    const autoTitle = document.createElement("p");
+    autoTitle.className = "media-auto-group-title";
+    autoTitle.textContent = "Diapositives automatiques";
+    autoContainer.append(autoTitle);
+  }
 
   renderList.forEach((entry, index) => {
     if (entry.type === "team") {
@@ -1708,6 +1878,21 @@ const renderMedia = () => {
       autoContainer.appendChild(
         createChristmasSlideCard(index, autoDisplay, autoCount, autoCount),
       );
+    } else if (entry.type === "custom") {
+      autoDisplay += 1;
+      autoContainer.appendChild(
+        createCustomSlideCard(
+          (Array.isArray(customSlides)
+            ? customSlides.find((slide) => slide && buildCustomCardId(slide.id) === entry.id) ||
+              customSlides.find((slide) => slide && slide.id === entry.slideId)
+            : null) || null,
+          entry.id,
+          index,
+          autoDisplay,
+          autoCount,
+          autoCount,
+        ),
+      );
     } else {
       mediaDisplay += 1;
       const card = createMediaCard(entry.item, index, mediaDisplay, mediaCount, autoCount);
@@ -1718,6 +1903,248 @@ const renderMedia = () => {
   if (autoCount) {
     mediaList.prepend(autoContainer);
   }
+};
+
+const BIRTHDAY_WEEKDAY_KEYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
+const computeNextBirthdayDate = (birthdayStr) => {
+  if (!birthdayStr) return null;
+  const parts = String(birthdayStr).split("-");
+  if (parts.length < 2) return null;
+
+  const tryBuild = (m, d) => {
+    if (!Number.isFinite(m) || !Number.isFinite(d) || m < 1 || m > 12 || d < 1 || d > 31) {
+      return null;
+    }
+    const now = new Date();
+    const thisYear = now.getFullYear();
+    const candidate = new Date(Date.UTC(thisYear, m - 1, d));
+    const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    if (candidate < todayUtc) {
+      candidate.setUTCFullYear(thisYear + 1);
+    }
+    return candidate;
+  };
+
+  if (parts.length === 3) {
+    return tryBuild(Number(parts[1]), Number(parts[2]));
+  }
+
+  return tryBuild(Number(parts[0]), Number(parts[1])) || tryBuild(Number(parts[1]), Number(parts[0]));
+};
+
+const computeBirthdayAnnounceDate = (targetDate, openDays) => {
+  const normalized = normalizeOpenDays(openDays);
+  if (!(targetDate instanceof Date) || Number.isNaN(targetDate)) {
+    return targetDate;
+  }
+  const candidate = new Date(targetDate.getTime());
+  for (let i = 0; i < 7; i += 1) {
+    const key = BIRTHDAY_WEEKDAY_KEYS[candidate.getUTCDay()];
+    if (normalized[key]) {
+      return candidate;
+    }
+    candidate.setUTCDate(candidate.getUTCDate() - 1);
+  }
+  return targetDate;
+};
+
+const formatBirthdayDateLabelUtc = (birthdayDate) => {
+  if (!(birthdayDate instanceof Date) || Number.isNaN(birthdayDate)) return "";
+  try {
+    return new Intl.DateTimeFormat("fr-CA", {
+      timeZone: "UTC",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(birthdayDate);
+  } catch (error) {
+    return birthdayDate.toISOString().slice(0, 10);
+  }
+};
+
+const computeBirthdayAvailabilityFromEmployees = (employeesList, settings) => {
+  const daysBeforeRaw = Number(settings?.days_before);
+  const daysBefore = Number.isFinite(daysBeforeRaw)
+    ? clamp(daysBeforeRaw, 0, 365)
+    : DEFAULT_BIRTHDAY_SLIDE_SETTINGS.days_before;
+
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  let anyDisplayable = false;
+  let earliestDisplay = null;
+
+  const employees = Array.isArray(employeesList) ? employeesList : [];
+  employees.forEach((emp) => {
+    const next = computeNextBirthdayDate(emp?.birthday);
+    if (!next) return;
+    const announce = computeBirthdayAnnounceDate(next, settings?.open_days);
+    const daysToBirthday = Math.round((next - todayUtc) / dayMs);
+    const daysToAnnounce = Math.round((announce - todayUtc) / dayMs);
+    if (!Number.isFinite(daysToBirthday) || daysToBirthday < 0) return;
+
+    const shiftedForClosure = announce.getTime() !== next.getTime();
+    let variant = "before";
+    if (daysToBirthday === 0) {
+      variant = "day";
+    } else if (shiftedForClosure && daysToAnnounce === 0) {
+      variant = "weekend";
+    }
+
+    const displayAllowed =
+      variant === "day" ||
+      (variant === "before" && daysToBirthday <= daysBefore) ||
+      (variant === "weekend" && daysToAnnounce === 0);
+
+    if (displayAllowed) {
+      anyDisplayable = true;
+    }
+
+    const beforeStart = new Date(next.getTime());
+    beforeStart.setUTCDate(beforeStart.getUTCDate() - daysBefore);
+    let candidateDisplay = null;
+    if (daysBefore <= 0) {
+      candidateDisplay = shiftedForClosure ? announce : next;
+    } else if (shiftedForClosure) {
+      candidateDisplay = announce < beforeStart ? announce : beforeStart;
+    } else {
+      candidateDisplay = beforeStart;
+    }
+
+    if (
+      candidateDisplay &&
+      (earliestDisplay == null || candidateDisplay.getTime() < earliestDisplay.getTime())
+    ) {
+      earliestDisplay = candidateDisplay;
+    }
+  });
+
+  return {
+    displayable: anyDisplayable,
+    nextDateLabel: earliestDisplay ? formatBirthdayDateLabelUtc(earliestDisplay) : null,
+  };
+};
+
+const loadAutoSlideAvailability = async () => {
+  if (!mediaList) return;
+
+  const displayable = {
+    team: { displayable: true, nextDateLabel: null },
+    birthday: { displayable: true, nextDateLabel: null },
+    "time-change": { displayable: true, nextDateLabel: null },
+    christmas: { displayable: true, nextDateLabel: null },
+  };
+
+  const tasks = [];
+  let fetchedCustomSlides = [];
+  tasks.push(
+    fetchJSON("api/custom-slides")
+      .then((data) => {
+        fetchedCustomSlides = Array.isArray(data?.items) ? data.items : [];
+      })
+      .catch(() => {
+        fetchedCustomSlides = [];
+      }),
+  );
+
+  if (birthdaySlideSettings?.enabled || teamSlideSettings?.enabled) {
+    tasks.push(
+      fetchJSON("api/employees")
+        .then((data) => {
+          const employees = data && Array.isArray(data.employees) ? data.employees : [];
+          if (teamSlideSettings?.enabled) {
+            displayable.team.displayable = employees.length > 0;
+          }
+          if (birthdaySlideSettings?.enabled) {
+            const availability = computeBirthdayAvailabilityFromEmployees(employees, birthdaySlideSettings);
+            displayable.birthday.displayable = availability.displayable;
+            displayable.birthday.nextDateLabel = availability.nextDateLabel;
+          }
+        })
+        .catch(() => {
+          if (teamSlideSettings?.enabled) {
+            displayable.team.displayable = false;
+          }
+          if (birthdaySlideSettings?.enabled) {
+            displayable.birthday.displayable = false;
+            displayable.birthday.nextDateLabel = null;
+          }
+        }),
+    );
+  }
+
+  if (timeChangeSlideSettings?.enabled) {
+    const params = new URLSearchParams();
+    if (Number.isFinite(Number(timeChangeSlideSettings.days_before))) {
+      params.set("days_before", timeChangeSlideSettings.days_before);
+    }
+    const suffix = params.toString();
+    tasks.push(
+      fetchJSON(`api/time-change-slide/next${suffix ? `?${suffix}` : ""}`)
+        .then((data) => {
+          if (data && data.change) {
+            if (typeof data.within_window === "boolean") {
+              displayable["time-change"].displayable = data.within_window;
+            }
+            if (typeof data.change.date_label === "string") {
+              displayable["time-change"].nextDateLabel = data.change.date_label;
+            }
+          }
+        })
+        .catch(() => {}),
+    );
+  }
+
+  if (christmasSlideSettings?.enabled) {
+    const params = new URLSearchParams();
+    if (Number.isFinite(Number(christmasSlideSettings.days_before))) {
+      params.set("days_before", christmasSlideSettings.days_before);
+    }
+    const suffix = params.toString();
+    tasks.push(
+      fetchJSON(`api/christmas-slide/next${suffix ? `?${suffix}` : ""}`)
+        .then((data) => {
+          if (data && data.christmas) {
+            if (typeof data.within_window === "boolean") {
+              displayable["christmas"].displayable = data.within_window;
+            }
+            if (typeof data.christmas.date_label === "string") {
+              displayable["christmas"].nextDateLabel = data.christmas.date_label;
+            }
+          }
+        })
+        .catch(() => {}),
+    );
+  }
+
+  if (tasks.length) {
+    await Promise.all(tasks);
+  }
+
+  customSlides = fetchedCustomSlides;
+  fetchedCustomSlides.forEach((slide) => {
+    if (!slide?.enabled || !slide.id) {
+      return;
+    }
+    const key = buildCustomAvailabilityKey(slide.id);
+    displayable[key] = {
+      displayable: Boolean(slide.has_background && slide.has_texts),
+      nextDateLabel: null,
+    };
+  });
+
+  autoSlideDisplayableMap = displayable;
+  renderMedia();
 };
 
 const persistBirthdayOrderIndex = async (orderIndex) => {
@@ -1766,6 +2193,30 @@ const persistChristmasOrderIndex = async (orderIndex) => {
   );
 };
 
+const persistCustomSlideOrderIndex = async (slideId, orderIndex) => {
+  if (!slideId) return;
+  const data = await fetchJSON(
+    `api/custom-slides/${encodeURIComponent(slideId)}/settings`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order_index: orderIndex }),
+    },
+  );
+
+  if (Array.isArray(customSlides)) {
+    const idx = customSlides.findIndex((slide) => slide && slide.id === slideId);
+    if (idx !== -1) {
+      const existing = customSlides[idx] || {};
+      customSlides[idx] = {
+        ...existing,
+        ...(data || {}),
+        order_index: data?.order_index ?? orderIndex,
+      };
+    }
+  }
+};
+
 const moveEntryToPosition = async (id, targetGlobalIndex) => {
   const autoEntries = getAutoEntries();
   const autoCount = autoEntries.length;
@@ -1782,6 +2233,7 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
     autoEntries.splice(targetAutoIndex, 0, entry);
 
     // Mettre à jour les order_index et persister
+    const customOrderTasks = [];
     autoEntries.forEach((entry, position) => {
       if (entry.type === "team" && teamSlideSettings) {
         teamSlideSettings = { ...(teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS), order_index: position };
@@ -1795,12 +2247,22 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
       if (entry.type === "christmas" && christmasSlideSettings) {
         christmasSlideSettings = { ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS), order_index: position };
       }
+      if (entry.type === "custom") {
+        const slideId = entry.slideId;
+        if (slideId && Array.isArray(customSlides)) {
+          const idx = customSlides.findIndex((slide) => slide && slide.id === slideId);
+          if (idx !== -1) {
+            customSlides[idx] = { ...customSlides[idx], order_index: position };
+          }
+          customOrderTasks.push(persistCustomSlideOrderIndex(slideId, position));
+        }
+      }
     });
 
     renderMedia();
 
     try {
-      const tasks = [];
+      const tasks = [...customOrderTasks];
       if (teamSlideSettings) tasks.push(persistTeamOrderIndex(teamSlideSettings.order_index));
       if (birthdaySlideSettings) tasks.push(persistBirthdayOrderIndex(birthdaySlideSettings.order_index));
       if (timeChangeSlideSettings) tasks.push(persistTimeChangeOrderIndex(timeChangeSlideSettings.order_index));
@@ -1924,6 +2386,9 @@ const setBirthdayVariantUI = (variant) => {
     pill.classList.toggle("is-active", isActive);
     pill.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
+  if (birthdaySectionRoot) {
+    birthdaySectionRoot.dataset.variant = variant;
+  }
   if (birthdayOpeningBlock) {
     const visible = variant === "weekend";
     birthdayOpeningBlock.hidden = !visible;
@@ -1932,6 +2397,11 @@ const setBirthdayVariantUI = (variant) => {
       const isCollapsed = birthdayOpeningBody.classList.contains("collapsed");
       birthdayOpeningToggle.setAttribute("aria-expanded", (!visible || isCollapsed) ? "false" : "true");
     }
+  }
+  if (birthdayCountdownBlock) {
+    const visible = variant === "before";
+    birthdayCountdownBlock.hidden = !visible;
+    birthdayCountdownBlock.setAttribute("aria-hidden", visible ? "false" : "true");
   }
 };
 
@@ -2194,7 +2664,7 @@ const normalizeBirthdayVariantConfig = (rawConfig = {}, variant = "before") => {
     { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
     { text: "", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT } },
   );
-  const normalized = {
+  return {
     ...merged,
     lines,
     text1: l1?.text ?? "",
@@ -2204,12 +2674,6 @@ const normalizeBirthdayVariantConfig = (rawConfig = {}, variant = "before") => {
     text2_options: l2?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
     text3_options: l3?.options || { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
   };
-  if (typeof normalized.background_url === "string") {
-    normalized.background_url = resolveMediaUrl(normalized.background_url);
-  } else if (normalized.background_path) {
-    normalized.background_url = buildApiUrl(`birthday-slide-assets/${normalized.background_path}`);
-  }
-  return normalized;
 };
 
 const renumberBirthdayTextBlocks = () => {
@@ -2448,8 +2912,7 @@ const saveBirthdayVariantConfig = async ({ successMessage = "Textes enregistrés
     const merged = normalizeBirthdayVariantConfig({ ...cfg }, variant);
     const selected = birthdayBackgroundOptions.find((opt) => opt.filename === merged.background_path);
     if (selected || overrides.background_url) {
-      const resolvedUrl = overrides.background_url || selected?.url || merged.background_url || null;
-      merged.background_url = resolvedUrl ? resolveMediaUrl(resolvedUrl) : null;
+      merged.background_url = overrides.background_url || selected?.url || merged.background_url || null;
       merged.background_mimetype = overrides.background_mimetype || selected?.mimetype || merged.background_mimetype || null;
     } else if (
       birthdayVariantConfigs[variant]?.background_url &&
@@ -2487,6 +2950,12 @@ const populateBirthdayForm = (settings) => {
         : DEFAULT_BIRTHDAY_SLIDE_SETTINGS.title_y_percent,
     );
   }
+  if (birthdayDaysBeforeInput) {
+    const val = Number.isFinite(Number(normalized.days_before))
+      ? normalized.days_before
+      : DEFAULT_BIRTHDAY_SLIDE_SETTINGS.days_before;
+    birthdayDaysBeforeInput.value = String(val);
+  }
   applyOpenDaysToUI(normalized.open_days);
 };
 
@@ -2498,6 +2967,13 @@ const buildBirthdaySettingsPayload = (overrides = {}) => {
     ...overrides,
   };
   merged.open_days = normalizeOpenDays(overrides.open_days || base.open_days);
+  if ("days_before" in overrides) {
+    merged.days_before = overrides.days_before;
+  } else {
+    const rawVal = Number.parseInt(birthdayDaysBeforeInput?.value ?? "", 10);
+    const clamped = Number.isFinite(rawVal) ? clamp(rawVal, 0, 365) : base.days_before;
+    merged.days_before = clamped;
+  }
   return merged;
 };
 
@@ -2592,7 +3068,6 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
     const img = document.createElement("img");
     img.src = item.url;
     img.alt = item.label || item.filename || "Arrière-plan";
-    img.addEventListener("error", () => showBackgroundMediaError(mediaWrapper, "Aperçu indisponible."));
     mediaWrapper.appendChild(img);
   } else {
     const video = document.createElement("video");
@@ -2601,7 +3076,6 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
     video.loop = true;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
-    video.addEventListener("error", () => showBackgroundMediaError(mediaWrapper, "Aperçu indisponible."));
     mediaWrapper.appendChild(video);
   }
 
@@ -2617,7 +3091,7 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
     }
     birthdayVariantConfigs[variant].background_path = item.filename;
     birthdayVariantConfigs[variant].background_mimetype = item.mimetype || null;
-    birthdayVariantConfigs[variant].background_url = resolveMediaUrl(item.url || "");
+    birthdayVariantConfigs[variant].background_url = item.url || null;
 
     const patch = {
       background_path: item.filename,
@@ -2638,7 +3112,7 @@ const renderBirthdayBackgroundItem = (item, active = {}) => {
         ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS),
         background_path: item.filename,
         background_mimetype: item.mimetype || null,
-        background_url: resolveMediaUrl(item.url || birthdaySlideSettings?.background_url || null) || null,
+        background_url: item.url || birthdaySlideSettings?.background_url || null,
       };
       birthdayBackgroundCurrent = { type: "upload", filename: item.filename };
       renderBirthdayPreview();
@@ -2755,10 +3229,7 @@ const loadBirthdayBackgroundList = async () => {
   try {
     const data = await fetchJSON("api/birthday-slide/backgrounds");
     const items = Array.isArray(data.items) ? data.items : [];
-    birthdayBackgroundOptions = items.map((item) => ({
-      ...item,
-      url: resolveMediaUrl(item.url),
-    }));
+    birthdayBackgroundOptions = items;
     birthdayBackgroundCurrent = data.current || {};
     renderBirthdayBackgroundOptions();
     renderBirthdayPreview();
@@ -2790,7 +3261,7 @@ const uploadBirthdayBackground = async (file = null) => {
 
   // Use XMLHttpRequest to get progress events.
   const xhr = new XMLHttpRequest();
-  xhr.open("POST", buildApiUrl("api/birthday-slide/background"));
+  xhr.open("POST", "api/birthday-slide/background");
 
   const resetProgress = () => setBirthdayUploadProgress(0, { active: false });
 
@@ -2808,7 +3279,7 @@ const uploadBirthdayBackground = async (file = null) => {
         : birthdaySlideSettings;
     birthdaySlideSettings = normalizeBirthdaySlideSettings(rawSettings || {});
     if (responseJson && responseJson.background_url) {
-      birthdaySlideSettings.background_url = resolveMediaUrl(responseJson.background_url);
+      birthdaySlideSettings.background_url = responseJson.background_url;
     }
     setBirthdayBackgroundStatus("Arrière-plan mis à jour.", "success");
     renderMedia();
@@ -2888,6 +3359,9 @@ const updateBirthdayOverlayText = (root, settings) => {
     if (color) {
       line.style.color = color;
     }
+    line.style.textAlign = "center";
+    line.style.fontWeight = opts.bold ? "700" : "400";
+    line.style.fontStyle = opts.italic ? "italic" : "normal";
     if (opts.font_size) {
       line.style.fontSize = `${opts.font_size}px`;
     } else if (idx === 0 && settings.title_font_size) {
@@ -2895,10 +3369,20 @@ const updateBirthdayOverlayText = (root, settings) => {
     }
     line.style.fontFamily = opts.font_family || "";
     line.style.textDecoration = opts.underline ? "underline" : "none";
-    line.style.maxWidth = opts.width_percent ? `${opts.width_percent}%` : "none";
-    if (opts.height_percent) {
-      line.style.minHeight = `${opts.height_percent}%`;
+    if (opts.width_percent) {
+      line.style.width = `${opts.width_percent}%`;
+      line.style.maxWidth = `${opts.width_percent}%`;
+    } else {
+      line.style.width = "auto";
+      line.style.maxWidth = "none";
     }
+    if (opts.height_percent) {
+      line.style.height = `${opts.height_percent}%`;
+      line.style.minHeight = `${opts.height_percent}%`;
+    } else {
+      line.style.height = "auto";
+    }
+    applyLineBackground(line, opts);
     line.style.whiteSpace = "pre";
     const rawX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const rawY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
@@ -2987,15 +3471,11 @@ const renderBirthdayPreview = () => {
     video.loop = true;
     video.autoplay = true;
     video.muted = true;
-    video.setAttribute("muted", "");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     void video.play().catch(() => {});
     video.addEventListener("loadedmetadata", applyBirthdayPreviewScale);
     video.addEventListener("canplay", applyBirthdayPreviewScale);
-    video.addEventListener("error", () =>
-      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
-    );
     backdrop.appendChild(video);
   } else if (bgUrl) {
     const img = document.createElement("img");
@@ -3003,12 +3483,9 @@ const renderBirthdayPreview = () => {
     img.src = bgUrl;
     img.alt = "Arrière-plan Anniversaire";
     img.addEventListener("load", applyBirthdayPreviewScale);
-    img.addEventListener("error", () =>
-      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
-    );
     backdrop.appendChild(img);
   } else {
-    showPreviewBackgroundFallback(backdrop, "Ajoutez un arrière-plan pour la diapositive.");
+    backdrop.classList.add("birthday-slide-backdrop--fallback");
   }
 
   const overlay = document.createElement("div");
@@ -3042,101 +3519,6 @@ const applyTimeChangePreviewScale = () => {
   const baseH = TIME_CHANGE_PREVIEW_BASE_HEIGHT;
   const scale = Math.min(rect.width / baseW, rect.height / baseH);
   timeChangePreviewCanvas.style.setProperty("--time-change-preview-scale", `${scale}`);
-};
-
-const ensureTimeChangePreviewScene = (bgKey, bgUrl, isVideo) => {
-  if (
-    timeChangePreviewStage?.querySelector(".time-change-preview-canvas") &&
-    timeChangePreviewRenderedSource === bgKey
-  ) {
-    return timeChangePreviewStage.querySelector(".time-change-preview-canvas");
-  }
-
-  if (!timeChangePreviewStage) return null;
-  timeChangePreviewStage.innerHTML = "";
-
-  const canvas = document.createElement("div");
-  canvas.className = "time-change-preview-canvas";
-  canvas.style.setProperty("--time-change-preview-base-width", `${TIME_CHANGE_PREVIEW_BASE_WIDTH}px`);
-  canvas.style.setProperty("--time-change-preview-base-height", `${TIME_CHANGE_PREVIEW_BASE_HEIGHT}px`);
-
-  const viewport = document.createElement("div");
-  viewport.className = "time-change-slide-viewport";
-
-  const frame = document.createElement("div");
-  frame.className = "time-change-slide-frame";
-
-  const backdrop = document.createElement("div");
-  backdrop.className = "time-change-slide-backdrop";
-  if (bgUrl && isVideo) {
-    const video = document.createElement("video");
-    video.className = "time-change-slide-media time-change-slide-video";
-    video.src = bgUrl;
-    video.loop = true;
-    video.muted = true;
-    video.autoplay = true;
-    video.playsInline = true;
-    video.setAttribute("playsinline", "");
-    void video.play().catch(() => {});
-    video.addEventListener("loadedmetadata", applyTimeChangePreviewScale);
-    video.addEventListener("canplay", applyTimeChangePreviewScale);
-    video.addEventListener("error", () =>
-      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
-    );
-    backdrop.appendChild(video);
-  } else if (bgUrl) {
-    const img = document.createElement("img");
-    img.className = "time-change-slide-media time-change-slide-image";
-    img.src = bgUrl;
-    img.alt = "Arrière-plan Changement d'heure";
-    img.addEventListener("load", applyTimeChangePreviewScale);
-    img.addEventListener("error", () =>
-      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
-    );
-    backdrop.appendChild(img);
-  } else {
-    backdrop.classList.add("time-change-slide-backdrop--fallback");
-  }
-
-  const overlay = document.createElement("div");
-  overlay.className = "time-change-slide-overlay";
-  const linesWrapper = document.createElement("div");
-  linesWrapper.className = "time-change-lines";
-  overlay.appendChild(linesWrapper);
-
-  frame.append(backdrop, overlay);
-  viewport.appendChild(frame);
-  canvas.appendChild(viewport);
-  timeChangePreviewStage.appendChild(canvas);
-  timeChangePreviewCanvas = canvas;
-  timeChangePreviewRenderedSource = bgKey;
-  return canvas;
-};
-
-const updateSlideLinesContent = (wrapper, lines, settings, defaults, formatFn) => {
-  if (!wrapper) return;
-  wrapper.innerHTML = "";
-  lines.forEach((line, idx) => {
-    const node = document.createElement("div");
-    node.className = "time-change-line" + (idx === 0 ? " time-change-line--primary" : "");
-    node.textContent = formatFn(line.text || "");
-    const opts = { ...defaults, ...(line.options || {}) };
-    node.style.color = opts.color || settings.text_color || "#f8fafc";
-    if (opts.font_size) node.style.fontSize = `${opts.font_size}px`;
-    if (opts.font_family) node.style.fontFamily = opts.font_family;
-    node.style.textDecoration = opts.underline ? "underline" : "none";
-    if (opts.width_percent) node.style.maxWidth = `${opts.width_percent}%`;
-    if (opts.height_percent) node.style.minHeight = `${opts.height_percent}%`;
-    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
-    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-    const left = Math.min(100, Math.max(0, 50 + offsetX));
-    const top = Math.min(100, Math.max(0, 50 - offsetY));
-    node.style.left = `${left}%`;
-    node.style.top = `${top}%`;
-    const rotation = `rotate(${opts.angle || 0}deg)`;
-    node.style.transform = `translate(-50%, -50%) ${rotation}`;
-    wrapper.appendChild(node);
-  });
 };
 
 // ---------------------------------------------------------------------------
@@ -3391,7 +3773,9 @@ const bindTimeChangeTextBlock = (block) => {
 
 const createTimeChangeTextBlock = (lineNumber, data = {}) => {
   if (!timeChangeTextTemplate || !timeChangeTextTemplate.content) return null;
-  const clone = timeChangeTextTemplate.content.firstElementChild.cloneNode(true);
+  const templateRoot = timeChangeTextTemplate.content.firstElementChild;
+  if (!templateRoot) return null;
+  const clone = templateRoot.cloneNode(true);
   if (!clone) return null;
   clone.dataset.line = String(lineNumber);
   const inputs = getTimeChangeTextInputs(clone);
@@ -3489,17 +3873,88 @@ const renderTimeChangePreview = () => {
 
   const bgKey = `${bgUrl || "none"}|${mime}|${ext}`;
 
-  ensureTimeChangePreviewScene(bgKey, bgUrl, isVideo);
-  const linesWrapper = timeChangePreviewStage.querySelector(".time-change-lines");
-  updateSlideLinesContent(
-    linesWrapper,
-    lines,
-    settings,
-    TIME_CHANGE_TEXT_OPTIONS_DEFAULT,
-    (text) => formatTimeChangeMessage(text, info),
-  );
+  timeChangePreviewStage.innerHTML = "";
 
+  const canvas = document.createElement("div");
+  canvas.className = "time-change-preview-canvas";
+  canvas.style.setProperty("--time-change-preview-base-width", `${TIME_CHANGE_PREVIEW_BASE_WIDTH}px`);
+  canvas.style.setProperty("--time-change-preview-base-height", `${TIME_CHANGE_PREVIEW_BASE_HEIGHT}px`);
+
+  const viewport = document.createElement("div");
+  viewport.className = "time-change-slide-viewport";
+
+  const frame = document.createElement("div");
+  frame.className = "time-change-slide-frame";
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "time-change-slide-backdrop";
+  if (bgUrl && isVideo) {
+    const video = document.createElement("video");
+    video.className = "time-change-slide-media time-change-slide-video";
+    video.src = bgUrl;
+    video.loop = true;
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    void video.play().catch(() => {});
+    video.addEventListener("loadedmetadata", applyTimeChangePreviewScale);
+    video.addEventListener("canplay", applyTimeChangePreviewScale);
+    backdrop.appendChild(video);
+  } else if (bgUrl) {
+    const img = document.createElement("img");
+    img.className = "time-change-slide-media time-change-slide-image";
+    img.src = bgUrl;
+    img.alt = "Arrière-plan Changement d'heure";
+    img.addEventListener("load", applyTimeChangePreviewScale);
+    backdrop.appendChild(img);
+  } else {
+    backdrop.classList.add("time-change-slide-backdrop--fallback");
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "time-change-slide-overlay";
+
+  const replaceTokens = (text) => formatTimeChangeMessage(text, info);
+
+  const makeLine = (text, options, extraClasses = "") => {
+    const line = document.createElement("div");
+    line.className = `time-change-line ${extraClasses}`.trim();
+    line.textContent = replaceTokens(text || "");
+    const opts = options || TIME_CHANGE_TEXT_OPTIONS_DEFAULT;
+    line.style.color = opts.color || settings.text_color || "#f8fafc";
+    if (opts.font_size) line.style.fontSize = `${opts.font_size}px`;
+    if (opts.font_family) line.style.fontFamily = opts.font_family;
+    line.style.textDecoration = opts.underline ? "underline" : "none";
+    if (opts.width_percent) line.style.maxWidth = `${opts.width_percent}%`;
+    if (opts.height_percent) line.style.minHeight = `${opts.height_percent}%`;
+    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+    const left = Math.min(100, Math.max(0, 50 + offsetX));
+    const top = Math.min(100, Math.max(0, 50 - offsetY));
+    line.style.left = `${left}%`;
+    line.style.top = `${top}%`;
+    const rotation = `rotate(${opts.angle || 0}deg)`;
+    line.style.transform = `translate(-50%, -50%) ${rotation}`;
+    return line;
+  };
+
+  const linesWrapper = document.createElement("div");
+  linesWrapper.className = "time-change-lines";
+  lines.forEach((line, idx) => {
+    linesWrapper.appendChild(
+      makeLine(line.text, line.options, idx === 0 ? "time-change-line--primary" : ""),
+    );
+  });
+
+  overlay.append(linesWrapper);
+  frame.append(backdrop, overlay);
+  viewport.appendChild(frame);
+  canvas.appendChild(viewport);
+  timeChangePreviewStage.appendChild(canvas);
+  timeChangePreviewCanvas = canvas;
   applyTimeChangePreviewScale();
+  timeChangePreviewRenderedSource = bgKey;
 
   if (!timeChangePreviewResizeObserver && "ResizeObserver" in window) {
     timeChangePreviewResizeObserver = new ResizeObserver(applyTimeChangePreviewScale);
@@ -3529,6 +3984,16 @@ const loadTimeChangeInfo = async () => {
   }
   updateTimeChangeNextSubtitle();
   renderTimeChangePreview();
+};
+
+const startTimeChangeAutoRefresh = () => {
+  if (timeChangeInfoRefreshTimer) {
+    clearInterval(timeChangeInfoRefreshTimer);
+  }
+  if (!timeChangeNextSubtitle) return;
+  timeChangeInfoRefreshTimer = window.setInterval(() => {
+    void loadTimeChangeInfo();
+  }, TIME_CHANGE_INFO_REFRESH_INTERVAL_MS);
 };
 
 const loadTimeChangeUpcoming = async () => {
@@ -3621,6 +4086,7 @@ const saveTimeChangeSettings = async (patch = {}) => {
     setTimeChangeStatus("Paramètres enregistrés.", "success");
     populateTimeChangeForm(timeChangeSlideSettings);
     await loadTimeChangeInfo();
+    startTimeChangeAutoRefresh();
     renderTimeChangePreview();
     renderMedia();
     return timeChangeSlideSettings;
@@ -3645,9 +4111,6 @@ const renderTimeChangeBackgroundItem = (item, current) => {
     const img = document.createElement("img");
     img.src = item.url;
     img.alt = item.label || item.filename || "Arrière-plan";
-    img.addEventListener("error", () =>
-      showBackgroundMediaError(mediaWrapper, "Aperçu indisponible."),
-    );
     mediaWrapper.appendChild(img);
   } else {
     const video = document.createElement("video");
@@ -3659,9 +4122,6 @@ const renderTimeChangeBackgroundItem = (item, current) => {
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     video.setAttribute("muted", "");
-    video.addEventListener("error", () =>
-      showBackgroundMediaError(mediaWrapper, "Aperçu indisponible."),
-    );
     mediaWrapper.appendChild(video);
   }
 
@@ -4216,15 +4676,21 @@ const applyChristmasPreviewScale = () => {
   christmasPreviewCanvas.style.setProperty("--time-change-preview-scale", `${scale}`);
 };
 
-const ensureChristmasPreviewScene = (bgKey, bgUrl, isVideo) => {
-  if (
-    christmasPreviewStage?.querySelector(".time-change-preview-canvas") &&
-    christmasPreviewRenderedSource === bgKey
-  ) {
-    return christmasPreviewStage.querySelector(".time-change-preview-canvas");
-  }
+const renderChristmasPreview = () => {
+  if (!christmasPreviewStage) return;
+  const settings = normalizeChristmasSettings(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS);
+  const info = christmasInfo;
+  const bgUrl =
+    settings.background_url ||
+    (settings.background_path ? buildApiUrl(`christmas-slide/asset/${settings.background_path}`) : null);
+  const mime = (settings.background_mimetype || "").toLowerCase();
+  const ext = getExtensionLower(settings.background_path || bgUrl || "");
+  const isVideo = mime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
+  const lines = (christmasLines && christmasLines.length ? christmasLines : normalizeChristmasLines(settings)).filter(
+    (entry) => (entry.text || "").trim().length,
+  );
 
-  if (!christmasPreviewStage) return null;
+  const bgKey = `${bgUrl || "none"}|${mime}|${ext}`;
   christmasPreviewStage.innerHTML = "";
 
   const canvas = document.createElement("div");
@@ -4254,9 +4720,6 @@ const ensureChristmasPreviewScene = (bgKey, bgUrl, isVideo) => {
     void video.play().catch(() => {});
     video.addEventListener("loadedmetadata", applyChristmasPreviewScale);
     video.addEventListener("canplay", applyChristmasPreviewScale);
-    video.addEventListener("error", () =>
-      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
-    );
     backdrop.appendChild(video);
   } else if (bgUrl) {
     const img = document.createElement("img");
@@ -4264,9 +4727,6 @@ const ensureChristmasPreviewScene = (bgKey, bgUrl, isVideo) => {
     img.src = bgUrl;
     img.alt = "Arrière-plan Noël";
     img.addEventListener("load", applyChristmasPreviewScale);
-    img.addEventListener("error", () =>
-      showPreviewBackgroundFallback(backdrop, "Arrière-plan indisponible."),
-    );
     backdrop.appendChild(img);
   } else {
     backdrop.classList.add("time-change-slide-backdrop--fallback");
@@ -4274,45 +4734,47 @@ const ensureChristmasPreviewScene = (bgKey, bgUrl, isVideo) => {
 
   const overlay = document.createElement("div");
   overlay.className = "time-change-slide-overlay";
+
+  const replaceTokens = (text) => formatChristmasMessage(text, info);
+
+  const makeLine = (text, options, extraClasses = "") => {
+    const line = document.createElement("div");
+    line.className = `time-change-line ${extraClasses}`.trim();
+    line.textContent = replaceTokens(text || "");
+    const opts = options || CHRISTMAS_TEXT_OPTIONS_DEFAULT;
+    line.style.color = opts.color || settings.text_color || "#f8fafc";
+    if (opts.font_size) line.style.fontSize = `${opts.font_size}px`;
+    if (opts.font_family) line.style.fontFamily = opts.font_family;
+    line.style.textDecoration = opts.underline ? "underline" : "none";
+    if (opts.width_percent) line.style.maxWidth = `${opts.width_percent}%`;
+    if (opts.height_percent) line.style.minHeight = `${opts.height_percent}%`;
+    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+    const left = Math.min(100, Math.max(0, 50 + offsetX));
+    const top = Math.min(100, Math.max(0, 50 - offsetY));
+    line.style.left = `${left}%`;
+    line.style.top = `${top}%`;
+    const rotation = `rotate(${opts.angle || 0}deg)`;
+    line.style.transform = `translate(-50%, -50%) ${rotation}`;
+    return line;
+  };
+
   const linesWrapper = document.createElement("div");
   linesWrapper.className = "time-change-lines";
-  overlay.appendChild(linesWrapper);
+  lines.forEach((line, idx) => {
+    linesWrapper.appendChild(
+      makeLine(line.text, line.options, idx === 0 ? "time-change-line--primary" : ""),
+    );
+  });
 
+  overlay.append(linesWrapper);
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
   canvas.appendChild(viewport);
   christmasPreviewStage.appendChild(canvas);
   christmasPreviewCanvas = canvas;
-  christmasPreviewRenderedSource = bgKey;
-  return canvas;
-};
-
-const renderChristmasPreview = () => {
-  if (!christmasPreviewStage) return;
-  const settings = normalizeChristmasSettings(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS);
-  const info = christmasInfo;
-  const bgUrl =
-    settings.background_url ||
-    (settings.background_path ? buildApiUrl(`christmas-slide/asset/${settings.background_path}`) : null);
-  const mime = (settings.background_mimetype || "").toLowerCase();
-  const ext = getExtensionLower(settings.background_path || bgUrl || "");
-  const isVideo = mime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
-  const lines = (christmasLines && christmasLines.length ? christmasLines : normalizeChristmasLines(settings)).filter(
-    (entry) => (entry.text || "").trim().length,
-  );
-
-  const bgKey = `${bgUrl || "none"}|${mime}|${ext}`;
-  ensureChristmasPreviewScene(bgKey, bgUrl, isVideo);
-  const linesWrapper = christmasPreviewStage.querySelector(".time-change-lines");
-  updateSlideLinesContent(
-    linesWrapper,
-    lines,
-    settings,
-    CHRISTMAS_TEXT_OPTIONS_DEFAULT,
-    (text) => formatChristmasMessage(text, info),
-  );
-
   applyChristmasPreviewScale();
+  christmasPreviewRenderedSource = bgKey;
 
   if (!christmasPreviewResizeObserver && "ResizeObserver" in window) {
     christmasPreviewResizeObserver = new ResizeObserver(applyChristmasPreviewScale);
@@ -4477,9 +4939,8 @@ const loadChristmasBackgroundList = async () => {
   try {
     const data = await fetchJSON("api/christmas-slide/backgrounds");
     christmasBackgroundOptions = Array.isArray(data.items) ? data.items : [];
-    let resolvedCurrent = data.current || null;
-    if (resolvedCurrent) {
-      const currentItem = christmasBackgroundOptions.find((item) => item.filename === resolvedCurrent);
+    if (data.current) {
+      const currentItem = christmasBackgroundOptions.find((item) => item.filename === data.current);
       if (currentItem) {
         christmasSlideSettings = {
           ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS),
@@ -4487,18 +4948,9 @@ const loadChristmasBackgroundList = async () => {
           background_mimetype: currentItem.mimetype || null,
           background_url: currentItem.url || buildApiUrl(`christmas-slide/asset/${currentItem.filename}`),
         };
-      } else {
-        resolvedCurrent = null;
-        christmasSlideSettings = {
-          ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS),
-          background_path: null,
-          background_mimetype: null,
-          background_url: null,
-        };
-        setChristmasBackgroundStatus("Arrière-plan introuvable. Veuillez en choisir un nouveau.", "error");
       }
     }
-    renderChristmasBackgroundList(resolvedCurrent);
+    renderChristmasBackgroundList(data.current || null);
     renderChristmasPreview();
   } catch (error) {
     console.error("Erreur lors du chargement des fonds Noël:", error);
@@ -4771,43 +5223,6 @@ const stopTeamPreviewRotation = () => {
   }
 };
 
-const shouldAnimateTeamPreview = () => teamPreviewIsVisible && !document.hidden;
-
-const setTeamPreviewVisibility = (isVisible) => {
-  if (teamPreviewIsVisible === isVisible) {
-    return;
-  }
-  teamPreviewIsVisible = isVisible;
-  if (!isVisible) {
-    stopTeamPreviewRotation();
-    teamPreviewRefreshPending = true;
-  } else if (teamPreviewRefreshPending) {
-    teamPreviewRefreshPending = false;
-    renderTeamPreview();
-  }
-};
-
-const setupTeamPreviewVisibilityObserver = () => {
-  if (!teamPreviewStage || teamPreviewVisibilityObserver || !("IntersectionObserver" in window)) {
-    return;
-  }
-  teamPreviewVisibilityObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.target !== teamPreviewStage) {
-          return;
-        }
-        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.2;
-        setTeamPreviewVisibility(visible);
-      });
-    },
-    {
-      threshold: [0, 0.2, 0.4, 1],
-    },
-  );
-  teamPreviewVisibilityObserver.observe(teamPreviewStage);
-};
-
 const applyTeamPreviewScale = () => {
   if (!teamPreviewStage || !teamPreviewCanvas) return;
   const baseW = TEAM_PREVIEW_BASE_WIDTH;
@@ -4822,34 +5237,10 @@ const applyTeamPreviewScale = () => {
   teamPreviewCanvas.style.setProperty("--team-preview-scale", `${scale}`);
 };
 
-const getTeamPreviewStructure = () => {
-  if (!teamPreviewStage) return {};
-  const canvas = teamPreviewStage.querySelector(".team-preview-canvas") || null;
-  const overlayInner =
-    teamPreviewStage.querySelector(".team-slide-overlay-inner") || null;
-  const cardsViewport = overlayInner?.querySelector(".team-slide-cards-viewport") || null;
-  const cardsContainer = overlayInner?.querySelector(".team-slide-cards") || null;
-  const titlePlaceholder = overlayInner?.querySelector(".team-slide-title-placeholder") || null;
-  const title = overlayInner?.querySelector(".team-slide-title") || null;
-  return {
-    canvas,
-    overlayInner,
-    cardsViewport,
-    cardsContainer,
-    title,
-    titlePlaceholder,
-  };
-};
-
-const getTeamBackgroundKey = (settings) => {
-  if (!settings) return "none";
-  const source = settings.background_url || settings.background_path || "none";
-  const mime = (settings.background_mimetype || "").toLowerCase();
-  return `${source}|${mime}`;
-};
-
-const buildTeamPreviewStage = (settings, bgKey) => {
-  if (!teamPreviewStage) return null;
+const renderTeamPreview = () => {
+  stopTeamPreviewRotation();
+  if (!teamPreviewStage) return;
+  const settings = teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS;
   teamPreviewStage.innerHTML = "";
 
   const canvas = document.createElement("div");
@@ -4871,15 +5262,12 @@ const buildTeamPreviewStage = (settings, bgKey) => {
       video.muted = true;
       video.playsInline = true;
       video.setAttribute("playsinline", "");
-      video.addEventListener("loadedmetadata", applyTeamPreviewScale);
-      video.addEventListener("canplay", applyTeamPreviewScale);
       root.appendChild(video);
     } else {
       const img = document.createElement("img");
       img.className = "team-slide-image";
       img.src = bgUrl;
       img.alt = "Aperçu arrière-plan Notre Équipe";
-      img.addEventListener("load", applyTeamPreviewScale);
       root.appendChild(img);
     }
   } else {
@@ -4893,9 +5281,28 @@ const buildTeamPreviewStage = (settings, bgKey) => {
   const overlayInner = document.createElement("div");
   overlayInner.className = "team-slide-overlay-inner";
 
-  const titlePlaceholder = document.createElement("div");
-  titlePlaceholder.className = "team-slide-title-placeholder";
-  overlayInner.appendChild(titlePlaceholder);
+  const hasTitle = settings.title_enabled && settings.title_text;
+  const titlePlaceholder = hasTitle ? document.createElement("div") : null;
+  const title = hasTitle ? document.createElement("div") : null;
+  if (title) {
+    title.className = "team-slide-title";
+    title.textContent = settings.title_text;
+    title.style.color = settings.title_color || "#111";
+    title.style.width = `${Math.max(10, settings.title_width_percent || 80)}%`;
+    if (settings.title_background_color) {
+      title.style.background = settings.title_background_color;
+    }
+    if (settings.title_font_size) {
+      title.style.fontSize = `${settings.title_font_size * TEAM_SLIDE_SCALE}px`;
+    }
+    if (settings.title_underline) {
+      title.style.textDecoration = "underline";
+    }
+  }
+  if (titlePlaceholder) {
+    titlePlaceholder.className = "team-slide-title-placeholder";
+    overlayInner.appendChild(titlePlaceholder);
+  }
 
   const cardsViewport = document.createElement("div");
   cardsViewport.className = "team-slide-cards-viewport team-slide-cards-viewport--masked";
@@ -4903,39 +5310,15 @@ const buildTeamPreviewStage = (settings, bgKey) => {
   cardsContainer.className = "team-slide-cards";
   cardsViewport.appendChild(cardsContainer);
   overlayInner.appendChild(cardsViewport);
-
-  const title = document.createElement("div");
-  title.className = "team-slide-title";
-  overlayInner.appendChild(title);
-
+  if (title) {
+    overlayInner.appendChild(title);
+  }
   overlay.appendChild(overlayInner);
   root.appendChild(overlay);
   canvas.appendChild(root);
   teamPreviewStage.appendChild(canvas);
   teamPreviewCanvas = canvas;
-  teamPreviewRenderedSource = bgKey;
-  return canvas;
-};
-
-const renderTeamPreview = () => {
-  stopTeamPreviewRotation();
-  if (!teamPreviewStage) return;
-  const settings = teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS;
-  const bgKey = getTeamBackgroundKey(settings);
-
-  let structure = getTeamPreviewStructure();
-  if (!structure.canvas || teamPreviewRenderedSource !== bgKey) {
-    buildTeamPreviewStage(settings, bgKey);
-    structure = getTeamPreviewStructure();
-  }
-
-  const { overlayInner, cardsViewport, cardsContainer, title, titlePlaceholder } = structure;
-  if (!overlayInner || !cardsViewport || !cardsContainer) {
-    return;
-  }
-
   applyTeamPreviewScale();
-  setupTeamPreviewVisibilityObserver();
   if (!teamPreviewResizeListenerAttached) {
     if ("ResizeObserver" in window) {
       teamPreviewResizeObserver = new ResizeObserver(applyTeamPreviewScale);
@@ -4946,67 +5329,8 @@ const renderTeamPreview = () => {
     teamPreviewResizeListenerAttached = true;
   }
 
-  const hasTitle = Boolean(settings.title_enabled && settings.title_text);
-  let activeTitle = null;
-  if (title) {
-    if (hasTitle) {
-      title.style.display = "block";
-      title.textContent = settings.title_text;
-      title.style.color = settings.title_color || "#111";
-      title.style.width = `${Math.max(10, settings.title_width_percent || 80)}%`;
-      if (settings.title_background_color) {
-        title.style.background = settings.title_background_color;
-      } else {
-        title.style.background = "";
-      }
-      if (settings.title_font_size) {
-        title.style.fontSize = `${settings.title_font_size * TEAM_SLIDE_SCALE}px`;
-      } else {
-        title.style.removeProperty("font-size");
-      }
-      title.style.textDecoration = settings.title_underline ? "underline" : "none";
-      activeTitle = title;
-    } else {
-      title.textContent = "";
-      title.style.display = "none";
-    }
-  }
-  if (titlePlaceholder) {
-    titlePlaceholder.style.display = hasTitle ? "block" : "none";
-  }
-
-  cardsContainer.innerHTML = "";
   const employeeList = Array.isArray(employees) ? employees.slice() : [];
-  const overlayStyles = window.getComputedStyle(overlayInner);
-  const overlayPaddingTop = Number.parseFloat(overlayStyles.paddingTop) || 0;
-
-  const measureTitlePositions = () => {
-    if (!activeTitle) {
-      if (titlePlaceholder) {
-        titlePlaceholder.style.height = "0";
-      }
-      return { titleStartCenter: 0, titleEndCenter: 0, titleDistance: 0 };
-    }
-    const titleHeight = activeTitle.getBoundingClientRect().height || 0;
-    if (titlePlaceholder) {
-      titlePlaceholder.style.height = `${titleHeight}px`;
-    }
-    const overlayRect = overlayInner.getBoundingClientRect();
-    const titleStartCenter = (overlayRect.height || 0) / 2;
-    const titleEndCenter = overlayPaddingTop + titleHeight / 2;
-    const titleDistance = Math.max(0, titleStartCenter - titleEndCenter);
-    activeTitle.dataset.startCenter = String(titleStartCenter);
-    activeTitle.dataset.endCenter = String(titleEndCenter);
-    activeTitle.style.position = "absolute";
-    activeTitle.style.left = "50%";
-    activeTitle.style.top = `${titleStartCenter}px`;
-    activeTitle.style.transform = "translate(-50%, -50%)";
-    activeTitle.style.willChange = "transform, top";
-    return { titleStartCenter, titleEndCenter, titleDistance };
-  };
-
   if (!employeeList.length) {
-    measureTitlePositions();
     const empty = document.createElement("div");
     empty.className = "team-preview-empty";
     empty.textContent = "Ajoutez des employés pour visualiser la diapositive.";
@@ -5014,10 +5338,13 @@ const renderTeamPreview = () => {
     return;
   }
 
+  cardsContainer.innerHTML = "";
   employeeList.forEach((emp) => cardsContainer.appendChild(renderTeamPreviewCard(emp)));
+  cardsContainer.style.transform = "translateY(0)";
   cardsContainer.style.willChange = "transform";
 
-  const { titleStartCenter, titleEndCenter, titleDistance } = measureTitlePositions();
+  const overlayStyles = window.getComputedStyle(overlayInner);
+  const overlayPaddingTop = Number.parseFloat(overlayStyles.paddingTop) || 0;
 
   const viewportHeight = Math.max(1, cardsViewport.clientHeight || 0);
   const contentHeight = cardsContainer.scrollHeight;
@@ -5035,23 +5362,37 @@ const renderTeamPreview = () => {
   }
   const overrun = Math.max(48, minCardHeight / 2);
 
+  if (title) {
+    const titleHeight = title.getBoundingClientRect().height || 0;
+    if (titlePlaceholder) {
+      titlePlaceholder.style.height = `${titleHeight}px`;
+    }
+    const overlayRect = overlayInner.getBoundingClientRect();
+    const titleStartCenter = (overlayRect.height || 0) / 2;
+    const titleEndCenter = overlayPaddingTop + titleHeight / 2;
+    title.dataset.startCenter = String(titleStartCenter);
+    title.dataset.endCenter = String(titleEndCenter);
+    title.style.position = "absolute";
+    title.style.left = "50%";
+    title.style.top = `${titleStartCenter}px`;
+    title.style.transform = "translate(-50%, -50%)";
+    title.style.willChange = "transform, top";
+  }
+
   const startOffset = viewportHeight;
   const exitOffset = -(contentHeight + overrun);
   const pixelsPerSecond =
     contentHeight > 0 ? (viewportHeight + minCardHeight) / minDurationSec : 0;
-  const animateTeam = shouldAnimateTeamPreview() && pixelsPerSecond > 0;
-  cardsContainer.style.transform = animateTeam ? `translateY(${startOffset}px)` : "translateY(0)";
+  cardsContainer.style.transform = `translateY(${startOffset}px)`;
 
-  if (!animateTeam) {
-    if (activeTitle && titleDistance > 0) {
-      const fallbackCenter = titleEndCenter || titleStartCenter;
-      activeTitle.style.top = `${fallbackCenter}px`;
-      activeTitle.style.transform = "translate(-50%, -50%)";
-    }
+  if (pixelsPerSecond <= 0) {
     return;
   }
 
   let startTime = null;
+  const titleStartCenter = title ? Number(title.dataset.startCenter) || 0 : 0;
+  const titleEndCenter = title ? Number(title.dataset.endCenter) || 0 : 0;
+  const titleDistance = title ? Math.max(0, titleStartCenter - titleEndCenter) : 0;
 
   const animateScroll = (timestamp) => {
     if (startTime == null) {
@@ -5063,11 +5404,11 @@ const renderTeamPreview = () => {
     const clampedOffset = Math.max(currentOffset, exitOffset);
     cardsContainer.style.transform = `translateY(${clampedOffset}px)`;
 
-    if (activeTitle && titleDistance > 0) {
+    if (title && titleDistance > 0) {
       const titleTraveled = Math.min(titleDistance, elapsedSeconds * pixelsPerSecond);
       const currentCenter = titleStartCenter - titleTraveled;
-      activeTitle.style.top = `${currentCenter}px`;
-      activeTitle.style.transform = "translate(-50%, -50%)";
+      title.style.top = `${currentCenter}px`;
+      title.style.transform = "translate(-50%, -50%)";
     }
 
     if (clampedOffset <= exitOffset) {
@@ -5079,11 +5420,12 @@ const renderTeamPreview = () => {
     teamPreviewFrame = requestAnimationFrame(animateScroll);
   };
 
-  const holdMs = activeTitle ? TEAM_TITLE_HOLD_MS : 0;
+  const holdMs = title ? TEAM_TITLE_HOLD_MS : 0;
   teamPreviewStartTimer = setTimeout(() => {
     teamPreviewFrame = requestAnimationFrame(animateScroll);
   }, holdMs);
 };
+
 const loadTeamBackgroundList = async () => {
   if (!teamBackgroundList) return;
   try {
@@ -5290,8 +5632,11 @@ const buildBirthdayString = () => {
   const day = employeeBirthdayDay.value;
   const month = employeeBirthdayMonth.value;
   const year = employeeBirthdayYear.value;
-  if (!day || !month || !year) return "";
-  return `${year}-${pad2(month)}-${pad2(day)}`;
+  if (!day || !month) return "";
+  if (year) {
+    return `${year}-${pad2(month)}-${pad2(day)}`;
+  }
+  return `${pad2(month)}-${pad2(day)}`;
 };
 
 const buildHireDateString = () => {
@@ -5313,7 +5658,13 @@ const parseBirthdayIntoFields = (value) => {
   const parts = value.split("-");
   if (parts.length === 3) {
     const [y, m, d] = parts;
+    ensureSelectHasValue(employeeBirthdayYear, y, y);
     employeeBirthdayYear.value = y || "";
+    employeeBirthdayMonth.value = String(Number(m) || "");
+    employeeBirthdayDay.value = String(Number(d) || "");
+  } else if (parts.length === 2) {
+    const [m, d] = parts;
+    employeeBirthdayYear.value = "";
     employeeBirthdayMonth.value = String(Number(m) || "");
     employeeBirthdayDay.value = String(Number(d) || "");
   }
@@ -5324,6 +5675,7 @@ const parseHireDateIntoFields = (value) => {
   const parts = value.split("-");
   if (parts.length >= 2) {
     const [y, m, d] = parts;
+    ensureSelectHasValue(employeeHireYear, y, y);
     employeeHireYear.value = y || "";
     employeeHireMonth.value = String(Number(m) || "");
     employeeHireDay.value = d ? String(Number(d)) : "";
@@ -5405,6 +5757,97 @@ const createRangeSelect = (start, end, placeholder) => {
   return select;
 };
 
+const ensureSelectHasValue = (select, value, label) => {
+  if (!select || !value) return;
+  const exists = Array.from(select.options).some((opt) => opt.value === String(value));
+  if (!exists) {
+    const opt = document.createElement("option");
+    opt.value = String(value);
+    opt.textContent = label || String(value);
+    select.appendChild(opt);
+  }
+};
+
+const createMonthSelect = (placeholder) => {
+  const monthLabels = [
+    "Janvier",
+    "Février",
+    "Mars",
+    "Avril",
+    "Mai",
+    "Juin",
+    "Juillet",
+    "Août",
+    "Septembre",
+    "Octobre",
+    "Novembre",
+    "Décembre",
+  ];
+  const select = document.createElement("select");
+  if (placeholder) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = placeholder;
+    select.appendChild(opt);
+  }
+  monthLabels.forEach((label, index) => {
+    const opt = document.createElement("option");
+    const value = index + 1;
+    opt.value = String(value);
+    opt.textContent = `${value} - ${label}`;
+    select.appendChild(opt);
+  });
+  return select;
+};
+
+const formatEmployeeDateLabel = (value) => {
+  if (!value || typeof value !== "string") return "";
+  const parts = value.split("-");
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    if (m && d) {
+      const monthIndex = Number(m) - 1;
+      const months = [
+        "janv.",
+        "févr.",
+        "mars",
+        "avr.",
+        "mai",
+        "juin",
+        "juil.",
+        "août",
+        "sept.",
+        "oct.",
+        "nov.",
+        "déc.",
+      ];
+      const monthLabel = months[monthIndex] || m;
+      return `${Number(d)} ${monthLabel} ${y || ""}`.trim();
+    }
+  }
+  if (parts.length === 2) {
+    const [m, d] = parts;
+    const monthIndex = Number(m) - 1;
+    const months = [
+      "janv.",
+      "févr.",
+      "mars",
+      "avr.",
+      "mai",
+      "juin",
+      "juil.",
+      "août",
+      "sept.",
+      "oct.",
+      "nov.",
+      "déc.",
+    ];
+    const monthLabel = months[monthIndex] || m;
+    return `${Number(d)} ${monthLabel}`;
+  }
+  return value;
+};
+
 const uploadEmployeeAvatarInline = async (employeeId, file) => {
   if (!file) return;
   const formData = new FormData();
@@ -5457,6 +5900,14 @@ const renderEmployeesList = () => {
     if (serviceLabel) {
       metaBits.push(serviceLabel);
     }
+    const birthdayLabel = formatEmployeeDateLabel(emp.birthday);
+    if (birthdayLabel) {
+      metaBits.push(`Anniversaire: ${birthdayLabel}`);
+    }
+    const hireLabel = formatEmployeeDateLabel(emp.hire_date);
+    if (hireLabel) {
+      metaBits.push(`Embauche: ${hireLabel}`);
+    }
     meta.textContent = metaBits.join(" • ");
     info.append(name, meta);
 
@@ -5492,7 +5943,7 @@ const renderEmployeesList = () => {
     descInput.value = emp.description || "";
 
     const bYear = createRangeSelect(1950, new Date().getFullYear(), "Année (optionnel)");
-    const bMonth = createRangeSelect(1, 12, "Mois");
+    const bMonth = createMonthSelect("Mois");
     const bDay = createRangeSelect(1, 31, "Jour");
     if (emp.birthday) {
       const parts = emp.birthday.split("-");
@@ -5501,10 +5952,15 @@ const renderEmployeesList = () => {
         bMonth.value = String(Number(parts[1]) || "");
         bDay.value = String(Number(parts[2]) || "");
       }
+      if (parts.length === 2) {
+        bMonth.value = String(Number(parts[0]) || "");
+        bDay.value = String(Number(parts[1]) || "");
+      }
+      ensureSelectHasValue(bYear, bYear.value, bYear.value);
     }
 
     const hYear = createRangeSelect(1950, new Date().getFullYear(), "Année");
-    const hMonth = createRangeSelect(1, 12, "Mois");
+    const hMonth = createMonthSelect("Mois");
     const hDay = createRangeSelect(1, 31, "Jour");
     if (emp.hire_date) {
       const parts = emp.hire_date.split("-");
@@ -5513,6 +5969,7 @@ const renderEmployeesList = () => {
         hMonth.value = String(Number(parts[1]) || "");
         if (parts[2]) hDay.value = String(Number(parts[2]) || "");
       }
+      ensureSelectHasValue(hYear, hYear.value, hYear.value);
     }
 
     const avatarInput = document.createElement("input");
@@ -5821,16 +6278,17 @@ const initEmployeeFormChoices = () => {
     ];
     monthLabels.forEach((label, index) => {
       const value = String(index + 1);
+      const text = `${index + 1} - ${label}`;
       if (employeeBirthdayMonth) {
         const opt = document.createElement("option");
         opt.value = value;
-        opt.textContent = label;
+        opt.textContent = text;
         employeeBirthdayMonth.appendChild(opt);
       }
       if (employeeHireMonth) {
         const opt2 = document.createElement("option");
         opt2.value = value;
-        opt2.textContent = label;
+        opt2.textContent = text;
         employeeHireMonth.appendChild(opt2);
       }
     });
@@ -5962,12 +6420,12 @@ if (uploadForm && fileInput && dropZone) {
     });
   });
 
-  dropZone.addEventListener("drop", (event) => {
-    const { files } = event.dataTransfer || {};
-    if (files && files.length) {
-      setSelectedFiles(files);
-    }
-  });
+dropZone.addEventListener("drop", (event) => {
+  const { files } = event.dataTransfer || {};
+  if (files && files.length) {
+    setSelectedFiles(files);
+  }
+});
 }
 
 refreshButton?.addEventListener("click", () => {
@@ -6141,6 +6599,10 @@ birthdayOpeningToggle?.addEventListener("click", () => {
   birthdayOpeningToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
 });
 
+birthdayDaysBeforeInput?.addEventListener("input", () => {
+  void saveBirthdaySettings();
+});
+
 // Mise à jour en direct des réglages de titre
 [birthdayTitleTextInput, birthdayTitleSizeInput, birthdayTitleColorInput, birthdayTitleYInput].forEach(
   (input) => {
@@ -6203,6 +6665,7 @@ timeChangeSaveButton?.addEventListener("click", () => {
 
 timeChangeRefreshButton?.addEventListener("click", () => {
   void loadTimeChangeInfo();
+  startTimeChangeAutoRefresh();
 });
 
 timeChangeShowUpcomingButton?.addEventListener("click", () => {
@@ -6432,18 +6895,6 @@ employeeAvatarRemoveButton?.addEventListener("click", () => {
   void removeEmployeeAvatar();
 });
 
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    stopTeamPreviewRotation();
-    teamPreviewRefreshPending = true;
-    return;
-  }
-  if (teamPreviewStage && teamPreviewIsVisible) {
-    teamPreviewRefreshPending = false;
-    renderTeamPreview();
-  }
-});
-
 // PowerPoint (accueil)
 pptUploadButton?.addEventListener("click", () => {
   openPptModal();
@@ -6482,6 +6933,7 @@ window.addEventListener("load", async () => {
   }
   if (needsMedia) {
     await loadMedia();
+    void loadAutoSlideAvailability();
   }
   if (needsEmployees) {
     await loadEmployees();

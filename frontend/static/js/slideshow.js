@@ -10,6 +10,7 @@ const overlayContent = document.querySelector("#overlay-content");
 
 const rootElement = document.documentElement;
 const urlParams = new URLSearchParams(window.location.search);
+const sharedRenderers = window.CardinalSlideRenderers || null;
 
 const DEFAULT_OVERLAY = {
   enabled: true,
@@ -42,6 +43,7 @@ const DEFAULT_BIRTHDAY_SLIDE = {
   enabled: false,
   order_index: 0,
   duration: 12,
+  days_before: 3,
   background_url: null,
   background_mimetype: null,
   background_label: null,
@@ -59,16 +61,40 @@ const BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
   height_percent: 0,
   color: "#ffffff",
   underline: false,
+  bold: false,
+  italic: false,
+  background_color: null,
+  background_opacity: 0,
   offset_x_percent: 0,
   offset_y_percent: 0,
   curve: 0,
   angle: 0,
 };
 const BIRTHDAY_MAX_LINES = 50;
+const BIRTHDAY_DEFAULT_DAYS_BEFORE = 3;
 const birthdayCustomFonts = [];
 
 const TIME_CHANGE_TEXT_OPTIONS_DEFAULT = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" };
 const clampPercent = (value) => Math.min(100, Math.max(0, value));
+const clamp01 = (value) => Math.min(1, Math.max(0, Number(value) || 0));
+const hexToRgb = (value) => {
+  if (typeof value !== "string") return { r: 0, g: 0, b: 0 };
+  const hex = value.trim().replace("#", "");
+  const normalized = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex.padEnd(6, "0").slice(0, 6);
+  const num = parseInt(normalized, 16);
+  if (Number.isNaN(num)) return { r: 0, g: 0, b: 0 };
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+};
+const applyLineBackground = (element, opts) => {
+  if (!element || !opts) return;
+  const opacity = clamp01(opts.background_opacity);
+  if (!opts.background_color || opacity <= 0) {
+    element.style.backgroundColor = "transparent";
+    return;
+  }
+  const { r, g, b } = hexToRgb(opts.background_color);
+  element.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
 
 const DEFAULT_TIME_CHANGE_SLIDE = {
   enabled: false,
@@ -78,6 +104,8 @@ const DEFAULT_TIME_CHANGE_SLIDE = {
   background_mimetype: null,
   background_path: null,
   days_before: 7,
+  use_custom_date: false,
+  custom_date: "",
   offset_hours: 1,
   title_text: "Annonce Changement d'heure (Été / Hiver)",
   message_template:
@@ -239,8 +267,8 @@ let christmasInfo = null;
 let lastChristmasFetch = 0;
 const CHRISTMAS_REFRESH_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 let customSlideSettings = { ...DEFAULT_CUSTOM_SLIDE };
-let customSlidePayload = null;
-let lastCustomSlideFetch = 0;
+let customSlidesPayload = null;
+let lastCustomSlidesFetch = 0;
 const CUSTOM_SLIDE_REFRESH_MS = 15 * 1000;
 let teamEmployeesData = [];
 let teamEmployeesPromise = null;
@@ -255,6 +283,8 @@ let teamScrollEndTimer = null;
 let teamScrollStartTimer = null;
 let birthdayEmployeesData = null;
 const birthdayVariantConfigs = {};
+const birthdayVariantConfigFetchAt = {};
+const BIRTHDAY_CONFIG_REFRESH_MS = 15_000;
 const birthdayFontRegistry = new Map();
 
 const loadBirthdayCustomFonts = async () => {
@@ -338,24 +368,149 @@ const normalizeBirthdayVariantConfig = (rawConfig = {}, variant = "before") => {
   };
 };
 
-const loadBirthdayVariantConfig = async (variant) => {
-  if (birthdayVariantConfigs[variant]) return birthdayVariantConfigs[variant];
+const birthdayVariantConfigIsStale = (variant, now = Date.now()) => {
+  const cached = birthdayVariantConfigs[variant];
+  if (!cached) return true;
+  const fetchedAt = birthdayVariantConfigFetchAt[variant] || 0;
+  return now - fetchedAt > BIRTHDAY_CONFIG_REFRESH_MS;
+};
+
+const loadBirthdayVariantConfig = async (variant, { force = false } = {}) => {
+  const normalizedVariant = BIRTHDAY_VARIANTS.includes(variant) ? variant : "before";
+  const now = Date.now();
+  if (!force && !birthdayVariantConfigIsStale(normalizedVariant, now)) {
+    return birthdayVariantConfigs[normalizedVariant];
+  }
   try {
-    const data = await fetchJSON(`api/birthday-slide/config/${variant}`);
+    const data = await fetchJSON(`api/birthday-slide/config/${normalizedVariant}`);
     const cfg = (data && data.config) || {};
-    birthdayVariantConfigs[variant] = normalizeBirthdayVariantConfig(cfg, variant);
+    birthdayVariantConfigs[normalizedVariant] = normalizeBirthdayVariantConfig(cfg, normalizedVariant);
   } catch (error) {
     console.warn("Impossible de charger le modèle Anniversaire:", error);
-    birthdayVariantConfigs[variant] = normalizeBirthdayVariantConfig(
-      { ...(BIRTHDAY_FIXED_COPY[variant] || {}) },
-      variant,
+    birthdayVariantConfigs[normalizedVariant] = normalizeBirthdayVariantConfig(
+      { ...(BIRTHDAY_FIXED_COPY[normalizedVariant] || {}) },
+      normalizedVariant,
     );
   }
-  return birthdayVariantConfigs[variant];
+  birthdayVariantConfigFetchAt[normalizedVariant] = now;
+  return birthdayVariantConfigs[normalizedVariant];
 };
 let lastBirthdayFetch = 0;
 const BIRTHDAY_REFRESH_MS = 60_000;
-const BIRTHDAY_COUNTDOWN_DAYS = 3;
+
+const BIRTHDAY_MIN_TEXT_SIZE = 5;
+const BIRTHDAY_MAX_TEXT_SIZE = 100;
+const BIRTHDAY_DEFAULT_HEIGHT_PERCENT = 12;
+const BIRTHDAY_MIN_FONT_SIZE = 8;
+const BIRTHDAY_TEXT_LINE_HEIGHT = 1.2;
+const BIRTHDAY_CARD_VERTICAL_PADDING_RATIO = 0.08;
+const BIRTHDAY_CARD_HORIZONTAL_PADDING_RATIO = 0.06;
+const BIRTHDAY_CARD_MAX_PADDING_RATIO = 0.25;
+const BIRTHDAY_MIN_VERTICAL_PADDING_PX = 8;
+const BIRTHDAY_MIN_HORIZONTAL_PADDING_PX = 12;
+const birthdayMeasureCanvas = document.createElement("canvas");
+const birthdayMeasureCtx = birthdayMeasureCanvas.getContext("2d");
+const getBirthdayFontStack = (fontFamily) => {
+  const primary = (fontFamily || "").trim();
+  return `"${primary || "Poppins"}", "Poppins", "Helvetica Neue", Arial, sans-serif`;
+};
+const clampBirthdayPercent = (value, fallback) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return fallback;
+  return Math.max(1, Math.min(100, num));
+};
+const birthdayComputeFontSizeForHeight = (availableHeightPx, text) => {
+  const lines = (text || "").split(/\r?\n/);
+  if (!availableHeightPx || !lines.length) return BIRTHDAY_MIN_FONT_SIZE;
+  const fontSizeByHeight = availableHeightPx / (lines.length * BIRTHDAY_TEXT_LINE_HEIGHT);
+  return Math.max(BIRTHDAY_MIN_FONT_SIZE, Math.min(220, Math.floor(fontSizeByHeight)));
+};
+const birthdayMeasureTextBlock = (text, fontSize, fontFamily) => {
+  const lines = (text || "").split(/\r?\n/);
+  if (!birthdayMeasureCtx) {
+    const fallbackWidth = Math.max(
+      1,
+      ...lines.map((l) => (l || "").length * fontSize * 0.6),
+    );
+    return {
+      width: fallbackWidth,
+      height: Math.max(1, lines.length * fontSize * BIRTHDAY_TEXT_LINE_HEIGHT),
+    };
+  }
+  birthdayMeasureCtx.font = `${fontSize}px ${fontFamily}`;
+  let maxWidth = 1;
+  lines.forEach((line) => {
+    const metrics = birthdayMeasureCtx.measureText(line || " ");
+    maxWidth = Math.max(maxWidth, metrics.width || 1);
+  });
+  return {
+    width: Math.max(1, maxWidth),
+    height: Math.max(1, lines.length * fontSize * BIRTHDAY_TEXT_LINE_HEIGHT),
+  };
+};
+const layoutOverlayLine = (lineEl, contentEl, text, opts, overlayWidth, overlayHeight) => {
+  if (!lineEl || !contentEl) return;
+  const widthPercent = clampBirthdayPercent(opts.width_percent, 100);
+  const heightPercent = clampBirthdayPercent(
+    opts.height_percent > 0 ? opts.height_percent : BIRTHDAY_DEFAULT_HEIGHT_PERCENT,
+    BIRTHDAY_DEFAULT_HEIGHT_PERCENT,
+  );
+  const angle = Number(opts.angle) || 0;
+  const fontFamily = getBirthdayFontStack(opts.font_family);
+  const cardWidthPx = (overlayWidth * widthPercent) / 100;
+  const cardHeightPx = (overlayHeight * heightPercent) / 100;
+
+  const horizontalPaddingPx = Math.min(
+    Math.max(cardWidthPx * BIRTHDAY_CARD_HORIZONTAL_PADDING_RATIO, BIRTHDAY_MIN_HORIZONTAL_PADDING_PX),
+    cardWidthPx * BIRTHDAY_CARD_MAX_PADDING_RATIO,
+  );
+  const verticalPaddingPx = Math.min(
+    Math.max(cardHeightPx * BIRTHDAY_CARD_VERTICAL_PADDING_RATIO, BIRTHDAY_MIN_VERTICAL_PADDING_PX),
+    cardHeightPx * BIRTHDAY_CARD_MAX_PADDING_RATIO,
+  );
+
+  lineEl.style.width = `${widthPercent}%`;
+  lineEl.style.maxWidth = `${widthPercent}%`;
+  lineEl.style.height = `${heightPercent}%`;
+  lineEl.style.minHeight = `${heightPercent}%`;
+  lineEl.dataset.widthPercent = String(widthPercent);
+  lineEl.dataset.heightPercent = String(heightPercent);
+  lineEl.style.padding = `${verticalPaddingPx}px ${horizontalPaddingPx}px`;
+  lineEl.style.boxSizing = "border-box";
+  lineEl.style.display = "flex";
+  lineEl.style.justifyContent = "center";
+  lineEl.style.alignItems = "center";
+  lineEl.style.textAlign = "center";
+  lineEl.style.whiteSpace = "pre";
+  lineEl.style.wordBreak = "normal";
+  lineEl.style.overflow = "visible";
+
+  const availableHeightPx = Math.max(4, cardHeightPx - verticalPaddingPx * 2);
+  const availableWidthPx = Math.max(4, cardWidthPx - horizontalPaddingPx * 2);
+  let fontSize = birthdayComputeFontSizeForHeight(availableHeightPx, text);
+  const metrics = birthdayMeasureTextBlock(text, fontSize, fontFamily);
+  if (metrics.height > availableHeightPx) {
+    const ratio = availableHeightPx / metrics.height;
+    const adjusted = Math.max(BIRTHDAY_MIN_FONT_SIZE, Math.floor(fontSize * ratio));
+    if (adjusted !== fontSize) {
+      fontSize = adjusted;
+    }
+  }
+  const measured = birthdayMeasureTextBlock(text, fontSize, fontFamily);
+  const widthScale = Math.min(4, Math.max(0.25, availableWidthPx / Math.max(1, measured.width)));
+
+  lineEl.style.fontFamily = fontFamily;
+  lineEl.style.fontSize = `${fontSize}px`;
+  lineEl.style.lineHeight = BIRTHDAY_TEXT_LINE_HEIGHT.toString();
+  lineEl.style.transformOrigin = "50% 50%";
+  lineEl.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+
+  contentEl.style.display = "inline-flex";
+  contentEl.style.alignItems = "center";
+  contentEl.style.justifyContent = "center";
+  contentEl.style.transformOrigin = "center";
+  contentEl.style.transform = `scale(${widthScale}, 1)`;
+};
 
 try {
   if (sessionStorage.getItem("cardinal_auto_slideshow") === "1") {
@@ -544,8 +699,8 @@ const fetchJSON = async (url, options = {}) => {
   return response.json();
 };
 
-const preloadBirthdayVariants = async () => {
-  await Promise.all(BIRTHDAY_VARIANTS.map((variant) => loadBirthdayVariantConfig(variant)));
+const preloadBirthdayVariants = async ({ force = false } = {}) => {
+  await Promise.all(BIRTHDAY_VARIANTS.map((variant) => loadBirthdayVariantConfig(variant, { force })));
 };
 
 const fetchTimeChangeInfo = async (force = false) => {
@@ -635,6 +790,14 @@ const computeAnnounceDate = (targetDate, openDays) => {
   return targetDate;
 };
 
+const getBirthdayDaysBefore = () => {
+  const val = Number(birthdaySlideSettings?.days_before);
+  if (Number.isFinite(val) && val >= 0 && val <= 365) return val;
+  const fallback = Number(DEFAULT_BIRTHDAY_SLIDE.days_before ?? BIRTHDAY_DEFAULT_DAYS_BEFORE);
+  if (Number.isFinite(fallback) && fallback >= 0 && fallback <= 365) return fallback;
+  return BIRTHDAY_DEFAULT_DAYS_BEFORE;
+};
+
 const formatBirthdayMeta = (birthdayDate) => {
   if (!(birthdayDate instanceof Date) || Number.isNaN(birthdayDate)) {
     return { weekday: "", fullDate: "" };
@@ -653,36 +816,45 @@ const refreshOverlaySettings = async () => {
   try {
     const data = await fetchJSON("api/settings");
     const signature = JSON.stringify(data || {});
-    if (signature === overlaySignature) {
-      return;
+    const settingsChanged = signature !== overlaySignature;
+    if (settingsChanged) {
+      overlaySignature = signature;
+      const overlay = (data && data.overlay) || {};
+      applyOverlaySettings(overlay);
+      const rawBirthday = data && data.birthday_slide ? data.birthday_slide : {};
+      const rawDays = Number(rawBirthday?.days_before);
+      const parsedDays =
+        Number.isFinite(rawDays) && rawDays >= 0 && rawDays <= 365
+          ? rawDays
+          : DEFAULT_BIRTHDAY_SLIDE.days_before;
+      birthdaySlideSettings = {
+        ...DEFAULT_BIRTHDAY_SLIDE,
+        ...rawBirthday,
+        days_before: parsedDays,
+        open_days: normalizeOpenDays(rawBirthday?.open_days),
+      };
+      birthdayEmployeesData = null;
+      lastBirthdayFetch = 0;
+      teamSlideSettings = {
+        ...DEFAULT_TEAM_SLIDE,
+        ...(data && data.team_slide ? data.team_slide : {}),
+      };
+      timeChangeSlideSettings = {
+        ...DEFAULT_TIME_CHANGE_SLIDE,
+        ...(data && data.time_change_slide ? data.time_change_slide : {}),
+      };
+      christmasSlideSettings = {
+        ...DEFAULT_CHRISTMAS_SLIDE,
+        ...(data && data.christmas_slide ? data.christmas_slide : {}),
+      };
+      customSlideSettings = {
+        ...DEFAULT_CUSTOM_SLIDE,
+        ...(data && data.test_slide ? data.test_slide : {}),
+      };
+      await fetchTimeChangeInfo(true);
+      await fetchChristmasInfo(true);
     }
-    overlaySignature = signature;
-    const overlay = (data && data.overlay) || {};
-    applyOverlaySettings(overlay);
-    birthdaySlideSettings = {
-      ...DEFAULT_BIRTHDAY_SLIDE,
-      ...(data && data.birthday_slide ? data.birthday_slide : {}),
-      open_days: normalizeOpenDays(data?.birthday_slide?.open_days),
-    };
-    teamSlideSettings = {
-      ...DEFAULT_TEAM_SLIDE,
-      ...(data && data.team_slide ? data.team_slide : {}),
-    };
-    timeChangeSlideSettings = {
-      ...DEFAULT_TIME_CHANGE_SLIDE,
-      ...(data && data.time_change_slide ? data.time_change_slide : {}),
-    };
-    christmasSlideSettings = {
-      ...DEFAULT_CHRISTMAS_SLIDE,
-      ...(data && data.christmas_slide ? data.christmas_slide : {}),
-    };
-    customSlideSettings = {
-      ...DEFAULT_CUSTOM_SLIDE,
-      ...(data && data.custom_slide ? data.custom_slide : {}),
-    };
-    await preloadBirthdayVariants();
-    await fetchTimeChangeInfo(true);
-    await fetchChristmasInfo(true);
+    await preloadBirthdayVariants({ force: settingsChanged });
   } catch (error) {
     console.warn("Impossible de charger les paramètres:", error);
   }
@@ -779,26 +951,6 @@ const getCustomFontStack = (fontFamily) => {
     return CUSTOM_FONT_FALLBACK;
   }
   return `"${fontFamily}", ${CUSTOM_FONT_FALLBACK}`;
-};
-
-const hexToRgb = (value) => {
-  if (typeof value !== "string") {
-    return { r: 0, g: 0, b: 0 };
-  }
-  const hex = value.trim().replace("#", "");
-  if (!hex) {
-    return { r: 0, g: 0, b: 0 };
-  }
-  const normalized = hex.length === 3 ? hex.split("").map((ch) => ch + ch).join("") : hex;
-  const int = Number.parseInt(normalized, 16);
-  if (Number.isNaN(int)) {
-    return { r: 0, g: 0, b: 0 };
-  }
-  return {
-    r: (int >> 16) & 255,
-    g: (int >> 8) & 255,
-    b: int & 255,
-  };
 };
 
 const buildRgbaColor = (hex, opacity) => {
@@ -983,7 +1135,18 @@ const createCustomTextCard = (entry, overlayWidth, overlayHeight, tokenMap) => {
   content.textContent = displayValue;
   card.dataset.rawValue = rawValue;
   card.dataset.renderedValue = displayValue;
+  card.dataset.width = normalizedSize.width ?? DEFAULT_CUSTOM_TEXT_SIZE.width;
+  card.dataset.height = normalizedSize.height ?? DEFAULT_CUSTOM_TEXT_SIZE.height;
+  card.dataset.fontFamily = normalizedStyle.font_family || DEFAULT_CUSTOM_TEXT_STYLE.font_family;
+  card.dataset.backgroundColor = normalizedBackground.color || DEFAULT_CUSTOM_TEXT_BACKGROUND.color;
+  card.dataset.backgroundOpacity =
+    normalizedBackground.opacity ?? DEFAULT_CUSTOM_TEXT_BACKGROUND.opacity;
   card.appendChild(content);
+
+  if (sharedRenderers?.layoutCustomTextCard) {
+    sharedRenderers.layoutCustomTextCard(card, overlayWidth, overlayHeight);
+    return card;
+  }
 
   const widthPercent = clampValue(Number(normalizedSize.width) || DEFAULT_CUSTOM_TEXT_SIZE.width, 5, 90);
   const heightPercent = clampValue(Number(normalizedSize.height) || DEFAULT_CUSTOM_TEXT_SIZE.height, 5, 90);
@@ -1550,24 +1713,37 @@ const computeNextBirthday = (birthdayStr) => {
   if (!birthdayStr) return null;
   const parts = birthdayStr.split("-");
   if (parts.length < 2) return null;
-  const month = Number(parts[1] || parts[0]);
-  const day = Number(parts[2] || parts[1] || 1);
-  if (!Number.isFinite(month) || !Number.isFinite(day) || month < 1 || month > 12 || day < 1 || day > 31) {
-    return null;
+
+  const tryBuild = (m, d) => {
+    if (!Number.isFinite(m) || !Number.isFinite(d) || m < 1 || m > 12 || d < 1 || d > 31) {
+      return null;
+    }
+    const now = new Date();
+    const thisYear = now.getFullYear();
+    const candidate = new Date(Date.UTC(thisYear, m - 1, d));
+    const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    if (candidate < todayUtc) {
+      candidate.setUTCFullYear(thisYear + 1);
+    }
+    return candidate;
+  };
+
+  // Formats pris en charge : YYYY-MM-DD, MM-DD, DD-MM.
+  if (parts.length === 3) {
+    return tryBuild(Number(parts[1]), Number(parts[2]));
   }
-  const now = new Date();
-  const thisYear = now.getFullYear();
-  const candidate = new Date(Date.UTC(thisYear, month - 1, day));
-  const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-  if (candidate < todayUtc) {
-    candidate.setUTCFullYear(thisYear + 1);
-  }
-  return candidate;
+
+  // Préférer MM-DD (classique) puis essayer l'inversion DD-MM.
+  return (
+    tryBuild(Number(parts[0]), Number(parts[1])) ||
+    tryBuild(Number(parts[1]), Number(parts[0]))
+  );
 };
 
 const ensureBirthdayEmployeesData = async () => {
   const now = Date.now();
-  if (birthdayEmployeesData && now - lastBirthdayFetch < BIRTHDAY_REFRESH_MS) {
+  const configsFresh = BIRTHDAY_VARIANTS.every((variant) => !birthdayVariantConfigIsStale(variant, now));
+  if (birthdayEmployeesData && now - lastBirthdayFetch < BIRTHDAY_REFRESH_MS && configsFresh) {
     return birthdayEmployeesData;
   }
 
@@ -1592,7 +1768,7 @@ const ensureBirthdayEmployeesData = async () => {
     }
     const displayAllowed =
       variant === "day" ||
-      (variant === "before" && daysToBirthday <= BIRTHDAY_COUNTDOWN_DAYS) ||
+      (variant === "before" && daysToBirthday <= getBirthdayDaysBefore()) ||
       (variant === "weekend" && daysToAnnounce === 0);
     if (!displayAllowed) return;
     const key = next.getTime();
@@ -1619,7 +1795,7 @@ const ensureBirthdayEmployeesData = async () => {
   const configCache = {};
   for (const entry of entries) {
     if (!configCache[entry.variant]) {
-      configCache[entry.variant] = await loadBirthdayVariantConfig(entry.variant);
+      configCache[entry.variant] = await loadBirthdayVariantConfig(entry.variant, { force: !configsFresh });
     }
     const { weekday, fullDate } = formatBirthdayMeta(entry.birthday);
     entry.config = configCache[entry.variant];
@@ -1918,37 +2094,48 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   const linesWrapper = document.createElement("div");
   linesWrapper.className = "birthday-slide-lines";
   const lines = normalizeBirthdayLines(variantCfg);
+  const overlayWidth = BASE_CANVAS_WIDTH;
+  const overlayHeight = BASE_CANVAS_HEIGHT;
   lines.forEach((entry, idx) => {
     const line = document.createElement("div");
     line.className = "birthday-slide-line" + (idx === 0 ? " birthday-slide-line--primary" : "");
     const opts = entry.options || BIRTHDAY_TEXT_OPTIONS_DEFAULT;
     const text = replaceTokens(entry.text ?? "");
-    line.textContent = text;
+    const content = document.createElement("span");
+    content.className = "birthday-line-content";
+    content.textContent = text;
     const color = opts.color || settings.title_color;
-    if (idx === 0 && settings.title_font_size) {
-      line.style.fontSize = `${settings.title_font_size}px`;
-    }
-    if (opts.font_size) {
-      line.style.fontSize = `${opts.font_size}px`;
-    }
     if (color) {
       line.style.color = color;
     }
-    line.style.fontFamily = opts.font_family || "";
+    line.style.fontWeight = opts.bold ? "700" : "400";
+    line.style.fontStyle = opts.italic ? "italic" : "normal";
     line.style.textDecoration = opts.underline ? "underline" : "none";
-    line.style.maxWidth = opts.width_percent ? `${opts.width_percent}%` : "none";
-    if (opts.height_percent) {
-      line.style.minHeight = `${opts.height_percent}%`;
-    }
-    line.style.whiteSpace = "pre";
+    const baseFontSize =
+      (idx === 0 && settings.title_font_size) || opts.font_size || BIRTHDAY_TEXT_OPTIONS_DEFAULT.font_size;
+    line.style.fontSize = `${baseFontSize}px`;
+    applyLineBackground(line, opts);
     const rawX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const rawY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
     const left = clampPercent(50 + rawX);
     const top = clampPercent(50 - rawY);
     line.style.left = `${left}%`;
     line.style.top = `${top}%`;
-    const rotation = `rotate(${opts.angle || 0}deg)`;
-    line.style.transform = `translate(-50%, -50%) ${rotation}`;
+    const rawTemplateText = entry.text ?? "";
+    if (sharedRenderers?.layoutOverlayTextLine) {
+      sharedRenderers.layoutOverlayTextLine(
+        line,
+        content,
+        text,
+        rawTemplateText,
+        opts,
+        overlayWidth,
+        overlayHeight,
+      );
+    } else {
+      layoutOverlayLine(line, content, text, opts, overlayWidth, overlayHeight);
+    }
+    line.appendChild(content);
     linesWrapper.appendChild(line);
   });
   const pos = Number.isFinite(Number(settings.title_y_percent))
@@ -2099,25 +2286,43 @@ const renderChristmasSlide = (item) => {
   overlay.className = "christmas-slide-overlay";
 
   const replaceTokens = (text) => formatChristmasMessage(text, info);
+  const overlayWidth = BASE_CANVAS_WIDTH;
+  const overlayHeight = BASE_CANVAS_HEIGHT;
   const makeLine = (text, options, extraClasses = "") => {
     const line = document.createElement("div");
     line.className = `christmas-line ${extraClasses}`.trim();
-    line.textContent = replaceTokens(text || "");
     const opts = options || CHRISTMAS_TEXT_OPTIONS_DEFAULT;
-    line.style.color = opts.color || settings.text_color || "#f8fafc";
-    if (opts.font_size) line.style.fontSize = `${opts.font_size}px`;
-    if (opts.font_family) line.style.fontFamily = opts.font_family;
+    const content = document.createElement("span");
+    content.className = "christmas-line-content";
+    content.textContent = replaceTokens(text || "");
+    const color = opts.color || settings.text_color || "#f8fafc";
+    line.style.color = color;
+    line.style.fontWeight = opts.bold ? "700" : "400";
+    line.style.fontStyle = opts.italic ? "italic" : "normal";
     line.style.textDecoration = opts.underline ? "underline" : "none";
-    if (opts.width_percent) line.style.maxWidth = `${opts.width_percent}%`;
-    if (opts.height_percent) line.style.minHeight = `${opts.height_percent}%`;
+    line.style.fontSize = `${opts.font_size || CHRISTMAS_TEXT_OPTIONS_DEFAULT.font_size}px`;
+    applyLineBackground(line, opts);
     const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
     const left = Math.min(100, Math.max(0, 50 + offsetX));
     const top = Math.min(100, Math.max(0, 50 - offsetY));
     line.style.left = `${left}%`;
     line.style.top = `${top}%`;
-    const rotation = `rotate(${opts.angle || 0}deg)`;
-    line.style.transform = `translate(-50%, -50%) ${rotation}`;
+    const renderedText = content.textContent || "";
+    if (sharedRenderers?.layoutOverlayTextLine) {
+      sharedRenderers.layoutOverlayTextLine(
+        line,
+        content,
+        renderedText,
+        text || "",
+        opts,
+        overlayWidth,
+        overlayHeight,
+      );
+    } else {
+      layoutOverlayLine(line, content, renderedText, opts, overlayWidth, overlayHeight);
+    }
+    line.appendChild(content);
     return line;
   };
 
@@ -2260,25 +2465,43 @@ const renderTimeChangeSlide = (item) => {
   overlay.className = "time-change-slide-overlay";
 
   const replaceTokens = (text) => formatTimeChangeMessage(text, info);
+  const overlayWidth = BASE_CANVAS_WIDTH;
+  const overlayHeight = BASE_CANVAS_HEIGHT;
   const makeLine = (text, options, extraClasses = "") => {
     const line = document.createElement("div");
     line.className = `time-change-line ${extraClasses}`.trim();
-    line.textContent = replaceTokens(text || "");
     const opts = options || TIME_CHANGE_TEXT_OPTIONS_DEFAULT;
-    line.style.color = opts.color || settings.text_color || "#f8fafc";
-    if (opts.font_size) line.style.fontSize = `${opts.font_size}px`;
-    if (opts.font_family) line.style.fontFamily = opts.font_family;
+    const content = document.createElement("span");
+    content.className = "time-change-line-content";
+    content.textContent = replaceTokens(text || "");
+    const color = opts.color || settings.text_color || "#f8fafc";
+    line.style.color = color;
+    line.style.fontWeight = opts.bold ? "700" : "400";
+    line.style.fontStyle = opts.italic ? "italic" : "normal";
     line.style.textDecoration = opts.underline ? "underline" : "none";
-    if (opts.width_percent) line.style.maxWidth = `${opts.width_percent}%`;
-    if (opts.height_percent) line.style.minHeight = `${opts.height_percent}%`;
+    line.style.fontSize = `${opts.font_size || TIME_CHANGE_TEXT_OPTIONS_DEFAULT.font_size}px`;
+    applyLineBackground(line, opts);
     const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
     const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
     const left = Math.min(100, Math.max(0, 50 + offsetX));
     const top = Math.min(100, Math.max(0, 50 - offsetY));
     line.style.left = `${left}%`;
     line.style.top = `${top}%`;
-    const rotation = `rotate(${opts.angle || 0}deg)`;
-    line.style.transform = `translate(-50%, -50%) ${rotation}`;
+    const renderedText = content.textContent || "";
+    if (sharedRenderers?.layoutOverlayTextLine) {
+      sharedRenderers.layoutOverlayTextLine(
+        line,
+        content,
+        renderedText,
+        text || "",
+        opts,
+        overlayWidth,
+        overlayHeight,
+      );
+    } else {
+      layoutOverlayLine(line, content, renderedText, opts, overlayWidth, overlayHeight);
+    }
+    line.appendChild(content);
     return line;
   };
 
@@ -2404,51 +2627,56 @@ const buildChristmasSlideItem = (christmasData) => {
   };
 };
 
-const fetchCustomSlideData = async (force = false) => {
+const fetchCustomSlidesList = async (force = false) => {
   const now = Date.now();
-  if (!force && customSlidePayload && now - lastCustomSlideFetch < CUSTOM_SLIDE_REFRESH_MS) {
-    return customSlidePayload;
+  if (
+    !force &&
+    Array.isArray(customSlidesPayload) &&
+    now - lastCustomSlidesFetch < CUSTOM_SLIDE_REFRESH_MS
+  ) {
+    return customSlidesPayload;
   }
   try {
-    const data = await fetchJSON("api/custom/slide");
-    customSlidePayload = data;
-    lastCustomSlideFetch = now;
-    return data;
+    const data = await fetchJSON("api/custom-slides");
+    const items = Array.isArray(data?.items) ? data.items : [];
+    customSlidesPayload = items;
+    lastCustomSlidesFetch = now;
+    return items;
   } catch (error) {
-    console.warn("Impossible de récupérer la diapo personnalisée:", error);
-    return null;
+    console.warn("Impossible de récupérer les diapos personnalisées:", error);
+    customSlidesPayload = [];
+    lastCustomSlidesFetch = now;
+    return [];
   }
 };
 
-<<<<<<< ours
 const buildCustomSlideItem = (customData) => {
   const background = customData?.background || null;
   const mimetype = (background && background.mimetype) || "application/x-custom-slide";
-  const duration = Math.max(1, Number(customSlideSettings.duration) || DEFAULT_CUSTOM_SLIDE.duration);
-  const slideName = (customData?.meta && customData.meta.name) || "Custom 1";
+  const duration = Math.max(
+    1,
+    Number(customData?.duration) || DEFAULT_CUSTOM_SLIDE.duration,
+  );
+  const slideName =
+    (customData?.meta && customData.meta.name) || customData?.name || "Diapo personnalisée";
+  const slideId = customData?.id || "";
+  const itemId = slideId ? `${CUSTOM_SLIDE_ID}${slideId}` : CUSTOM_SLIDE_ID;
+  const orderIndex = Number.isFinite(Number(customData?.order_index))
+    ? Number(customData.order_index)
+    : 0;
   return {
-    id: CUSTOM_SLIDE_ID,
+    id: itemId,
     custom_slide: true,
+    custom_slide_id: slideId || null,
     original_name: slideName,
-    filename: background?.name || CUSTOM_SLIDE_ID,
-=======
-const buildTestSlideItem = (testData) => {
-  const background = testData?.background || null;
-  const mimetype = (background && background.mimetype) || "application/x-test-slide";
-  const duration = Math.max(1, Number(testSlideSettings.duration) || DEFAULT_TEST_SLIDE.duration);
-  return {
-    id: TEST_SLIDE_ID,
-    test_slide: true,
-    original_name: "Diapo personnalisée",
-    filename: background?.name || TEST_SLIDE_ID,
->>>>>>> theirs
+    filename: background?.name || itemId,
     duration,
     enabled: true,
     skip_rounds: 0,
     mimetype,
     display_mimetype: mimetype,
     background,
-    order: Number(customSlideSettings.order_index) || 0,
+    order: orderIndex,
     custom_payload: {
       background,
       texts: Array.isArray(customData?.texts) ? customData.texts : [],
@@ -2460,7 +2688,17 @@ const buildTestSlideItem = (testData) => {
 
 const injectAutoSlidesIntoPlaylist = async (items) => {
   const base = Array.isArray(items) ? [...items] : [];
+  const enhancedBase = base.map((item, idx) => {
+    const orderVal = Number.isFinite(Number(item.order)) ? Number(item.order) : idx;
+    return { ...item, order: orderVal };
+  });
   const autoEntries = [];
+
+  const normalizedOrderIndex = (value, fallbackIndex = enhancedBase.length) => {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+    return fallbackIndex;
+  };
 
   if (timeChangeSlideSettings.enabled) {
     const change = await fetchTimeChangeInfo();
@@ -2469,14 +2707,9 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
       : DEFAULT_TIME_CHANGE_SLIDE.days_before;
     if (change && (change.days_until == null || change.days_until <= daysLimit)) {
       const timeChangeItem = buildTimeChangeSlideItem(change);
-      const idx = Math.min(
-        Math.max(0, Number.parseInt(timeChangeSlideSettings.order_index, 10) || 0),
-        base.length,
-      );
       autoEntries.push({
-        id: timeChangeItem.id,
-        index: Math.min(idx, base.length + autoEntries.length),
-        item: timeChangeItem,
+        ...timeChangeItem,
+        order: normalizedOrderIndex(timeChangeSlideSettings.order_index),
       });
     }
   }
@@ -2488,14 +2721,9 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
       : DEFAULT_CHRISTMAS_SLIDE.days_before;
     if (christmas && (christmas.days_until == null || christmas.days_until <= daysLimit)) {
       const christmasItem = buildChristmasSlideItem(christmas);
-      const idx = Math.min(
-        Math.max(0, Number.parseInt(christmasSlideSettings.order_index, 10) || 0),
-        base.length,
-      );
       autoEntries.push({
-        id: christmasItem.id,
-        index: Math.min(idx, base.length + autoEntries.length),
-        item: christmasItem,
+        ...christmasItem,
+        order: normalizedOrderIndex(christmasSlideSettings.order_index),
       });
     }
   }
@@ -2503,18 +2731,12 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
   if (birthdaySlideSettings.enabled) {
     const birthdayList = await ensureBirthdayEmployeesData();
     if (Array.isArray(birthdayList) && birthdayList.length) {
-      const baseIndex = Math.min(
-        Math.max(0, Number.parseInt(birthdaySlideSettings.order_index, 10) || 0),
-        base.length
-      );
-      const birthdayStart = baseIndex;
+      const startOrder = normalizedOrderIndex(birthdaySlideSettings.order_index);
       birthdayList.forEach((data, idx) => {
         const birthdayItem = buildBirthdaySlideItem(data);
-        autoEntries.push({
-          id: birthdayItem.id,
-          index: Math.min(birthdayStart + idx, base.length + autoEntries.length),
-          item: birthdayItem,
-        });
+        // Décale légèrement pour préserver l'ordre absolu et stable des multiples anniversaires.
+        const order = startOrder + idx * 0.001;
+        autoEntries.push({ ...birthdayItem, order });
       });
     }
   }
@@ -2523,42 +2745,34 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     await ensureTeamEmployeesData();
     if (teamEmployeesData.length) {
       const teamItem = buildTeamSlideItem();
-      const teamBaseIndex = Math.min(
-        Math.max(0, Number.parseInt(teamSlideSettings.order_index, 10) || 0),
-        base.length
-      );
       autoEntries.push({
-        id: teamItem.id,
-        index: Math.min(teamBaseIndex, base.length + autoEntries.length),
-        item: teamItem,
+        ...teamItem,
+        order: normalizedOrderIndex(teamSlideSettings.order_index),
       });
     }
   }
 
-  if (customSlideSettings.enabled) {
-    const customData = await fetchCustomSlideData();
-    if (customData && customData.has_background && customData.has_texts) {
+  const customSlides = await fetchCustomSlidesList();
+  if (Array.isArray(customSlides) && customSlides.length) {
+    customSlides.forEach((customData) => {
+      if (!customData?.enabled) return;
+      if (!(customData.has_background && customData.has_texts)) return;
       const customItem = buildCustomSlideItem(customData);
-      const customBaseIndex = Math.min(
-        Math.max(0, Number.parseInt(customSlideSettings.order_index, 10) || 0),
-        base.length
-      );
       autoEntries.push({
-        id: customItem.id,
-        index: Math.min(customBaseIndex, base.length + autoEntries.length),
-        item: customItem,
+        ...customItem,
+        order: normalizedOrderIndex(customData.order_index),
       });
-    }
+    });
   }
 
-  const playlistWithAuto = [...base];
-  autoEntries
-    .sort((a, b) => (a.index === b.index ? a.id.localeCompare(b.id) : a.index - b.index))
-    .forEach(({ index, item }) => {
-      const insertionIndex = Math.min(Math.max(0, index), playlistWithAuto.length);
-      playlistWithAuto.splice(insertionIndex, 0, item);
-    });
-  return playlistWithAuto;
+  const combined = [...enhancedBase, ...autoEntries];
+  combined.sort((a, b) => {
+    const oa = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
+    const ob = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
+    if (oa === ob) return String(a.id || "").localeCompare(String(b.id || ""));
+    return oa - ob;
+  });
+  return combined;
 };
 
 const handleEmptyPlaylist = () => {

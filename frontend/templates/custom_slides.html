@@ -1,0 +1,76 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Diapos personnalisées · Cardinal TV{% endblock %}
+
+{% block page_title %}Diapositives personnalisées{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Créez, renommez et gérez vos diapos personnalisées.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card custom-slides-section" id="custom-slides-section">
+    <div class="section-header">
+      <div>
+        <h2>Liste des customs</h2>
+        <p class="playlist-subtitle">Chaque diapo possède son propre live-editor.</p>
+      </div>
+      <div class="custom-slides-toolbar">
+        <button type="button" class="primary-button" id="custom-slides-add">Ajouter une diapo</button>
+      </div>
+    </div>
+    <div class="section-content">
+      {% if not slides %}
+        <div class="empty-state">Aucune diapo personnalisée pour le moment.</div>
+      {% endif %}
+      <div class="custom-slides-grid" id="custom-slides-grid">
+        {% for slide in slides %}
+          <article class="custom-slide-manage-card" data-slide-id="{{ slide.id }}">
+            <div class="custom-slide-manage-thumb">
+              {% if slide.background and slide.background.url and slide.background.is_video %}
+                <video src="{{ slide.background.url }}" muted playsinline></video>
+              {% elif slide.background and slide.background.url %}
+                <img src="{{ slide.background.url }}" alt="Aperçu {{ slide.meta.name if slide.meta else slide.name }}" />
+              {% else %}
+                <div class="custom-slide-thumb-placeholder">Aucun fond</div>
+              {% endif %}
+            </div>
+            <div class="custom-slide-manage-body">
+              <div class="custom-slide-manage-title-row">
+                <h3>{{ slide.meta.name if slide.meta and slide.meta.name else slide.name }}</h3>
+                <span class="custom-slide-badge {{ 'is-enabled' if slide.enabled else 'is-disabled' }}">
+                  {{ "Activée" if slide.enabled else "Désactivée" }}
+                </span>
+              </div>
+              <p class="field-hint">
+                {% if slide.meta and slide.meta.event_date %}
+                  Évènement le {{ slide.meta.event_date }}
+                {% else %}
+                  Aucune date d'évènement
+                {% endif %}
+              </p>
+              <div class="custom-slide-manage-actions">
+                <a class="secondary-button" href="{{ url_for('main.custom_slide', slide_id=slide.id) }}">Ouvrir</a>
+                <button
+                  type="button"
+                  class="secondary-button custom-slide-delete"
+                  data-slide-id="{{ slide.id }}"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/custom_slides.js') }}"></script>
+{% endblock %}
+

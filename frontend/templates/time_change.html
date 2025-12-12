@@ -11,5 +11,32 @@
 {% endblock %}
 
 {% block content %}
+  {% set editor_prefix = "time-change" %}
+  {% set editor_kind = "time_change" %}
+  {% set editor_title = "Éditeur Changement d'heure" %}
+  {% set editor_description = "Editez l'arrière-plan et les textes de la diapo Changement d'heure." %}
+  {% set editor_tokens = [
+    {"code": "[change_weekday]", "label": "Jour de la semaine (ex. dimanche)"},
+    {"code": "[change_date]", "label": "Date complète (ex. 3 mars 2025)"},
+    {"code": "[change_time]", "label": "Heure locale du changement (ex. 02:00)"},
+    {"code": "[direction_verb]", "label": "“avancer” ou “reculer”"},
+    {"code": "[offset_hours]", "label": "Décalage en heures (ex. 1)"},
+    {"code": "[offset_from]", "label": "Offset de départ (ex. -05:00)"},
+    {"code": "[offset_to]", "label": "Offset d’arrivée (ex. -04:00)"},
+    {"code": "[days_until]", "label": "Jours restants avant le changement"},
+    {"code": "[days_left]", "label": "Alias jours restants"},
+    {"code": "[days_label]", "label": "jour/jours"},
+    {"code": "[season_label]", "label": "d'été ou d'hiver"},
+    {"code": "[seasons]", "label": "été ou hiver"},
+  ] %}
+  {% set show_meta = False %}
+  {% set show_enabled_toggle = False %}
+  {% set show_date_control = True %}
+
   {% include "partials/time_change_section.html" %}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/live_editor.js') }}"></script>
 {% endblock %}

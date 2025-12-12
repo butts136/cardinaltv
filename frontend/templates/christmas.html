@@ -11,5 +11,69 @@
 {% endblock %}
 
 {% block content %}
-  {% include "partials/christmas_section.html" %}
+  <section class="card christmas-section" id="christmas-section">
+    <div class="section-header">
+      <div>
+        <h2>Diapositive Noël 🎄</h2>
+        <p class="playlist-subtitle">Alerte auto-générée pour les fêtes de fin d'année.</p>
+      </div>
+    </div>
+
+    <div class="section-content">
+      <div class="form-row dual">
+        <div>
+          <label for="christmas-enabled" class="eyebrow">Statut</label>
+          <label class="visibility-toggle">
+            <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
+            <div class="visibility-toggle-switch">
+              <input
+                id="christmas-enabled"
+                class="visibility-toggle-checkbox"
+                type="checkbox"
+                aria-label="Activer ou désactiver la diapositive Noël"
+              />
+              <span class="visibility-toggle-slider"></span>
+            </div>
+            <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
+          </label>
+        </div>
+        <div>
+          <label for="christmas-days-before">Jours avant Noël</label>
+          <input type="number" id="christmas-days-before" min="0" max="90" step="1" value="25" />
+          <p class="field-hint">Nombre de jours avant le 25 décembre pour commencer l'affichage.</p>
+        </div>
+        <div>
+          <label for="christmas-duration">Durée (secondes)</label>
+          <input type="number" id="christmas-duration" min="5" max="600" step="1" value="12" />
+          <p class="field-hint">Temps d'affichage de la diapositive.</p>
+        </div>
+      </div>
+      <div class="birthday-preview-actions">
+        <button type="button" class="primary-button" id="christmas-save">Enregistrer</button>
+        <span id="christmas-status" class="upload-feedback" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  {% set editor_prefix = "christmas" %}
+  {% set editor_kind = "christmas" %}
+  {% set editor_variant = "" %}
+  {% set editor_title = "Éditeur Noël" %}
+  {% set editor_description = "Composez la diapo Noël avec un fond et vos textes." %}
+  {% set editor_tokens = [
+    {"code": "[days_until]", "label": "Jours restants avant Noël"},
+    {"code": "[days_left]", "label": "Alias jours restants"},
+    {"code": "[days_label]", "label": "jour/jours"},
+    {"code": "[christmas_date]", "label": "Date de Noël (25 décembre YYYY)"},
+    {"code": "[christmas_weekday]", "label": "Jour de Noël"},
+    {"code": "[year]", "label": "Année en cours"},
+  ] %}
+  {% set show_meta = False %}
+  {% set show_enabled_toggle = False %}
+  {% include "partials/live_editor_section.html" %}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/live_editor.js') }}"></script>
 {% endblock %}

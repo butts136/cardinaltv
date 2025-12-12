@@ -25,7 +25,8 @@
         'main.playlist',
         'main.employees',
         'main.team',
-        'main.test',
+        'main.custom_slides',
+        'main.custom_slide',
         'main.birthday',
         'main.time_change',
         'main.christmas',
@@ -37,7 +38,8 @@
         'main.christmas',
       ] %}
 {% set custom_endpoints = [
-        'main.test',
+        'main.custom_slides',
+        'main.custom_slide',
       ] %}
 
       <nav class="sidebar-nav" aria-label="Navigation principale">
@@ -81,7 +83,16 @@
               <span class="nav-submenu-arrow">▼</span>
             </button>
             <div class="nav-submenu-content {% if endpoint in custom_endpoints %}is-open{% endif %}">
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.test' %}is-active{% endif %}" href="{{ url_for('main.test') }}">Custom</a>
+              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.custom_slides' %}is-active{% endif %}" href="{{ url_for('main.custom_slides') }}">Gérer les customs</a>
+              {% set current_custom_id = request.view_args.get('slide_id') if request.view_args else None %}
+              {% for slide in custom_slides_nav %}
+                <a
+                  class="nav-sublink nav-sublink--nested {% if endpoint == 'main.custom_slide' and current_custom_id == slide.id %}is-active{% endif %}"
+                  href="{{ url_for('main.custom_slide', slide_id=slide.id) }}"
+                >
+                  {{ slide.name }}
+                </a>
+              {% endfor %}
             </div>
           </div>
           
@@ -198,6 +209,7 @@
       })();
     </script>
     {% block scripts %}
+      <script src="{{ url_for('static', filename='js/slide_renderers.js') }}"></script>
       <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
     {% endblock %}
   </body>

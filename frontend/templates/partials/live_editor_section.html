@@ -1,0 +1,228 @@
+{% set editor_prefix = editor_prefix or "test" %}
+{% set editor_kind = editor_kind or "test" %}
+{% set editor_title = editor_title or "Éditeur de diapositive" %}
+{% set editor_description = editor_description or "Téléversez un fond, ajoutez vos textes et prévisualisez la diapo." %}
+{% set editor_tokens = editor_tokens or [] %}
+{% set editor_variant = editor_variant or "" %}
+{% set editor_slide_id = editor_slide_id or "" %}
+{% set show_meta = show_meta if show_meta is defined else True %}
+{% set show_enabled_toggle = show_enabled_toggle if show_enabled_toggle is defined else True %}
+{% set show_date_control = show_date_control if show_date_control is defined else False %}
+{% set id_prefix = editor_id_prefix or (editor_prefix ~ "-editor") %}
+
+<section
+  class="card custom-section"
+  id="custom-section"
+  data-editor-kind="{{ editor_kind }}"
+  data-editor-variant="{{ editor_variant }}"
+  data-editor-prefix="{{ id_prefix }}"
+  data-editor-slide-id="{{ editor_slide_id }}"
+>
+  <div class="section-header">
+    <div>
+      <h2>{{ editor_title }}</h2>
+      <p class="playlist-subtitle">{{ editor_description }}</p>
+    </div>
+    {% if show_enabled_toggle %}
+      <div class="custom-toggle-control">
+        <label class="visibility-toggle">
+          <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
+          <div class="visibility-toggle-switch">
+            <input id="{{ id_prefix }}-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapo" />
+            <span class="visibility-toggle-slider"></span>
+          </div>
+          <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
+        </label>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="section-content">
+    <div class="custom-editor">
+
+      <div class="card preview-section">
+	        <div class="section-header">
+	          <div>
+	            <h3>Aperçu</h3>
+	            <p class="playlist-subtitle">Déplacez et redimensionnez les textes dans l'aperçu.</p>
+	          </div>
+	        </div>
+	        <div class="section-content">
+	          <div class="card background-upload background-section collapsed">
+	            <div class="section-header">
+	              <div>
+	                <h3>Arrière-plan</h3>
+	                <p class="playlist-subtitle">Glissez-déposez une image ou une vidéo.</p>
+	              </div>
+	              <div class="background-header-actions">
+	                <div class="upload-progress" id="{{ id_prefix }}-background-progress">
+	                  <span class="upload-progress-bar" id="{{ id_prefix }}-background-progress-bar"></span>
+	                  <span class="upload-progress-text" id="{{ id_prefix }}-background-progress-text">0%</span>
+	                </div>
+	                <button
+	                  type="button"
+	                  class="section-toggle"
+	                  aria-expanded="false"
+	                  aria-label="Afficher ou masquer l'arrière-plan"
+	                >
+	                  <span class="toggle-icon">▼</span>
+	                </button>
+	              </div>
+	            </div>
+	            <div class="section-content">
+	              <label id="{{ id_prefix }}-background-drop-zone" class="custom-background-drop-zone" for="{{ id_prefix }}-background-input">
+	                <span class="drop-zone-title">Cliquez ou déposez un fichier</span>
+	                <span class="drop-zone-subtitle">Formats: jpg, png, webp, mp4, webm...</span>
+	              </label>
+	              <input id="{{ id_prefix }}-background-input" class="visually-hidden" type="file" accept="image/*,video/*" />
+	              <span id="{{ id_prefix }}-background-feedback" class="playlist-subtitle small" aria-live="polite"></span>
+	              <div id="{{ id_prefix }}-background-list" class="background-list"></div>
+	            </div>
+	          </div>
+
+          <div class="section-content preview-layout">
+            <div class="preview-column">
+              <div class="preview-frame slideshow-frame">
+                <div class="preview-frame-inner">
+                  <div
+	                    id="{{ id_prefix }}-preview-stage"
+	                    class="preview-frame-content slideshow-canvas"
+	                    data-base-width="1920"
+	                    data-base-height="1080"
+	                  >
+	                    <div id="{{ id_prefix }}-preview-media" class="preview-frame-media"></div>
+	                    <div id="{{ id_prefix }}-preview-texts" class="preview-text-overlay"></div>
+	                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="text-options-column">
+              {% if show_date_control %}
+                <div class="selected-text-field live-editor-date-field">
+                  <label class="live-editor-date-toggle" for="{{ id_prefix }}-use-custom-date">
+                    <input id="{{ id_prefix }}-use-custom-date" type="checkbox" />
+                    Utiliser une date personnalisée
+                  </label>
+                  <input id="{{ id_prefix }}-custom-date" class="live-editor-date-input" type="date" disabled />
+                  <p class="playlist-subtitle small">Par défaut, la date officielle est utilisée.</p>
+                </div>
+              {% endif %}
+
+              <button type="button" class="secondary-button text-add-button" id="{{ id_prefix }}-text-add">Ajouter un texte</button>
+
+              <div id="selected-text-panel" class="text-options-panel selected-text-panel">
+                <div id="selected-text-placeholder" class="text-options-body">
+                  <p class="playlist-subtitle">Sélectionnez un texte dans l'aperçu pour le modifier.</p>
+                </div>
+                <div class="selected-text-controls">
+                <div class="text-options-header">
+                  <div>
+                    <p class="eyebrow">Texte sélectionné</p>
+                    <h3 id="selected-text-title"></h3>
+                  </div>
+                  <button type="button" class="secondary-button text-delete-button" id="selected-text-delete">Supprimer</button>
+                </div>
+                <div class="selected-text-field">
+                  <label for="selected-text-input">Contenu</label>
+                  <textarea id="selected-text-input" rows="4" placeholder="Texte affiché sur la diapo" disabled></textarea>
+                  <button type="button" class="secondary-button" id="{{ id_prefix }}-variables-open">Insérer une variable</button>
+                </div>
+                <div class="selected-text-field">
+                  <label for="selected-text-font">Police</label>
+                  <select id="selected-text-font" class="selected-text-font-select" disabled>
+                    <option value="Poppins">Poppins</option>
+                    <option value="Roboto">Roboto</option>
+                    <option value="Montserrat">Montserrat</option>
+                    <option value="Playfair Display">Playfair Display</option>
+                    <option value="Space Mono">Space Mono</option>
+                    <option value="Open Sans">Open Sans</option>
+                    <option value="Lato">Lato</option>
+                    <option value="Raleway">Raleway</option>
+                    <option value="Merriweather">Merriweather</option>
+                    <option value="Source Sans Pro">Source Sans Pro</option>
+                    <option value="Oswald">Oswald</option>
+                    <option value="Nunito">Nunito</option>
+                    <option value="Ubuntu">Ubuntu</option>
+                    <option value="Fira Sans">Fira Sans</option>
+                    <option value="IBM Plex Sans">IBM Plex Sans</option>
+                    <option value="Pacifico">Pacifico</option>
+                    <option value="Bebas Neue">Bebas Neue</option>
+                    <option value="Caveat">Caveat</option>
+                    <option value="Inconsolata">Inconsolata</option>
+                    <option value="PT Serif">PT Serif</option>
+                  </select>
+                </div>
+                <div class="text-style-toggle-group">
+                  <div class="text-style-toggle-row">
+                    <button type="button" class="text-style-toggle" data-style="bold">Gras</button>
+                    <button type="button" class="text-style-toggle" data-style="italic">Italique</button>
+                    <button type="button" class="text-style-toggle" data-style="underline">Souligné</button>
+                  </div>
+                </div>
+                <div class="text-color-row">
+                  <div class="selected-text-color-control">
+                    <div class="selected-text-color-header">
+                      <span>Couleur du texte</span>
+                      <span id="selected-text-color-value" class="selected-text-color-value">#E10505</span>
+                    </div>
+                    <input id="selected-text-color" class="selected-text-color-input" type="color" value="#E10505" disabled />
+                  </div>
+                  <div class="selected-text-background-color-control">
+                    <div class="selected-text-color-header">
+                      <span>Fond</span>
+                      <span id="selected-text-background-color-value" class="selected-text-color-value">#000000</span>
+                    </div>
+                    <input id="selected-text-background-color" class="selected-text-color-input" type="color" value="#000000" disabled />
+                  </div>
+                </div>
+                <div class="selected-text-background-opacity-control">
+                  <div class="selected-text-color-header">
+                    <span>Opacité du fond</span>
+                    <span id="selected-text-background-opacity-value" class="selected-text-color-value">0%</span>
+                  </div>
+                  <input
+                    id="selected-text-background-opacity"
+                    class="selected-text-opacity-input"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="0"
+                    disabled
+                  />
+                </div>
+                <span id="{{ id_prefix }}-text-feedback" class="playlist-subtitle small" aria-live="polite"></span>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="{{ id_prefix }}-variables-modal" class="custom-variables-modal" aria-hidden="true">
+  <div class="custom-variables-modal__backdrop" data-close-modal="variables"></div>
+  <div class="custom-variables-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="{{ id_prefix }}-variables-title">
+    <div class="custom-variables-modal__header">
+      <div>
+        <p class="eyebrow">Variables dynamiques</p>
+        <h3 id="{{ id_prefix }}-variables-title">Insérer une variable</h3>
+      </div>
+      <button type="button" class="icon-button" id="{{ id_prefix }}-variables-close" aria-label="Fermer la liste des variables">✕</button>
+    </div>
+    <div class="custom-variables-modal__body">
+      <ul class="custom-variables-list">
+        {% for token in editor_tokens %}
+          <li class="custom-variable-row">
+            <button type="button" class="custom-variable-button editor-variable-button" data-variable-token="{{ token.code }}">
+              {{ token.code }}
+            </button>
+            <span class="custom-variable-description">{{ token.label }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
