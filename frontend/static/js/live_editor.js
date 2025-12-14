@@ -17,49 +17,45 @@
     }
 
     const editorPrefix = editorRoot?.dataset?.editorPrefix || "test-editor";
-    const sharedRenderers = window.CardinalSlideRenderers || null;
-    const q = (selector) => editorRoot.querySelector(selector);
-    const byId = (suffix) =>
-      q(`#${editorPrefix}-${suffix}`) || document.getElementById(`${editorPrefix}-${suffix}`);
+    const byPrefixId = (suffix) => document.querySelector(`#${editorPrefix}-${suffix}`);
 
-    const testBackgroundDropZone = byId("background-drop-zone");
-    const testBackgroundInput = byId("background-input");
-    const testBackgroundFeedback = byId("background-feedback");
-    const testBackgroundProgress = byId("background-progress");
-    const testBackgroundProgressBar = byId("background-progress-bar");
-    const testBackgroundProgressText = byId("background-progress-text");
-    const testBackgroundList = byId("background-list");
-    const previewFrame = q(".preview-frame");
-    const previewStage = byId("preview-stage");
-    const testPreviewMedia = byId("preview-media");
-    const testPreviewTextOverlay = byId("preview-texts");
-    const testTextAddButton = byId("text-add");
-    const useCustomDateToggle = byId("use-custom-date");
-    const customDateInput = byId("custom-date");
-    const variablesModal = byId("variables-modal");
-    const variablesOpenButton = byId("variables-open");
-    const variablesCloseButton = byId("variables-close");
+    const testBackgroundDropZone = byPrefixId("background-drop-zone");
+    const testBackgroundInput = byPrefixId("background-input");
+    const testBackgroundFeedback = byPrefixId("background-feedback");
+    const testBackgroundProgress = byPrefixId("background-progress");
+    const testBackgroundProgressBar = byPrefixId("background-progress-bar");
+    const testBackgroundProgressText = byPrefixId("background-progress-text");
+    const testBackgroundList = byPrefixId("background-list");
+    const previewFrame = editorRoot.querySelector(".preview-frame") || document.querySelector(".preview-frame");
+    const previewStage = byPrefixId("preview-stage");
+    const testPreviewMedia = byPrefixId("preview-media");
+    const testPreviewTextOverlay = byPrefixId("preview-texts");
+    const testTextAddButton = byPrefixId("text-add");
+    const saveButton = byPrefixId("save");
+    const slideNameInput = byPrefixId("slide-name");
+    const slideDateInput = byPrefixId("slide-date");
+    const variablesModal = byPrefixId("variables-modal");
+    const variablesOpenButton = byPrefixId("variables-open");
+    const variablesCloseButton = byPrefixId("variables-close");
     const variableButtons = variablesModal
       ? variablesModal.querySelectorAll(".editor-variable-button")
-      : [];
-    const selectedTextPanel = q("#selected-text-panel");
-    const selectedTextTitle = q("#selected-text-title");
-    const selectedTextTextarea = q("#selected-text-input");
-    const selectedTextPlaceholder = q("#selected-text-placeholder");
-    const selectedTextFontSelect = q("#selected-text-font");
-    const textStyleToggleButtons = editorRoot.querySelectorAll(".text-style-toggle");
-    const selectedTextColorInput = q("#selected-text-color");
-    const selectedTextColorValue = q("#selected-text-color-value");
-    const selectedTextBackgroundColorInput = q("#selected-text-background-color");
-    const selectedTextBackgroundColorValue = q("#selected-text-background-color-value");
-    const selectedTextBackgroundOpacityInput = q("#selected-text-background-opacity");
-    const selectedTextBackgroundOpacityValue = q("#selected-text-background-opacity-value");
-    const selectedTextDeleteButton = q("#selected-text-delete");
-    const testSlideToggle = byId("live-enabled");
-    const testTextFeedback = byId("text-feedback");
-    const testMetaFeedback = byId("meta-feedback");
-    const testMetaNameInput = byId("meta-name");
-    const testMetaEventDateInput = byId("meta-event-date");
+      : document.querySelectorAll(".editor-variable-button");
+    const selectedTextPanel = document.querySelector("#selected-text-panel");
+    const selectedTextTitle = document.querySelector("#selected-text-title");
+    const selectedTextTextarea = document.querySelector("#selected-text-input");
+    const selectedTextPlaceholder = document.querySelector("#selected-text-placeholder");
+    const selectedTextFontSelect = document.querySelector("#selected-text-font");
+    const textStyleToggleButtons = document.querySelectorAll(".text-style-toggle");
+    const selectedTextColorInput = document.querySelector("#selected-text-color");
+    const selectedTextColorValue = document.querySelector("#selected-text-color-value");
+    const selectedTextBackgroundColorInput = document.querySelector("#selected-text-background-color");
+    const selectedTextBackgroundColorValue = document.querySelector("#selected-text-background-color-value");
+    const selectedTextBackgroundOpacityInput = document.querySelector("#selected-text-background-opacity");
+    const selectedTextBackgroundOpacityValue = document.querySelector("#selected-text-background-opacity-value");
+    const selectedTextDeleteButton = document.querySelector("#selected-text-delete");
+    const testSlideToggle = byPrefixId("live-enabled");
+    const testTextFeedback = byPrefixId("text-feedback");
+    const testMetaFeedback = byPrefixId("meta-feedback");
     const birthdayVariantButtons = document.querySelectorAll(".birthday-variant-pill");
 
     const DEFAULT_TEXT_SIZE = { width: 30, height: 12 };
@@ -67,7 +63,6 @@
     const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
     const DEFAULT_OPTIONS_BY_KIND = {
       test: { color: DEFAULT_TEXT_COLOR },
-      custom: { color: DEFAULT_TEXT_COLOR },
       birthday: { color: "#ffffff" },
       time_change: { color: "#f8fafc" },
       christmas: { color: "#f8fafc" },
@@ -116,7 +111,6 @@
       const height = Number.isFinite(Number(opts.height_percent))
         ? Number(opts.height_percent)
         : DEFAULT_TEXT_SIZE.height;
-      const angle = Number.isFinite(Number(opts.angle)) ? Number(opts.angle) : defaults.angle || 0;
       return {
         name,
         value: line?.text || "",
@@ -126,7 +120,6 @@
           width,
           height,
         },
-        angle,
         color: opts.color || defaults.color || DEFAULT_TEXT_COLOR,
         style: {
           font_family: opts.font_family || DEFAULT_TEXT_STYLE.font_family,
@@ -170,7 +163,6 @@
               : base.background_opacity,
           offset_x_percent: offsets.offset_x_percent,
           offset_y_percent: offsets.offset_y_percent,
-          angle: Number.isFinite(Number(entry?.angle)) ? Number(entry.angle) : base.angle,
         },
       };
     };
@@ -181,124 +173,6 @@
       christmas: "christmas_slide",
     };
     const createEditorAdapter = (kind, variant) => {
-      if (kind === "custom") {
-        const slideId = editorRoot?.dataset?.editorSlideId || "";
-        const safeSlideId = slideId ? encodeURIComponent(slideId) : "";
-        const endpointPrefix = safeSlideId
-          ? `api/custom-slides/${safeSlideId}`
-          : "api/custom-slides";
-
-        const lineDefaults = {
-          ...DEFAULT_LINE_OPTIONS,
-          color: DEFAULT_TEXT_COLOR,
-        };
-
-        const fetchSettings = async () => {
-          if (!safeSlideId) return {};
-          const data = await fetchJSON(`${endpointPrefix}/settings`);
-          return data || {};
-        };
-
-        const updateSettings = async (patch) => {
-          if (!safeSlideId) return patch || {};
-          const response = await fetchJSON(`${endpointPrefix}/settings`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patch || {}),
-          });
-          return response || patch || {};
-        };
-
-        const metaApi = {
-          async fetchMeta() {
-            if (!safeSlideId) return {};
-            const meta = await fetchJSON(`${endpointPrefix}/meta`);
-            return meta || {};
-          },
-          async updateMeta(patch) {
-            if (!safeSlideId) return patch || {};
-            const response = await fetchJSON(`${endpointPrefix}/meta`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(patch || {}),
-            });
-            return response || patch || {};
-          },
-        };
-
-        const backgroundApi = {
-          uploadUrl: `${endpointPrefix}/background`,
-          async list() {
-            if (!safeSlideId) return [];
-            const data = await fetchJSON(`${endpointPrefix}/backgrounds`);
-            const items = Array.isArray(data?.items) ? data.items : [];
-            return items.map((item) => ({
-              name: item.filename,
-              url: item.url,
-              mimetype: item.mimetype,
-              is_active: Boolean(item.is_active),
-              is_video: Boolean(item.is_video),
-              size: item.size,
-            }));
-          },
-          async setActive(filename) {
-            if (!safeSlideId) return { filename };
-            return fetchJSON(`${endpointPrefix}/background/active`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ filename }),
-            });
-          },
-          async remove(filename) {
-            if (!safeSlideId) return { filename };
-            return fetchJSON(
-              `${endpointPrefix}/background/${encodeURIComponent(filename)}`,
-              { method: "DELETE" },
-            );
-          },
-        };
-
-        const linesApi = {
-          async list() {
-            if (!safeSlideId) return [];
-            const data = await fetchJSON(`${endpointPrefix}/texts`);
-            const items = Array.isArray(data?.items) ? data.items : [];
-            return items;
-          },
-          async add() {
-            if (!safeSlideId) throw new Error("Slide id manquant");
-            return fetchJSON(`${endpointPrefix}/texts`, { method: "POST" });
-          },
-          async update(name, payload) {
-            if (!safeSlideId) throw new Error("Slide id manquant");
-            return fetchJSON(`${endpointPrefix}/texts/${encodeURIComponent(name)}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload || {}),
-            });
-          },
-          async remove(name) {
-            if (!safeSlideId) throw new Error("Slide id manquant");
-            return fetchJSON(`${endpointPrefix}/texts/${encodeURIComponent(name)}`, {
-              method: "DELETE",
-            });
-          },
-        };
-
-        return {
-          kind,
-          settingsKey: null,
-          supportsMeta: true,
-          lineDefaults,
-          fetchSettings,
-          updateSettings,
-          fetchMeta: metaApi.fetchMeta,
-          updateMeta: metaApi.updateMeta,
-          backgroundApi,
-          linesApi,
-        };
-      }
-
       const settingsKey = SETTINGS_KEY_BY_KIND[kind] || "test_slide";
       const lineDefaults = {
         ...DEFAULT_LINE_OPTIONS,
@@ -642,13 +516,7 @@
       "Inconsolata",
       "PT Serif",
     ];
-    const DEFAULT_TEST_SLIDE_SETTINGS = {
-      enabled: false,
-      order_index: 0,
-      duration: 12,
-      use_custom_date: false,
-      custom_date: "",
-    };
+    const DEFAULT_TEST_SLIDE_SETTINGS = { enabled: false, order_index: 0, duration: 12 };
     let currentTestSlideSettings = { ...DEFAULT_TEST_SLIDE_SETTINGS };
     const DEFAULT_TEST_META = {
       name: "Diapo personnalisée",
@@ -677,44 +545,10 @@
       "bottom-right": { axis: "both", directionX: 1, directionY: 1, keepRatio: true },
     };
 
-    const CENTER_GUIDE_TOLERANCE_PERCENT = 1.5;
-    let verticalCenterGuide = null;
-    let horizontalCenterGuide = null;
-
-    const ensureCenterGuides = () => {
-      if (!testPreviewTextOverlay) return;
-      verticalCenterGuide =
-        testPreviewTextOverlay.querySelector(".preview-center-line--vertical") || null;
-      horizontalCenterGuide =
-        testPreviewTextOverlay.querySelector(".preview-center-line--horizontal") || null;
-
-      if (!verticalCenterGuide) {
-        verticalCenterGuide = document.createElement("div");
-        verticalCenterGuide.className = "preview-center-line preview-center-line--vertical";
-        testPreviewTextOverlay.prepend(verticalCenterGuide);
-      }
-      if (!horizontalCenterGuide) {
-        horizontalCenterGuide = document.createElement("div");
-        horizontalCenterGuide.className = "preview-center-line preview-center-line--horizontal";
-        testPreviewTextOverlay.prepend(horizontalCenterGuide);
-      }
-    };
-
-    const setCenterGuideVisibility = (showVertical, showHorizontal) => {
-      if (verticalCenterGuide) {
-        verticalCenterGuide.classList.toggle("is-visible", Boolean(showVertical));
-      }
-      if (horizontalCenterGuide) {
-        horizontalCenterGuide.classList.toggle("is-visible", Boolean(showHorizontal));
-      }
-    };
-
-    const hideCenterGuides = () => setCenterGuideVisibility(false, false);
-
-	  const dragState = {
-	    card: null,
-	    name: null,
-	    pointerId: null,
+  const dragState = {
+    card: null,
+    name: null,
+    pointerId: null,
     position: null,
     startX: null,
     startY: null,
@@ -730,6 +564,7 @@
   let currentTestTexts = [];
   let currentSelectedTextName = null;
   const textUpdateTimers = new Map();
+  const pendingTextChanges = new Map();
   let currentTestMeta = { ...DEFAULT_TEST_META };
   let metaUpdateTimer = null;
   let pendingMetaChanges = {};
@@ -761,12 +596,11 @@
     currentSelectedTextName = null;
     hideSelectedTextPanel();
     setActiveVariantUI(variant);
-	    void refreshTestSlideSettings();
-	    void refreshTestMeta();
-	    void refreshTestBackgroundList();
-	    void refreshTestTextsList();
-	    void refreshTokenInfo({ force: true });
-	  };
+    void refreshTestSlideSettings();
+    void refreshTestMeta();
+    void refreshTestBackgroundList();
+    void refreshTestTextsList();
+  };
 
   const setTestBackgroundFeedback = (message, status = "info") => {
     if (!testBackgroundFeedback) return;
@@ -863,7 +697,6 @@
 
   const MEASUREMENT_FALLBACK_CHAR_WIDTH = 0.6;
   const MEASUREMENT_SAFETY_RATIO = 0.1;
-  const VARIABLE_TOKEN_PATTERN = /\[[^\]]+\]/;
 
   const getOverlayDimensions = () => ({
     width: previewBaseWidth,
@@ -977,38 +810,18 @@
         result.order_index = idx;
       }
     }
-	    if ("duration" in raw) {
-	      const val = Number(raw.duration);
-	      if (Number.isFinite(val) && val >= 1 && val <= 600) {
-	        result.duration = val;
-	      }
-	    }
-	    if ("use_custom_date" in raw) {
-	      result.use_custom_date = Boolean(raw.use_custom_date);
-	    }
-	    if ("custom_date" in raw) {
-	      result.custom_date = typeof raw.custom_date === "string" ? raw.custom_date : "";
-	    }
-	    return result;
-	  };
+    if ("duration" in raw) {
+      const val = Number(raw.duration);
+      if (Number.isFinite(val) && val >= 1 && val <= 600) {
+        result.duration = val;
+      }
+    }
+    return result;
+  };
 
   const updateTestSlideToggleUI = () => {
     if (testSlideToggle) {
       testSlideToggle.checked = Boolean(currentTestSlideSettings.enabled);
-    }
-  };
-
-  const updateDateControlUI = (settings = currentTestSlideSettings) => {
-    if (!useCustomDateToggle && !customDateInput) {
-      return;
-    }
-    const enabled = Boolean(settings?.use_custom_date);
-    if (useCustomDateToggle) {
-      useCustomDateToggle.checked = enabled;
-    }
-    if (customDateInput) {
-      customDateInput.disabled = !enabled;
-      customDateInput.value = (settings?.custom_date || "").slice(0, 10);
     }
   };
 
@@ -1017,27 +830,24 @@
       const raw = (await editorAdapter.fetchSettings()) || DEFAULT_TEST_SLIDE_SETTINGS;
       currentTestSlideSettings = normalizeTestSlideSettings(raw);
       updateTestSlideToggleUI();
-      updateDateControlUI(currentTestSlideSettings);
     } catch (error) {
       console.warn("Impossible de charger les paramètres de la diapo personnalisée:", error);
     }
   };
 
-	  const persistTestSlideSettings = async (patch) => {
-	    try {
-	      const raw = (await editorAdapter.updateSettings(patch)) || patch;
-	      currentTestSlideSettings = normalizeTestSlideSettings({
-	        ...currentTestSlideSettings,
-	        ...raw,
-	      });
-	      updateTestSlideToggleUI();
-	      updateDateControlUI(currentTestSlideSettings);
-	      void refreshTokenInfo({ force: true });
-	      return currentTestSlideSettings;
-	    } catch (error) {
-	      console.error("Erreur lors de la mise à jour de la diapo personnalisée:", error);
-	      throw error;
-	    }
+  const persistTestSlideSettings = async (patch) => {
+    try {
+      const raw = (await editorAdapter.updateSettings(patch)) || patch;
+      currentTestSlideSettings = normalizeTestSlideSettings({
+        ...currentTestSlideSettings,
+        ...raw,
+      });
+      updateTestSlideToggleUI();
+      return currentTestSlideSettings;
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de la diapo personnalisée:", error);
+      throw error;
+    }
   };
   const normalizeBackgroundOptions = (raw) => {
     if (!raw || typeof raw !== "object") {
@@ -1153,53 +963,28 @@
     };
   };
 
-	  const applyTextCardFontSizing = (card) => {
-	    if (!card) return;
-	    const rawValue = card.dataset.rawValue || "";
-	    const displayValue = card.dataset.renderedValue || rawValue;
-	    const cardColor = normalizeColorValue(card.dataset.color);
+  const applyTextCardFontSizing = (card) => {
+    if (!card) return;
+    const rawValue = card.dataset.rawValue || "";
+    const displayValue = card.dataset.renderedValue || rawValue;
+    const cardColor = normalizeColorValue(card.dataset.color);
     card.dataset.color = cardColor;
     card.style.color = cardColor;
     const cardStyle = getCardStyleFromDataset(card);
     applyCardTypography(card, cardStyle);
     applyCardBackground(card, getCardBackgroundFromDataset(card));
 
-	    const widthPercent = clamp(parseFloat(card.dataset.width) || DEFAULT_TEXT_SIZE.width, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
-	    const heightPercent = clamp(parseFloat(card.dataset.height) || DEFAULT_TEXT_SIZE.height, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
-	    card.dataset.width = widthPercent;
-	    card.dataset.height = heightPercent;
+    const widthPercent = clamp(parseFloat(card.dataset.width) || DEFAULT_TEXT_SIZE.width, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+    const heightPercent = clamp(parseFloat(card.dataset.height) || DEFAULT_TEXT_SIZE.height, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+    card.dataset.width = widthPercent;
+    card.dataset.height = heightPercent;
 
-	    const { width: overlayWidth, height: overlayHeight } = getOverlayDimensions();
-	    const contentEl = card.querySelector(".preview-text-content");
-	    if (editorKind === "test") {
-	      if (sharedRenderers?.layoutCustomTextCard) {
-	        sharedRenderers.layoutCustomTextCard(card, overlayWidth, overlayHeight);
-	        return;
-	      }
-	    } else if (sharedRenderers?.layoutOverlayTextLine && contentEl) {
-	      const opts = {
-	        ...DEFAULT_LINE_OPTIONS,
-	        width_percent: widthPercent,
-	        height_percent: heightPercent,
-	        font_family: cardStyle.font_family,
-	        angle: Number(card.dataset.angle) || 0,
-	      };
-	      sharedRenderers.layoutOverlayTextLine(
-	        card,
-	        contentEl,
-	        displayValue,
-	        rawValue,
-	        opts,
-	        overlayWidth,
-	        overlayHeight,
-	      );
-	      return;
-	    }
-	    const cardWidthPx = overlayWidth * (widthPercent / 100);
-	    const cardHeightPx = overlayHeight * (heightPercent / 100);
-	    const horizontalPaddingPx = Math.min(
-	      Math.max(cardWidthPx * CARD_HORIZONTAL_PADDING_RATIO, MIN_HORIZONTAL_PADDING_PX),
-	      cardWidthPx * CARD_MAX_PADDING_RATIO,
+    const { width: overlayWidth, height: overlayHeight } = getOverlayDimensions();
+    const cardWidthPx = overlayWidth * (widthPercent / 100);
+    const cardHeightPx = overlayHeight * (heightPercent / 100);
+    const horizontalPaddingPx = Math.min(
+      Math.max(cardWidthPx * CARD_HORIZONTAL_PADDING_RATIO, MIN_HORIZONTAL_PADDING_PX),
+      cardWidthPx * CARD_MAX_PADDING_RATIO,
     );
     const verticalPaddingPx = Math.min(
       Math.max(cardHeightPx * CARD_VERTICAL_PADDING_RATIO, MIN_VERTICAL_PADDING_PX),
@@ -1232,38 +1017,30 @@
       }
     }
     const availableWidthPx = Math.max(4, cardWidthPx - horizontalPaddingPx * 2);
-    const hasVariables = VARIABLE_TOKEN_PATTERN.test(rawValue);
-    const widthScale = hasVariables ? 1 : clamp(availableWidthPx / blockMetrics.width, 0.25, 4);
+    const widthScale = clamp(availableWidthPx / blockMetrics.width, 0.25, 4);
 
-	    card.dataset.fontSize = fontSize;
-	    card.style.fontSize = `${fontSize}px`;
-	    card.style.lineHeight = TEXT_LINE_HEIGHT.toString();
-	    if (contentEl) {
-	      contentEl.style.transformOrigin = "center";
-	      contentEl.style.transform = hasVariables ? "none" : `scale(${widthScale}, 1)`;
-	      contentEl.style.lineHeight = TEXT_LINE_HEIGHT.toString();
-	      contentEl.style.alignItems = "center";
-	      contentEl.style.justifyContent = "center";
-	      contentEl.style.textAlign = "center";
-	      contentEl.style.fontSize = `${fontSize}px`;
-	    }
-	  };
+    card.dataset.fontSize = fontSize;
+    card.style.fontSize = `${fontSize}px`;
+    card.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+    const content = card.querySelector(".preview-text-content");
+    if (content) {
+      content.style.transformOrigin = "center";
+      content.style.transform = `scale(${widthScale}, 1)`;
+      content.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+      content.style.alignItems = "center";
+      content.style.justifyContent = "center";
+      content.style.textAlign = "center";
+      content.style.fontSize = `${fontSize}px`;
+    }
+  };
 
   const createPreviewTextCard = (entry) => {
     if (!entry) return null;
     const rawValue = entry.value || "";
     if (!rawValue.trim()) return null;
-	    const card = document.createElement("div");
-	    const extraClasses =
-	      editorKind === "test"
-	        ? " custom-slide-text-card"
-	        : editorKind === "time_change"
-	        ? " time-change-line"
-	        : editorKind === "christmas"
-	        ? " christmas-line"
-	        : "";
-	    card.className = `preview-text-card${extraClasses}`;
-	    card.innerHTML = "";
+    const card = document.createElement("div");
+    card.className = "preview-text-card";
+    card.innerHTML = "";
     const content = document.createElement("span");
     content.className = "preview-text-content";
     const resolvedValue = entry.resolved_value || resolveTokens(rawValue);
@@ -1277,14 +1054,13 @@
     const background = getEntryBackground(entry);
     card.dataset.backgroundColor = background.color;
     card.dataset.backgroundOpacity = background.opacity;
-	    const size = entry.size || DEFAULT_TEXT_SIZE;
-	    card.dataset.width = size.width;
-	    card.dataset.height = size.height;
-	    card.dataset.angle = Number.isFinite(Number(entry.angle)) ? String(entry.angle) : "0";
-	    applyCardTypography(card, getEntryStyle(entry));
-	    card.style.left = `${entry.position?.x ?? 50}%`;
-	    card.style.top = `${entry.position?.y ?? 50}%`;
-	    card.style.transform = "translate(-50%, -50%)";
+    const size = entry.size || DEFAULT_TEXT_SIZE;
+    card.dataset.width = size.width;
+    card.dataset.height = size.height;
+    applyCardTypography(card, getEntryStyle(entry));
+    card.style.left = `${entry.position?.x ?? 50}%`;
+    card.style.top = `${entry.position?.y ?? 50}%`;
+    card.style.transform = "translate(-50%, -50%)";
     applyTextCardFontSizing(card);
     card.addEventListener("pointerdown", handleTextPointerDown);
     card.addEventListener("pointerup", handleTextPointerUp);
@@ -1302,8 +1078,6 @@
   const updateTestPreviewTexts = (items) => {
     if (!testPreviewTextOverlay) return;
     testPreviewTextOverlay.innerHTML = "";
-    ensureCenterGuides();
-    hideCenterGuides();
     const texts = (Array.isArray(items) ? items : []).filter((entry) => entry.value && entry.value.trim());
     if (!texts.length) {
       const placeholder = document.createElement("p");
@@ -1368,7 +1142,6 @@
     if (selectedTextBackgroundOpacityInput) {
       selectedTextBackgroundOpacityInput.value = `${DEFAULT_TEXT_BACKGROUND.opacity * 100}`;
       selectedTextBackgroundOpacityInput.disabled = true;
-      selectedTextBackgroundOpacityInput.style.setProperty("--opacity-percent", "0%");
     }
     if (selectedTextBackgroundOpacityValue) {
       selectedTextBackgroundOpacityValue.textContent = `${Math.round(DEFAULT_TEXT_BACKGROUND.opacity * 100)}%`;
@@ -1382,12 +1155,6 @@
     if (variablesModal && variablesModal.classList.contains("is-visible")) {
       closeVariablesModal();
     }
-  };
-
-  const updateOpacitySliderFill = (percent) => {
-    if (!selectedTextBackgroundOpacityInput) return;
-    const clamped = clamp(Number(percent) || 0, 0, 100);
-    selectedTextBackgroundOpacityInput.style.setProperty("--opacity-percent", `${clamped}%`);
   };
 
   const updateSelectedTextPanel = (name) => {
@@ -1436,9 +1203,7 @@
     }
     if (selectedTextBackgroundOpacityInput) {
       selectedTextBackgroundOpacityInput.disabled = false;
-      const percent = Math.round(background.opacity * 100);
-      selectedTextBackgroundOpacityInput.value = `${percent}`;
-      updateOpacitySliderFill(percent);
+      selectedTextBackgroundOpacityInput.value = `${Math.round(background.opacity * 100)}`;
     }
     if (selectedTextBackgroundOpacityValue) {
       selectedTextBackgroundOpacityValue.textContent = `${Math.round(background.opacity * 100)}%`;
@@ -1457,12 +1222,6 @@
       return CSS.escape(value);
     }
     return value.replace(/([\\.\[\]:"'=<>!#$&*+~^`|])/g, "\\$1");
-  };
-
-  const getPreviewCardByName = (name) => {
-    if (!name || !testPreviewTextOverlay) return null;
-    const selector = `.preview-text-card[data-name="${escapeSelectorValue(name)}"]`;
-    return testPreviewTextOverlay.querySelector(selector);
   };
 
   const reselectCurrentText = () => {
@@ -1501,8 +1260,6 @@
   const handleTextPointerDown = (event) => {
     const card = event.currentTarget;
     if (!card) return;
-    ensureCenterGuides();
-    hideCenterGuides();
     selectPreviewTextCard(card);
     dragState.card = card;
     dragState.name = card.dataset.name;
@@ -1524,8 +1281,6 @@
   const handleResizePointerDown = (event) => {
     event.stopPropagation();
     event.preventDefault();
-    ensureCenterGuides();
-    hideCenterGuides();
     const direction = event.currentTarget.dataset.direction;
     if (!direction) return;
     const card = event.currentTarget.closest(".preview-text-card");
@@ -1562,12 +1317,11 @@
   const handleTextPointerMove = (event) => {
     if (!dragState.card || !testPreviewTextOverlay) return;
     if (dragState.pointerId && event.pointerId !== dragState.pointerId) return;
-	    const rect = testPreviewTextOverlay.getBoundingClientRect();
-	    if (!rect.width || !rect.height) return;
-	    if (dragState.isResizing) {
-	      hideCenterGuides();
-	      const handleConfig = resizeHandles[dragState.resizeHandle];
-	      if (!handleConfig) return;
+    const rect = testPreviewTextOverlay.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    if (dragState.isResizing) {
+      const handleConfig = resizeHandles[dragState.resizeHandle];
+      if (!handleConfig) return;
       const rawDeltaX = ((event.clientX - (dragState.startX || 0)) / rect.width) * 100;
       const rawDeltaY = ((event.clientY - (dragState.startY || 0)) / rect.height) * 100;
       const horizontalDirection = handleConfig.directionX ?? handleConfig.direction ?? 1;
@@ -1601,22 +1355,17 @@
       dragState.isDragging = true;
     }
     const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
-	    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
-	    dragState.card.style.left = `${x}%`;
-	    dragState.card.style.top = `${y}%`;
-	    dragState.position = { x, y };
-	    ensureCenterGuides();
-	    const nearCenterX = Math.abs(x - 50) <= CENTER_GUIDE_TOLERANCE_PERCENT;
-	    const nearCenterY = Math.abs(y - 50) <= CENTER_GUIDE_TOLERANCE_PERCENT;
-	    setCenterGuideVisibility(nearCenterX, nearCenterY);
-	  };
+    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+    dragState.card.style.left = `${x}%`;
+    dragState.card.style.top = `${y}%`;
+    dragState.position = { x, y };
+  };
 
-	  const handleTextPointerUp = (event) => {
-	    if (!dragState.card) return;
-	    hideCenterGuides();
-	    if (dragState.card.hasPointerCapture && event.pointerId === dragState.pointerId) {
-	      dragState.card.releasePointerCapture(event.pointerId);
-	    }
+  const handleTextPointerUp = (event) => {
+    if (!dragState.card) return;
+    if (dragState.card.hasPointerCapture && event.pointerId === dragState.pointerId) {
+      dragState.card.releasePointerCapture(event.pointerId);
+    }
     if (dragState.position) {
       void updateTestTextPosition(dragState.name, dragState.position);
     }
@@ -1646,11 +1395,11 @@
   };
 
   const applyMetaToInputs = () => {
-    if (testMetaNameInput) {
-      testMetaNameInput.value = currentTestMeta.name || "";
+    if (slideNameInput) {
+      slideNameInput.value = currentTestMeta.name || "";
     }
-    if (testMetaEventDateInput) {
-      testMetaEventDateInput.value = (currentTestMeta.event_date || "").slice(0, 10);
+    if (slideDateInput) {
+      slideDateInput.value = currentTestMeta.event_date || "";
     }
     updateTestPreviewTexts(currentTestTexts);
   };
@@ -1700,30 +1449,12 @@
     }, 500);
   };
 
-  if (testMetaNameInput) {
-    testMetaNameInput.addEventListener("input", () => {
-      const value = testMetaNameInput.value || "";
-      currentTestMeta = { ...currentTestMeta, name: value };
-      applyMetaToInputs();
-      queueMetaUpdate({ name: value });
-    });
-  }
-
-  if (testMetaEventDateInput) {
-    testMetaEventDateInput.addEventListener("input", () => {
-      const value = testMetaEventDateInput.value || "";
-      currentTestMeta = { ...currentTestMeta, event_date: value };
-      applyMetaToInputs();
-      queueMetaUpdate({ event_date: value });
-    });
-  }
-
   const openVariablesModal = () => {
     if (!variablesModal) return;
     variablesModal.classList.add("is-visible");
     variablesModal.setAttribute("aria-hidden", "false");
     lastFocusedModalTrigger = document.activeElement;
-    const firstButton = variablesModal.querySelector(".editor-variable-button");
+    const firstButton = variablesModal.querySelector(".test-variable-button");
     firstButton?.focus();
     window.addEventListener("keydown", handleVariableModalKeydown);
   };
@@ -1817,342 +1548,46 @@
     }
     return label.charAt(0).toUpperCase() + label.slice(1);
   };
-	  const getDayLabel = (count, { capitalize = false } = {}) => {
-	    const base = count === 1 ? "jour" : "jours";
-	    if (!capitalize) return base;
-	    return base.charAt(0).toUpperCase() + base.slice(1);
-	  };
-
-	  const BIRTHDAY_WEEKDAY_KEYS = [
-	    "sunday",
-	    "monday",
-	    "tuesday",
-	    "wednesday",
-	    "thursday",
-	    "friday",
-	    "saturday",
-	  ];
-
-	  const DEFAULT_OPEN_DAYS = {
-	    monday: true,
-	    tuesday: true,
-	    wednesday: true,
-	    thursday: true,
-	    friday: true,
-	    saturday: false,
-	    sunday: false,
-	  };
-
-	  const normalizeOpenDays = (raw = {}) => {
-	    const base = { ...DEFAULT_OPEN_DAYS };
-	    if (!raw || typeof raw !== "object") {
-	      return base;
-	    }
-	    return Object.keys(base).reduce((acc, day) => {
-	      acc[day] = raw[day] === undefined ? base[day] : Boolean(raw[day]);
-	      return acc;
-	    }, {});
-	  };
-
-	  const computeNextBirthdayDate = (birthdayStr) => {
-	    if (!birthdayStr) return null;
-	    const parts = String(birthdayStr).split("-");
-	    if (parts.length < 2) return null;
-
-	    const tryBuild = (m, d) => {
-	      if (!Number.isFinite(m) || !Number.isFinite(d) || m < 1 || m > 12 || d < 1 || d > 31) {
-	        return null;
-	      }
-	      const now = new Date();
-	      const thisYear = now.getFullYear();
-	      const candidate = new Date(Date.UTC(thisYear, m - 1, d));
-	      const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-	      if (candidate < todayUtc) {
-	        candidate.setUTCFullYear(thisYear + 1);
-	      }
-	      return candidate;
-	    };
-
-	    if (parts.length === 3) {
-	      return tryBuild(Number(parts[1]), Number(parts[2]));
-	    }
-
-	    return tryBuild(Number(parts[0]), Number(parts[1])) || tryBuild(Number(parts[1]), Number(parts[0]));
-	  };
-
-	  const computeBirthdayAnnounceDate = (targetDate, openDays) => {
-	    const normalized = normalizeOpenDays(openDays);
-	    if (!(targetDate instanceof Date) || Number.isNaN(targetDate)) {
-	      return targetDate;
-	    }
-	    const candidate = new Date(targetDate.getTime());
-	    for (let i = 0; i < 7; i += 1) {
-	      const key = BIRTHDAY_WEEKDAY_KEYS[candidate.getUTCDay()];
-	      if (normalized[key]) {
-	        return candidate;
-	      }
-	      candidate.setUTCDate(candidate.getUTCDate() - 1);
-	    }
-	    return targetDate;
-	  };
-
-	  const formatBirthdayMeta = (birthdayDate) => {
-	    if (!(birthdayDate instanceof Date) || Number.isNaN(birthdayDate)) {
-	      return { weekday: "", fullDate: "" };
-	    }
-	    let weekday = "";
-	    try {
-	      weekday = new Intl.DateTimeFormat("fr-CA", { timeZone: "UTC", weekday: "long" }).format(
-	        birthdayDate,
-	      );
-	      weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-	    } catch (error) {
-	      weekday = "";
-	    }
-	    let fullDate = "";
-	    try {
-	      fullDate = new Intl.DateTimeFormat("fr-CA", {
-	        timeZone: "UTC",
-	        day: "numeric",
-	        month: "long",
-	        year: "numeric",
-	      }).format(birthdayDate);
-	    } catch (error) {
-	      fullDate = birthdayDate.toISOString().slice(0, 10);
-	    }
-	    return { weekday, fullDate };
-	  };
-
-	  let timeChangeTokenInfo = null;
-	  let christmasTokenInfo = null;
-	  let birthdayTokenInfo = null;
-	  let tokenInfoFetchedAt = 0;
-	  let tokenInfoFetchPromise = null;
-	  const TOKEN_INFO_TTL_MS = 30_000;
-
-	  const computeBirthdayTokenInfo = (employeesList, settings) => {
-	    const openDays = normalizeOpenDays(settings?.open_days);
-	    const daysBeforeRaw = Number(settings?.days_before);
-	    const daysBefore =
-	      Number.isFinite(daysBeforeRaw) && daysBeforeRaw >= 0 && daysBeforeRaw <= 365
-	        ? daysBeforeRaw
-	        : 3;
-
-	    const now = new Date();
-	    const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-	    const dayMs = 24 * 60 * 60 * 1000;
-
-	    const displayableGroups = new Map();
-	    const upcomingGroups = new Map();
-
-	    const addToGroup = (map, key, payload) => {
-	      if (!map.has(key)) {
-	        map.set(key, payload);
-	      } else {
-	        const existing = map.get(key);
-	        existing.employees.push(...payload.employees);
-	      }
-	    };
-
-	    const employees = Array.isArray(employeesList) ? employeesList : [];
-	    employees.forEach((emp) => {
-	      const next = computeNextBirthdayDate(emp?.birthday);
-	      if (!next) return;
-	      const announce = computeBirthdayAnnounceDate(next, openDays);
-	      const daysToBirthday = Math.round((next - todayUtc) / dayMs);
-	      const daysToAnnounce = Math.round((announce - todayUtc) / dayMs);
-	      if (!Number.isFinite(daysToBirthday) || daysToBirthday < 0) return;
-
-	      const shiftedForClosure = announce.getTime() !== next.getTime();
-	      let variant = "before";
-	      if (daysToBirthday === 0) {
-	        variant = "day";
-	      } else if (shiftedForClosure && daysToAnnounce === 0) {
-	        variant = "weekend";
-	      }
-
-	      const displayAllowed =
-	        variant === "day" ||
-	        (variant === "before" && daysToBirthday <= daysBefore) ||
-	        (variant === "weekend" && daysToAnnounce === 0);
-
-	      const groupKey = next.getTime();
-	      const targetMap = displayAllowed ? displayableGroups : upcomingGroups;
-	      addToGroup(targetMap, groupKey, {
-	        birthday: next,
-	        daysUntilBirthday: daysToBirthday,
-	        employees: [emp],
-	      });
-	    });
-
-	    const pickEarliest = (map) => {
-	      const values = Array.from(map.values());
-	      if (!values.length) return null;
-	      values.sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
-	      return values[0];
-	    };
-
-	    const chosen = pickEarliest(displayableGroups) || pickEarliest(upcomingGroups);
-	    if (!chosen) return null;
-
-	    const names = chosen.employees
-	      .map((e) => (e && typeof e.name === "string" ? e.name.trim() : ""))
-	      .filter(Boolean);
-	    const namesText =
-	      names.length === 0
-	        ? ""
-	        : names.length === 1
-	          ? names[0]
-	          : `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
-	    const { weekday, fullDate } = formatBirthdayMeta(chosen.birthday);
-
-	    return {
-	      namesText,
-	      days: chosen.daysUntilBirthday,
-	      weekday,
-	      fullDate,
-	    };
-	  };
-
-	  const refreshTokenInfo = async ({ force = false } = {}) => {
-	    if (editorKind === "test") {
-	      tokenInfoFetchedAt = Date.now();
-	      updateTestPreviewTexts(currentTestTexts);
-	      if (currentSelectedTextName) {
-	        reselectCurrentText();
-	      }
-	      return;
-	    }
-
-	    const nowMs = Date.now();
-	    if (!force && nowMs - tokenInfoFetchedAt < TOKEN_INFO_TTL_MS) {
-	      return;
-	    }
-	    if (tokenInfoFetchPromise) {
-	      return tokenInfoFetchPromise;
-	    }
-
-	    tokenInfoFetchPromise = (async () => {
-	      try {
-	        if (editorKind === "time_change") {
-	          const data = await fetchJSON("api/time-change-slide/next");
-	          timeChangeTokenInfo = data && data.change ? data.change : null;
-	        } else if (editorKind === "christmas") {
-	          const data = await fetchJSON("api/christmas-slide/next");
-	          christmasTokenInfo = data && data.christmas ? data.christmas : null;
-	        } else if (editorKind === "birthday") {
-	          const [employeesData, settings] = await Promise.all([
-	            fetchJSON("api/employees").catch(() => ({ employees: [] })),
-	            editorAdapter.fetchSettings().catch(() => ({})),
-	          ]);
-	          const employees = Array.isArray(employeesData?.employees) ? employeesData.employees : [];
-	          birthdayTokenInfo = computeBirthdayTokenInfo(employees, settings);
-	        }
-	      } catch (error) {
-	        console.warn("Impossible de rafraîchir les variables d'aperçu:", error);
-	      } finally {
-	        tokenInfoFetchedAt = Date.now();
-	        tokenInfoFetchPromise = null;
-	        updateTestPreviewTexts(currentTestTexts);
-	        if (currentSelectedTextName) {
-	          reselectCurrentText();
-	        }
-	      }
-	    })();
-
-	    return tokenInfoFetchPromise;
-	  };
-
-	  const buildTestTokenMap = () => {
-	    const now = new Date();
-	    const eventDate = parseEventDateString(currentTestMeta.event_date);
-	    const daysLeft = getDaysUntilEvent(eventDate);
-	    const countdown = `${daysLeft} ${getDayLabel(daysLeft)}`;
-	    const weekdayLower = formatWeekday(now, { capitalize: false });
-	    const weekdayUpper = formatWeekday(now, { capitalize: true });
-	    const monthLower = formatMonth(now, { capitalize: false });
-	    const monthUpper = formatMonth(now, { capitalize: true });
-	    return {
-	      "[slide_name]": currentTestMeta.name || "",
-	      "[date]": FRENCH_DATE_FORMAT.format(now),
-	      "[time]": FRENCH_TIME_FORMAT.format(now),
-	      "[weekday]": weekdayLower,
-	      "[Weekday]": weekdayUpper,
-	      "[month]": monthLower,
-	      "[Month]": monthUpper,
-	      "[year]": String(now.getFullYear()),
-	      "[season]": getSeasonLabel(now, { capitalize: false }),
-	      "[seasons]": getSeasonLabel(now, { capitalize: true }),
-	      "[Season]": getSeasonLabel(now, { capitalize: true }),
-	      "[days_left]": String(daysLeft),
-	      "[event_countdown]": countdown,
-	      "[day_days]": getDayLabel(daysLeft),
-	      "[Day_Days]": getDayLabel(daysLeft, { capitalize: true }),
-	      "[event_date]": eventDate ? FRENCH_DATE_FORMAT.format(eventDate) : "",
-	      "[event_weekday]": eventDate ? formatWeekday(eventDate, { capitalize: true }) : "",
-	      "[event_month]": eventDate ? formatMonth(eventDate, { capitalize: true }) : "",
-	      "[event_year]": eventDate ? String(eventDate.getFullYear()) : "",
-	    };
-	  };
-
-	  const buildTimeChangeTokenMap = () => {
-	    const change = timeChangeTokenInfo || {};
-	    const days = Number.isFinite(Number(change.days_until)) ? Number(change.days_until) : null;
-	    const seasonWord =
-	      change.season === "winter"
-	        ? "hiver"
-	        : change.season === "summer"
-	          ? "été"
-	          : (change.season_label || "").replace("d'", "").replace("de ", "") || "";
-	    return {
-	      "[change_weekday]": change.weekday_label || "",
-	      "[change_date]": change.date_label || "",
-	      "[change_time]": change.time_label || "",
-	      "[direction_verb]":
-	        change.direction_label || (change.direction === "backward" ? "reculer" : "avancer"),
-	      "[offset_hours]": change.offset_hours != null ? String(change.offset_hours) : "1",
-	      "[offset_from]": change.offset_from || "",
-	      "[offset_to]": change.offset_to || "",
-	      "[days_until]": days != null ? String(days) : "",
-	      "[days_left]": days != null ? String(days) : "",
-	      "[days_label]": getDayLabel(days != null ? days : 0),
-	      "[season_label]": change.season_label || "",
-	      "[seasons]": seasonWord,
-	    };
-	  };
-
-	  const buildChristmasTokenMap = () => {
-	    const info = christmasTokenInfo || {};
-	    const days = Number.isFinite(Number(info.days_until)) ? Number(info.days_until) : null;
-	    return {
-	      "[days_until]": days != null ? String(days) : "",
-	      "[days_left]": days != null ? String(days) : "",
-	      "[days_label]": getDayLabel(days != null ? days : 0),
-	      "[christmas_date]": info.date_label || "25 décembre",
-	      "[christmas_weekday]": info.weekday_label || "",
-	      "[year]": info.year != null ? String(info.year) : String(new Date().getFullYear()),
-	    };
-	  };
-
-	  const buildBirthdayTokenMap = () => {
-	    const data = birthdayTokenInfo || {};
-	    const days = Number.isFinite(Number(data.days)) ? Number(data.days) : null;
-	    return {
-	      "[name]": data.namesText || "",
-	      "[days]": days != null ? String(days) : "",
-	      "[day_label]": getDayLabel(days != null ? days : 0),
-	      "[birthday_weekday]": data.weekday || "",
-	      "[date]": data.fullDate || "",
-	    };
-	  };
-
-	  const buildTokenMap = () => {
-	    if (editorKind === "test") return buildTestTokenMap();
-	    if (editorKind === "time_change") return buildTimeChangeTokenMap();
-	    if (editorKind === "christmas") return buildChristmasTokenMap();
-	    if (editorKind === "birthday") return buildBirthdayTokenMap();
-	    return {};
-	  };
+  const getDayLabel = (count, { capitalize = false } = {}) => {
+    const base = count === 1 ? "jour" : "jours";
+    if (!capitalize) return base;
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  };
+  const buildTokenMap = () => {
+    if (editorKind !== "test") {
+      return {};
+    }
+    const now = new Date();
+    const eventDate = parseEventDateString(currentTestMeta.event_date);
+    const daysLeft = getDaysUntilEvent(eventDate);
+    const countdown = `${daysLeft} ${getDayLabel(daysLeft)}`;
+    const weekdayLower = formatWeekday(now, { capitalize: false });
+    const weekdayUpper = formatWeekday(now, { capitalize: true });
+    const monthLower = formatMonth(now, { capitalize: false });
+    const monthUpper = formatMonth(now, { capitalize: true });
+    const tokens = {
+      "[slide_name]": currentTestMeta.name || "",
+      "[date]": FRENCH_DATE_FORMAT.format(now),
+      "[time]": FRENCH_TIME_FORMAT.format(now),
+      "[weekday]": weekdayLower,
+      "[Weekday]": weekdayUpper,
+      "[month]": monthLower,
+      "[Month]": monthUpper,
+      "[year]": String(now.getFullYear()),
+      "[season]": getSeasonLabel(now, { capitalize: false }),
+      "[seasons]": getSeasonLabel(now, { capitalize: true }),
+      "[Season]": getSeasonLabel(now, { capitalize: true }),
+      "[days_left]": String(daysLeft),
+      "[event_countdown]": countdown,
+      "[day_days]": getDayLabel(daysLeft),
+      "[Day_Days]": getDayLabel(daysLeft, { capitalize: true }),
+      "[event_date]": eventDate ? FRENCH_DATE_FORMAT.format(eventDate) : "",
+      "[event_weekday]": eventDate ? formatWeekday(eventDate, { capitalize: true }) : "",
+      "[event_month]": eventDate ? formatMonth(eventDate, { capitalize: true }) : "",
+      "[event_year]": eventDate ? String(eventDate.getFullYear()) : "",
+    };
+    return tokens;
+  };
   const resolveTokens = (value) => {
     if (!value && value !== 0) return "";
     const source = typeof value === "string" ? value : String(value);
@@ -2192,15 +1627,79 @@
 
   const queueTextUpdate = (name, value) => {
     if (!name) return;
+    pendingTextChanges.set(name, value ?? "");
     const existing = textUpdateTimers.get(name);
     if (existing) {
       clearTimeout(existing);
     }
     const timer = setTimeout(() => {
-      void updateTestText(name, value);
+      const pendingValue = pendingTextChanges.get(name);
+      void updateTestText(name, pendingValue);
       textUpdateTimers.delete(name);
     }, 500);
     textUpdateTimers.set(name, timer);
+  };
+
+  const flushPendingMetaUpdates = async () => {
+    if (!editorAdapter.supportsMeta) {
+      pendingMetaChanges = {};
+      if (metaUpdateTimer) {
+        clearTimeout(metaUpdateTimer);
+        metaUpdateTimer = null;
+      }
+      return;
+    }
+    if (metaUpdateTimer) {
+      clearTimeout(metaUpdateTimer);
+      metaUpdateTimer = null;
+    }
+    const payload = { ...pendingMetaChanges };
+    pendingMetaChanges = {};
+    if (!Object.keys(payload).length) {
+      return;
+    }
+    await persistTestMeta(payload);
+  };
+
+  const flushPendingTextUpdates = async () => {
+    const entries = Array.from(pendingTextChanges.entries());
+    if (!entries.length) {
+      return;
+    }
+    entries.forEach(([name]) => {
+      const timer = textUpdateTimers.get(name);
+      if (timer) {
+        clearTimeout(timer);
+        textUpdateTimers.delete(name);
+      }
+    });
+    await Promise.allSettled(
+      entries.map(async ([name, value]) => {
+        await updateTestText(name, value);
+      }),
+    );
+  };
+
+  const saveAllChanges = async () => {
+    if (saveButton) {
+      saveButton.disabled = true;
+    }
+    try {
+      const hasPending = pendingTextChanges.size > 0 || Object.keys(pendingMetaChanges).length > 0;
+      await Promise.allSettled([flushPendingMetaUpdates(), flushPendingTextUpdates()]);
+      if (!hasPending) {
+        setTestTextFeedback("Aucune modification à enregistrer.", "info");
+      } else {
+        setTestTextFeedback("Modifications enregistrées.", "success");
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'enregistrement:", error);
+      setTestTextFeedback("Erreur lors de l'enregistrement.", "error");
+    } finally {
+      if (saveButton) {
+        saveButton.disabled = false;
+      }
+    }
   };
 
   const updateTestText = async (name, patch) => {
@@ -2209,6 +1708,7 @@
       patch && typeof patch === "object" && !Array.isArray(patch) ? patch : { value: patch };
     try {
       const response = await editorAdapter.linesApi.update(name, payload);
+      pendingTextChanges.delete(name);
       if (response?.deleted) {
         currentTestTexts = currentTestTexts.filter((entry) => entry.name !== name);
         updateTestPreviewTexts(currentTestTexts);
@@ -2226,9 +1726,9 @@
     }
   };
 
-	  const mergeUpdatedTextEntry = (name, response) => {
-	    if (!response) return;
-	    if (response.deleted) {
+  const mergeUpdatedTextEntry = (name, response) => {
+    if (!response) return;
+    if (response.deleted) {
       currentTestTexts = currentTestTexts.filter((entry) => entry.name !== name);
       updateTestPreviewTexts(currentTestTexts);
       if (currentSelectedTextName === name) {
@@ -2236,25 +1736,18 @@
       }
       return;
     }
-	    const normalizedPosition = response.position || { x: 50, y: 50 };
-	    const normalizedSize = response.size || { ...DEFAULT_TEXT_SIZE };
-	    const existingAngle = currentTestTexts.find((entry) => entry.name === name)?.angle;
-	    const normalizedAngle = Number.isFinite(Number(response.angle))
-	      ? Number(response.angle)
-	      : Number.isFinite(Number(existingAngle))
-	      ? Number(existingAngle)
-	      : 0;
-	    const normalized = {
-	      name,
-	      value: response.value || "",
-	      resolved_value: response.resolved_value || resolveTokens(response.value || ""),
-	      position: normalizedPosition,
-	      size: normalizedSize,
-	      angle: normalizedAngle,
-	      color: response.color || DEFAULT_TEXT_COLOR,
-	      style: getEntryStyle(response),
-	      background: getEntryBackground(response),
-	    };
+    const normalizedPosition = response.position || { x: 50, y: 50 };
+    const normalizedSize = response.size || { ...DEFAULT_TEXT_SIZE };
+    const normalized = {
+      name,
+      value: response.value || "",
+      resolved_value: response.resolved_value || resolveTokens(response.value || ""),
+      position: normalizedPosition,
+      size: normalizedSize,
+      color: response.color || DEFAULT_TEXT_COLOR,
+      style: getEntryStyle(response),
+      background: getEntryBackground(response),
+    };
     const index = currentTestTexts.findIndex((entry) => entry.name === name);
     if (index >= 0) {
       currentTestTexts[index] = { ...currentTestTexts[index], ...normalized };
@@ -2385,6 +1878,7 @@
   const deleteTestText = async (name) => {
     if (!name) return;
     try {
+      pendingTextChanges.delete(name);
       await editorAdapter.linesApi.remove(name);
       setTestTextFeedback(`Texte ${name} supprimé.`, "success");
       currentTestTexts = currentTestTexts.filter((entry) => entry.name !== name);
@@ -2413,40 +1907,15 @@
     void updateTestTextStyle(name, nextStyle);
   };
 
-  const applyColorChanges = (name, color, persist = false) => {
-    if (!name || !isValidHexColor(color)) return;
-    const nextColor = normalizeColorValue(color);
-    const index = currentTestTexts.findIndex((item) => item.name === name);
-    if (index >= 0) {
-      currentTestTexts[index] = { ...currentTestTexts[index], color: nextColor };
-    }
-    const card = getPreviewCardByName(name);
-    if (card) {
-      card.dataset.color = nextColor;
-      card.style.color = nextColor;
-    }
-    if (currentSelectedTextName === name && selectedTextColorValue) {
-      selectedTextColorValue.textContent = formatColorLabel(nextColor);
-    }
-    if (persist) {
-      void updateTestTextColor(name, nextColor);
-    }
-  };
-
-  const applyBackgroundChanges = (name, changes, persist = false) => {
+  const applyBackgroundChanges = (name, changes) => {
     if (!name) return;
     const entry = currentTestTexts.find((item) => item.name === name);
     const baseBackground = getEntryBackground(entry || {});
     const nextBackground = normalizeBackgroundOptions({ ...baseBackground, ...changes });
-    const index = currentTestTexts.findIndex((item) => item.name === name);
-    if (index >= 0) {
-      currentTestTexts[index] = { ...currentTestTexts[index], background: nextBackground };
-    }
-    const card = getPreviewCardByName(name);
-    if (card) {
-      applyCardBackground(card, nextBackground);
-    }
     if (currentSelectedTextName === name) {
+      if (selectedTextBackgroundColorInput && Object.prototype.hasOwnProperty.call(changes, "color")) {
+        selectedTextBackgroundColorInput.value = nextBackground.color;
+      }
       if (selectedTextBackgroundColorValue && Object.prototype.hasOwnProperty.call(changes, "color")) {
         selectedTextBackgroundColorValue.textContent = formatColorLabel(nextBackground.color);
       }
@@ -2463,9 +1932,7 @@
         selectedTextBackgroundOpacityValue.textContent = `${Math.round(nextBackground.opacity * 100)}%`;
       }
     }
-    if (persist) {
-      void updateTestTextBackground(name, nextBackground);
-    }
+    void updateTestTextBackground(name, nextBackground);
   };
 
   const createTestBackgroundThumb = (entry) => {
@@ -2620,6 +2087,9 @@
     testTextAddButton?.addEventListener("click", () => {
       void addTestText();
     });
+    saveButton?.addEventListener("click", () => {
+      void saveAllChanges();
+    });
     if (editorKind === "birthday" && birthdayVariantButtons?.length) {
       birthdayVariantButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -2629,33 +2099,32 @@
       });
       setActiveVariantUI(editorVariant || "before");
     }
-    if (useCustomDateToggle || customDateInput) {
-      updateDateControlUI(currentTestSlideSettings);
-
-      useCustomDateToggle?.addEventListener("change", (event) => {
-        const enabled = Boolean(event.target.checked);
-        if (customDateInput) {
-          customDateInput.disabled = !enabled;
-        }
-        void persistTestSlideSettings({
-          use_custom_date: enabled,
-          custom_date: customDateInput?.value || "",
-        });
+    if (editorAdapter.supportsMeta) {
+      slideNameInput?.addEventListener("input", (event) => {
+        const value = (event.target.value || "").slice(0, 120);
+        currentTestMeta = { ...currentTestMeta, name: value };
+        queueMetaUpdate({ name: value });
+        updateTestPreviewTexts(currentTestTexts);
       });
-
-      customDateInput?.addEventListener("input", (event) => {
+      slideDateInput?.addEventListener("input", (event) => {
         const value = event.target.value || "";
-        if (useCustomDateToggle) {
-          useCustomDateToggle.checked = Boolean(value);
-        }
-        if (customDateInput) {
-          customDateInput.disabled = !value;
-        }
-        void persistTestSlideSettings({
-          use_custom_date: Boolean(value),
-          custom_date: value,
-        });
+        currentTestMeta = { ...currentTestMeta, event_date: value };
+        queueMetaUpdate({ event_date: value });
+        updateTestPreviewTexts(currentTestTexts);
       });
+    } else {
+      if (slideNameInput) {
+        slideNameInput.disabled = true;
+        slideNameInput.placeholder = "Non utilisé pour ce modèle";
+      }
+      if (slideDateInput) {
+        slideDateInput.disabled = true;
+      }
+      const metaRow = editorRoot.querySelector(".custom-meta-row");
+      if (metaRow) {
+        metaRow.style.opacity = "0.6";
+        metaRow.style.pointerEvents = "none";
+      }
     }
     variablesOpenButton?.addEventListener("click", () => {
       if (variablesOpenButton.disabled) {
@@ -2683,23 +2152,16 @@
       if (!currentSelectedTextName) return;
       const value = event.target.value;
       if (!isValidHexColor(value)) return;
-      applyColorChanges(currentSelectedTextName, value, false);
-    });
-    selectedTextColorInput?.addEventListener("change", (event) => {
-      if (!currentSelectedTextName) return;
-      const value = event.target.value;
-      if (!isValidHexColor(value)) return;
-      applyColorChanges(currentSelectedTextName, value, true);
+      if (selectedTextColorValue) {
+        selectedTextColorValue.textContent = formatColorLabel(value);
+      }
+      void updateTestTextColor(currentSelectedTextName, value);
     });
     selectedTextBackgroundColorInput?.addEventListener("input", (event) => {
       if (!currentSelectedTextName) return;
       const value = normalizeColorValue(event.target.value);
-      applyBackgroundChanges(currentSelectedTextName, { color: value }, false);
-    });
-    selectedTextBackgroundColorInput?.addEventListener("change", (event) => {
-      if (!currentSelectedTextName) return;
-      const value = normalizeColorValue(event.target.value);
-      applyBackgroundChanges(currentSelectedTextName, { color: value }, true);
+      event.target.value = value;
+      applyBackgroundChanges(currentSelectedTextName, { color: value });
     });
     selectedTextBackgroundOpacityInput?.addEventListener("input", (event) => {
       if (!currentSelectedTextName) return;
@@ -2708,14 +2170,7 @@
       if (selectedTextBackgroundOpacityValue) {
         selectedTextBackgroundOpacityValue.textContent = `${percent}%`;
       }
-      updateOpacitySliderFill(percent);
-      applyBackgroundChanges(currentSelectedTextName, { opacity: percent / 100 }, false);
-    });
-    selectedTextBackgroundOpacityInput?.addEventListener("change", (event) => {
-      if (!currentSelectedTextName) return;
-      const percent = clamp(Number(event.target.value) || 0, 0, 100);
-      updateOpacitySliderFill(percent);
-      applyBackgroundChanges(currentSelectedTextName, { opacity: percent / 100 }, true);
+      applyBackgroundChanges(currentSelectedTextName, { opacity: percent / 100 });
     });
     selectedTextFontSelect?.addEventListener("change", (event) => {
       if (!currentSelectedTextName) return;
@@ -2755,16 +2210,15 @@
     window.addEventListener("pointermove", handleTextPointerMove);
     window.addEventListener("pointerup", handleTextPointerUp);
     window.addEventListener("pointercancel", handleTextPointerUp);
-	    testPreviewTextOverlay?.addEventListener("pointerdown", (event) => {
-	      const targetCard = event.target?.closest?.(".preview-text-card");
-	      if (!targetCard) {
-	        clearSelection();
-	      }
-	    });
-	    void refreshTestBackgroundList();
-	    void refreshTestTextsList();
-	    void refreshTokenInfo({ force: true });
-	  };
+    testPreviewTextOverlay?.addEventListener("pointerdown", (event) => {
+      const targetCard = event.target?.closest?.(".preview-text-card");
+      if (!targetCard) {
+        clearSelection();
+      }
+    });
+    void refreshTestBackgroundList();
+    void refreshTestTextsList();
+  };
 
     if (document.readyState === "loading") {
       window.addEventListener("DOMContentLoaded", init);
