@@ -37,9 +37,13 @@
     const variablesModal = byPrefixId("variables-modal");
     const variablesOpenButton = byPrefixId("variables-open");
     const variablesCloseButton = byPrefixId("variables-close");
+    const variablesHint = byPrefixId("variables-hint");
     const variableButtons = variablesModal
       ? variablesModal.querySelectorAll(".editor-variable-button")
       : document.querySelectorAll(".editor-variable-button");
+    const variableSampleNodes = variablesModal
+      ? variablesModal.querySelectorAll("[data-variable-sample]")
+      : null;
     const selectedTextPanel = document.querySelector("#selected-text-panel");
     const selectedTextTitle = document.querySelector("#selected-text-title");
     const selectedTextTextarea = document.querySelector("#selected-text-input");
@@ -570,6 +574,29 @@
   let pendingMetaChanges = {};
   let lastFocusedModalTrigger = null;
   let editorAdapter = createEditorAdapter(editorKind, editorVariant);
+  let tokenPreview = { tokens: {}, withinWindow: null, mode: "live", updatedAt: 0 };
+  let tokenRefreshTimer = null;
+  let tokenRefreshInFlight = null;
+  const EMPLOYEES_REFRESH_MS = 60_000;
+  let employeesCache = { items: null, fetchedAt: 0, promise: null };
+  const BIRTHDAY_WEEKDAY_KEYS = [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+  ];
+  const BIRTHDAY_WEEKDAY_LABELS_FR = [
+    "Dimanche",
+    "Lundi",
+    "Mardi",
+    "Mercredi",
+    "Jeudi",
+    "Vendredi",
+    "Samedi",
+  ];
 
   const highlightTestBackgroundDropZone = (active) => {
     if (!testBackgroundDropZone) return;
@@ -600,6 +627,7 @@
     void refreshTestMeta();
     void refreshTestBackgroundList();
     void refreshTestTextsList();
+    void refreshTokenPreview({ force: true });
   };
 
   const setTestBackgroundFeedback = (message, status = "info") => {
@@ -1043,7 +1071,7 @@
     card.innerHTML = "";
     const content = document.createElement("span");
     content.className = "preview-text-content";
-    const resolvedValue = entry.resolved_value || resolveTokens(rawValue);
+    const resolvedValue = resolveTokens(rawValue);
     content.textContent = resolvedValue;
     card.appendChild(content);
     card.dataset.name = entry.name;
@@ -1451,10 +1479,12 @@
 
   const openVariablesModal = () => {
     if (!variablesModal) return;
+    updateVariablesHint();
+    updateVariableSamples();
     variablesModal.classList.add("is-visible");
     variablesModal.setAttribute("aria-hidden", "false");
     lastFocusedModalTrigger = document.activeElement;
-    const firstButton = variablesModal.querySelector(".test-variable-button");
+    const firstButton = variablesModal.querySelector(".editor-variable-button");
     firstButton?.focus();
     window.addEventListener("keydown", handleVariableModalKeydown);
   };
@@ -1553,10 +1583,8 @@
     if (!capitalize) return base;
     return base.charAt(0).toUpperCase() + base.slice(1);
   };
-  const buildTokenMap = () => {
-    if (editorKind !== "test") {
-      return {};
-    }
+
+  const computeTestTokenMap = () => {
     const now = new Date();
     const eventDate = parseEventDateString(currentTestMeta.event_date);
     const daysLeft = getDaysUntilEvent(eventDate);
@@ -1565,7 +1593,7 @@
     const weekdayUpper = formatWeekday(now, { capitalize: true });
     const monthLower = formatMonth(now, { capitalize: false });
     const monthUpper = formatMonth(now, { capitalize: true });
-    const tokens = {
+    return {
       "[slide_name]": currentTestMeta.name || "",
       "[date]": FRENCH_DATE_FORMAT.format(now),
       "[time]": FRENCH_TIME_FORMAT.format(now),
@@ -1586,12 +1614,19 @@
       "[event_month]": eventDate ? formatMonth(eventDate, { capitalize: true }) : "",
       "[event_year]": eventDate ? String(eventDate.getFullYear()) : "",
     };
-    return tokens;
   };
+
+  const getTokenMapSnapshot = () => {
+    if (editorKind === "test") {
+      return computeTestTokenMap();
+    }
+    return tokenPreview?.tokens || {};
+  };
+
   const resolveTokens = (value) => {
     if (!value && value !== 0) return "";
     const source = typeof value === "string" ? value : String(value);
-    const tokens = buildTokenMap();
+    const tokens = getTokenMapSnapshot();
     let resolved = source;
     Object.entries(tokens).forEach(([token, replacement]) => {
       if (!token) return;
@@ -1601,10 +1636,414 @@
     return resolved;
   };
 
+  const updateVariablesHint = () => {
+    if (!variablesHint) {
+      return;
+    }
+    if (editorKind === "test") {
+      variablesHint.textContent = "Aperçu : valeur actuelle.";
+      return;
+    }
+    if (tokenPreview?.withinWindow === null) {
+      variablesHint.textContent = "Aperçu : chargement des valeurs…";
+      return;
+    }
+    const mode = tokenPreview?.mode || "live";
+    if (mode === "next") {
+      variablesHint.textContent = "Aperçu : prochaines valeurs affichées lorsque la diapo sera active.";
+      return;
+    }
+    variablesHint.textContent = "Aperçu : valeur actuelle (diapo active).";
+  };
+
+  const updateVariableSamples = () => {
+    if (!variableSampleNodes || !variableSampleNodes.length) {
+      return;
+    }
+    const tokens = getTokenMapSnapshot();
+    variableSampleNodes.forEach((node) => {
+      const key = node?.dataset?.variableSample;
+      if (!key) return;
+      const value = tokens[key];
+      const text =
+        value === undefined || value === null || String(value) === "" ? "—" : String(value);
+      node.textContent = text;
+    });
+  };
+
+  const refreshPreviewTokenRendering = () => {
+    if (!testPreviewTextOverlay) return;
+    const cards = testPreviewTextOverlay.querySelectorAll(".preview-text-card");
+    cards.forEach((card) => {
+      const rawValue = card?.dataset?.rawValue || "";
+      if (!rawValue.trim()) return;
+      const resolved = resolveTokens(rawValue);
+      const content = card.querySelector(".preview-text-content");
+      if (!content) return;
+      if (card.dataset.renderedValue === resolved) return;
+      content.textContent = resolved;
+      card.dataset.renderedValue = resolved;
+      applyTextCardFontSizing(card);
+    });
+  };
+
+  const normalizeDaysBefore = (value, fallback, max) => {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed <= max) return Math.round(parsed);
+    const fallbackParsed = Number(fallback);
+    if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0 && fallbackParsed <= max) {
+      return Math.round(fallbackParsed);
+    }
+    return 0;
+  };
+
+  const ensureEmployees = async () => {
+    const now = Date.now();
+    const shouldRefresh =
+      !employeesCache.items || now - employeesCache.fetchedAt > EMPLOYEES_REFRESH_MS;
+    if (!shouldRefresh && !employeesCache.promise) {
+      return employeesCache.items || [];
+    }
+    if (!employeesCache.promise) {
+      employeesCache.promise = fetchJSON("api/employees")
+        .then((data) => {
+          employeesCache.items = Array.isArray(data?.employees) ? data.employees : [];
+          employeesCache.fetchedAt = Date.now();
+          return employeesCache.items;
+        })
+        .catch((error) => {
+          console.warn("Impossible de charger les employés:", error);
+          employeesCache.items = [];
+          employeesCache.fetchedAt = Date.now();
+          return employeesCache.items;
+        })
+        .finally(() => {
+          employeesCache.promise = null;
+        });
+    }
+    return employeesCache.promise;
+  };
+
+  const computeNextBirthday = (birthdayStr) => {
+    if (!birthdayStr) return null;
+    const parts = String(birthdayStr).split("-");
+    if (parts.length < 2) return null;
+
+    const tryBuild = (m, d) => {
+      if (!Number.isFinite(m) || !Number.isFinite(d) || m < 1 || m > 12 || d < 1 || d > 31) {
+        return null;
+      }
+      const now = new Date();
+      const thisYear = now.getFullYear();
+      const candidate = new Date(Date.UTC(thisYear, m - 1, d));
+      const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+      if (candidate < todayUtc) {
+        candidate.setUTCFullYear(thisYear + 1);
+      }
+      return candidate;
+    };
+
+    if (parts.length >= 3) {
+      return tryBuild(Number(parts[1]), Number(parts[2]));
+    }
+
+    return tryBuild(Number(parts[0]), Number(parts[1])) || tryBuild(Number(parts[1]), Number(parts[0]));
+  };
+
+  const normalizeOpenDays = (raw) => {
+    const base = {
+      monday: true,
+      tuesday: true,
+      wednesday: true,
+      thursday: true,
+      friday: true,
+      saturday: false,
+      sunday: false,
+    };
+    if (!raw || typeof raw !== "object") return base;
+    const result = { ...base };
+    Object.keys(base).forEach((key) => {
+      if (key in raw) {
+        result[key] = Boolean(raw[key]);
+      }
+    });
+    return result;
+  };
+
+  const computeAnnounceDate = (targetDate, openDays) => {
+    if (!(targetDate instanceof Date) || Number.isNaN(targetDate)) {
+      return null;
+    }
+    const normalized = normalizeOpenDays(openDays);
+    const key = BIRTHDAY_WEEKDAY_KEYS[targetDate.getUTCDay()];
+    if (normalized[key]) {
+      return targetDate;
+    }
+    const candidate = new Date(targetDate.getTime());
+    for (let i = 0; i < 7; i += 1) {
+      const candidateKey = BIRTHDAY_WEEKDAY_KEYS[candidate.getUTCDay()];
+      if (normalized[candidateKey]) {
+        return candidate;
+      }
+      candidate.setUTCDate(candidate.getUTCDate() - 1);
+    }
+    return targetDate;
+  };
+
+  const formatBirthdayMeta = (birthdayDate) => {
+    if (!(birthdayDate instanceof Date) || Number.isNaN(birthdayDate)) {
+      return { weekday: "", fullDate: "" };
+    }
+    const weekday = BIRTHDAY_WEEKDAY_LABELS_FR[birthdayDate.getUTCDay()] || "";
+    const fullDate = new Intl.DateTimeFormat("fr-CA", {
+      timeZone: "UTC",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(birthdayDate);
+    return { weekday, fullDate };
+  };
+
+  const buildBirthdayTokenContext = async () => {
+    const settings = (await editorAdapter.fetchSettings().catch(() => ({}))) || {};
+    const daysBefore = normalizeDaysBefore(settings?.days_before, 3, 365);
+    const openDays = normalizeOpenDays(settings?.open_days);
+    const variant = editorVariant || "before";
+    const employees = await ensureEmployees();
+    const today = new Date();
+    const todayUtc = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    const dayMs = 24 * 60 * 60 * 1000;
+    const groups = new Map();
+
+    (Array.isArray(employees) ? employees : []).forEach((emp) => {
+      const next = computeNextBirthday(emp?.birthday);
+      if (!next) return;
+      const announce = computeAnnounceDate(next, openDays) || next;
+      const daysToBirthday = Math.round((next - todayUtc) / dayMs);
+      const daysToAnnounce = Math.round((announce - todayUtc) / dayMs);
+      if (!Number.isFinite(daysToBirthday) || daysToBirthday < 0) return;
+
+      const key = next.getTime();
+      if (!groups.has(key)) {
+        groups.set(key, {
+          birthday: next,
+          announce,
+          daysUntilBirthday: daysToBirthday,
+          daysUntilAnnounce: Math.max(0, daysToAnnounce),
+          shiftedForClosure: announce.getTime() !== next.getTime(),
+          employees: [],
+        });
+      }
+      groups.get(key).employees.push(emp);
+    });
+
+    const entries = Array.from(groups.values());
+    if (!entries.length) {
+      return { tokens: {}, withinWindow: false, mode: "next" };
+    }
+
+    entries.sort((a, b) => {
+      if (a.daysUntilBirthday === b.daysUntilBirthday) {
+        const nameA = (a.employees[0]?.name || "").toLowerCase();
+        const nameB = (b.employees[0]?.name || "").toLowerCase();
+        return nameA.localeCompare(nameB);
+      }
+      return a.daysUntilBirthday - b.daysUntilBirthday;
+    });
+
+    const entryVariantNow = (entry) => {
+      if (entry.daysUntilBirthday === 0) {
+        return "day";
+      }
+      if (entry.shiftedForClosure && entry.daysUntilAnnounce === 0) {
+        return "weekend";
+      }
+      return "before";
+    };
+
+    const activeEntries = entries.filter((entry) => {
+      const currentVariant = entryVariantNow(entry);
+      if (currentVariant !== variant) return false;
+      if (currentVariant === "day") return true;
+      if (currentVariant === "weekend") return entry.daysUntilAnnounce === 0;
+      return entry.daysUntilBirthday <= daysBefore;
+    });
+
+    const withinWindow = activeEntries.length > 0;
+    const chosen = withinWindow
+      ? activeEntries[0]
+      : variant === "weekend"
+        ? entries.find((entry) => entry.shiftedForClosure) || entries[0]
+        : entries[0];
+
+    const names = (chosen.employees || [])
+      .map((e) => (e && typeof e.name === "string" ? e.name.trim() : ""))
+      .filter(Boolean);
+    const namesText =
+      names.length === 0
+        ? ""
+        : names.length === 1
+          ? names[0]
+          : `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
+    const meta = formatBirthdayMeta(chosen.birthday);
+
+    let previewDays = chosen.daysUntilBirthday;
+    if (!withinWindow) {
+      if (variant === "day") {
+        previewDays = 0;
+      } else if (variant === "weekend") {
+        previewDays = Math.max(0, Math.round((chosen.birthday - chosen.announce) / dayMs));
+      } else {
+        previewDays = daysBefore;
+      }
+    }
+
+    return {
+      withinWindow,
+      mode: withinWindow ? "live" : "next",
+      tokens: {
+        "[name]": namesText,
+        "[days]": String(previewDays),
+        "[day_label]": getDayLabel(previewDays),
+        "[birthday_weekday]": meta.weekday,
+        "[date]": meta.fullDate,
+      },
+    };
+  };
+
+  const buildTimeChangeTokenContext = async () => {
+    const settings = (await editorAdapter.fetchSettings().catch(() => ({}))) || {};
+    const daysBefore = normalizeDaysBefore(settings?.days_before, 7, 60);
+    const query = Number.isFinite(daysBefore) ? `?days_before=${daysBefore}` : "";
+    const payload = await fetchJSON(`api/time-change-slide/next${query}`).catch(() => null);
+    const info = payload?.change || null;
+    const withinWindow =
+      typeof payload?.within_window === "boolean"
+        ? payload.within_window
+        : Number.isFinite(Number(info?.days_until))
+          ? Number(info.days_until) <= daysBefore
+          : false;
+
+    const daysRaw = Number.isFinite(Number(info?.days_until)) ? Number(info.days_until) : null;
+    const previewDays = withinWindow ? daysRaw : daysBefore;
+    const previewDaysSafe = Number.isFinite(Number(previewDays)) ? Number(previewDays) : null;
+    const season =
+      info?.season === "winter"
+        ? "hiver"
+        : info?.season === "summer"
+          ? "été"
+          : String(info?.season_label || "")
+              .replace("d'", "")
+              .replace("de ", "")
+              .trim();
+
+    return {
+      withinWindow,
+      mode: withinWindow ? "live" : "next",
+      tokens: {
+        "[change_weekday]": info?.weekday_label || "",
+        "[change_date]": info?.date_label || "",
+        "[change_time]": info?.time_label || "",
+        "[direction_verb]": info?.direction_label || (info?.direction === "backward" ? "reculer" : "avancer"),
+        "[offset_hours]":
+          info?.offset_hours !== undefined && info?.offset_hours !== null ? String(info.offset_hours) : "",
+        "[offset_from]": info?.offset_from || "",
+        "[offset_to]": info?.offset_to || "",
+        "[days_until]": previewDaysSafe != null ? String(previewDaysSafe) : "",
+        "[days_left]": previewDaysSafe != null ? String(previewDaysSafe) : "",
+        "[days_label]": previewDaysSafe != null ? getDayLabel(previewDaysSafe) : "",
+        "[season_label]": info?.season_label || "",
+        "[seasons]": season || "",
+      },
+    };
+  };
+
+  const buildChristmasTokenContext = async () => {
+    const settings = (await editorAdapter.fetchSettings().catch(() => ({}))) || {};
+    const daysBefore = normalizeDaysBefore(settings?.days_before, 25, 90);
+    const query = Number.isFinite(daysBefore) ? `?days_before=${daysBefore}` : "";
+    const payload = await fetchJSON(`api/christmas-slide/next${query}`).catch(() => null);
+    const info = payload?.christmas || null;
+    const withinWindow =
+      typeof payload?.within_window === "boolean"
+        ? payload.within_window
+        : Number.isFinite(Number(info?.days_until))
+          ? Number(info.days_until) <= daysBefore
+          : false;
+
+    const daysRaw = Number.isFinite(Number(info?.days_until)) ? Number(info.days_until) : null;
+    const previewDays = withinWindow ? daysRaw : daysBefore;
+    const previewDaysSafe = Number.isFinite(Number(previewDays)) ? Number(previewDays) : null;
+    const year =
+      info?.year !== undefined && info?.year !== null ? String(info.year) : String(new Date().getFullYear());
+
+    return {
+      withinWindow,
+      mode: withinWindow ? "live" : "next",
+      tokens: {
+        "[days_until]": previewDaysSafe != null ? String(previewDaysSafe) : "",
+        "[days_left]": previewDaysSafe != null ? String(previewDaysSafe) : "",
+        "[days_label]": previewDaysSafe != null ? getDayLabel(previewDaysSafe) : "",
+        "[christmas_date]": info?.date_label || "25 décembre",
+        "[christmas_weekday]": info?.weekday_label || "",
+        "[year]": year,
+      },
+    };
+  };
+
+  const refreshTokenPreview = async ({ force = false } = {}) => {
+    if (editorKind === "test") {
+      tokenPreview = { ...tokenPreview, tokens: computeTestTokenMap(), withinWindow: true, mode: "live", updatedAt: Date.now() };
+      updateVariablesHint();
+      updateVariableSamples();
+      refreshPreviewTokenRendering();
+      return;
+    }
+
+    if (!force && tokenRefreshInFlight) {
+      await tokenRefreshInFlight;
+      return;
+    }
+
+    tokenRefreshInFlight = (async () => {
+      let context = { tokens: {}, withinWindow: null, mode: "live" };
+      if (editorKind === "birthday") {
+        context = await buildBirthdayTokenContext();
+      } else if (editorKind === "time_change") {
+        context = await buildTimeChangeTokenContext();
+      } else if (editorKind === "christmas") {
+        context = await buildChristmasTokenContext();
+      }
+      tokenPreview = { ...context, updatedAt: Date.now() };
+      updateVariablesHint();
+      updateVariableSamples();
+      refreshPreviewTokenRendering();
+    })()
+      .catch((error) => {
+        console.warn("Impossible de rafraîchir les variables dynamiques:", error);
+      })
+      .finally(() => {
+        tokenRefreshInFlight = null;
+      });
+
+    await tokenRefreshInFlight;
+  };
+
+  const startTokenRefreshLoop = () => {
+    if (tokenRefreshTimer) {
+      clearInterval(tokenRefreshTimer);
+      tokenRefreshTimer = null;
+    }
+    const intervalMs = editorKind === "test" ? 1000 : 60_000;
+    tokenRefreshTimer = setInterval(() => {
+      void refreshTokenPreview();
+    }, intervalMs);
+  };
+
   const renderTestTextsList = (items) => {
     const normalized = (Array.isArray(items) ? items : []).map((entry) => ({
       ...entry,
-      resolved_value: entry.resolved_value || resolveTokens(entry.value || ""),
+      resolved_value: resolveTokens(entry.value || ""),
       style: getEntryStyle(entry),
       background: getEntryBackground(entry),
     }));
@@ -1741,7 +2180,7 @@
     const normalized = {
       name,
       value: response.value || "",
-      resolved_value: response.resolved_value || resolveTokens(response.value || ""),
+      resolved_value: resolveTokens(response.value || ""),
       position: normalizedPosition,
       size: normalizedSize,
       color: response.color || DEFAULT_TEXT_COLOR,
@@ -2216,8 +2655,12 @@
         clearSelection();
       }
     });
+    startTokenRefreshLoop();
+    void refreshTokenPreview({ force: true });
     void refreshTestBackgroundList();
-    void refreshTestTextsList();
+    refreshTestTextsList()
+      .then(() => refreshTokenPreview({ force: true }))
+      .catch(() => {});
   };
 
     if (document.readyState === "loading") {

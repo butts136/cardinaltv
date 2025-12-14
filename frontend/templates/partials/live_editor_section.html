@@ -215,6 +215,7 @@
       <button type="button" class="icon-button" id="{{ id_prefix }}-variables-close" aria-label="Fermer la liste des variables">✕</button>
     </div>
     <div class="custom-variables-modal__body">
+      <p id="{{ id_prefix }}-variables-hint" class="custom-variables-hint" aria-live="polite"></p>
       <ul class="custom-variables-list">
         {% for token in editor_tokens %}
           <li class="custom-variable-row">
@@ -222,6 +223,7 @@
               {{ token.code }}
             </button>
             <span class="custom-variable-description">{{ token.label }}</span>
+            <span class="custom-variable-sample" data-variable-sample="{{ token.code }}">—</span>
           </li>
         {% endfor %}
       </ul>

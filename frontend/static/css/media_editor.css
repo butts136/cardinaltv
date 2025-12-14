@@ -222,6 +222,12 @@
   margin-top: 1rem;
 }
 
+.custom-variables-hint {
+  margin: 0 0 0.85rem;
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 0.9rem;
+}
+
 .custom-variables-list {
   list-style: none;
   margin: 0;
@@ -233,13 +239,25 @@
 
 .custom-variable-row {
   display: grid;
-  grid-template-columns: minmax(130px, max-content) 1fr;
+  grid-template-columns: minmax(130px, max-content) 1fr minmax(90px, max-content);
   align-items: center;
   gap: 0.85rem;
   padding: 0.4rem 0.5rem;
   border-radius: 10px;
   border: 1px solid rgba(248, 250, 252, 0.08);
   background: rgba(15, 18, 31, 0.5);
+}
+
+.custom-variable-sample {
+  justify-self: end;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+  font-size: 0.85rem;
+  color: rgba(248, 250, 252, 0.9);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .custom-variable-button {
