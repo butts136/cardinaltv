@@ -565,6 +565,13 @@
     resizeSize: null,
   };
 
+  const guideState = {
+    centerV: null,
+    centerH: null,
+    alignV: null,
+    alignH: null,
+  };
+
   let currentTestTexts = [];
   let currentSelectedTextName = null;
   const textUpdateTimers = new Map();
@@ -945,7 +952,7 @@
     card.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${resolved.opacity})`;
   };
 
-  const MIN_FONT_SIZE = 8;
+  const MIN_FONT_SIZE = 6;
   const TEXT_LINE_HEIGHT = 1.2;
   const CARD_VERTICAL_PADDING_RATIO = 0.08;
   const CARD_HORIZONTAL_PADDING_RATIO = 0.06;
@@ -991,6 +998,96 @@
     };
   };
 
+  const ensureGuideElements = () => {
+    if (!testPreviewTextOverlay) {
+      return;
+    }
+    const existing = [guideState.centerV, guideState.centerH, guideState.alignV, guideState.alignH];
+    const connected = existing.every((node) => node && node.isConnected);
+    if (connected) {
+      return;
+    }
+    guideState.centerV = null;
+    guideState.centerH = null;
+    guideState.alignV = null;
+    guideState.alignH = null;
+    const centerV = document.createElement("div");
+    centerV.className = "preview-center-line preview-center-line--vertical";
+    const centerH = document.createElement("div");
+    centerH.className = "preview-center-line preview-center-line--horizontal";
+    const alignV = document.createElement("div");
+    alignV.className = "preview-align-line preview-align-line--vertical";
+    const alignH = document.createElement("div");
+    alignH.className = "preview-align-line preview-align-line--horizontal";
+    testPreviewTextOverlay.append(centerV, centerH, alignV, alignH);
+    guideState.centerV = centerV;
+    guideState.centerH = centerH;
+    guideState.alignV = alignV;
+    guideState.alignH = alignH;
+  };
+
+  const hideGuides = () => {
+    [guideState.centerV, guideState.centerH, guideState.alignV, guideState.alignH].forEach((node) => {
+      node?.classList?.remove("is-visible");
+    });
+  };
+
+  const getCardCenterPercent = (card) => {
+    const x = Number.parseFloat(card?.style?.left || "");
+    const y = Number.parseFloat(card?.style?.top || "");
+    return {
+      x: Number.isFinite(x) ? x : null,
+      y: Number.isFinite(y) ? y : null,
+    };
+  };
+
+  const updateAlignmentGuides = (x, y) => {
+    if (!testPreviewTextOverlay) return;
+    ensureGuideElements();
+    const rect = testPreviewTextOverlay.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const thresholdPx = 10;
+    const thresholdX = (thresholdPx / rect.width) * 100;
+    const thresholdY = (thresholdPx / rect.height) * 100;
+
+    const centerVVisible = Math.abs(x - 50) <= thresholdX;
+    const centerHVisible = Math.abs(y - 50) <= thresholdY;
+    guideState.centerV?.classList?.toggle("is-visible", centerVVisible);
+    guideState.centerH?.classList?.toggle("is-visible", centerHVisible);
+
+    let bestV = { delta: Infinity, x: null };
+    let bestH = { delta: Infinity, y: null };
+    const cards = Array.from(testPreviewTextOverlay.querySelectorAll(".preview-text-card"));
+    cards.forEach((card) => {
+      if (!card || card === dragState.card) return;
+      const center = getCardCenterPercent(card);
+      if (center.x != null) {
+        const delta = Math.abs(center.x - x);
+        if (delta < bestV.delta) {
+          bestV = { delta, x: center.x };
+        }
+      }
+      if (center.y != null) {
+        const delta = Math.abs(center.y - y);
+        if (delta < bestH.delta) {
+          bestH = { delta, y: center.y };
+        }
+      }
+    });
+
+    const alignVVisible = bestV.x != null && bestV.delta <= thresholdX;
+    const alignHVisible = bestH.y != null && bestH.delta <= thresholdY;
+    if (guideState.alignV) {
+      guideState.alignV.style.left = `${alignVVisible ? bestV.x : 50}%`;
+      guideState.alignV.classList.toggle("is-visible", alignVVisible);
+    }
+    if (guideState.alignH) {
+      guideState.alignH.style.top = `${alignHVisible ? bestH.y : 50}%`;
+      guideState.alignH.classList.toggle("is-visible", alignHVisible);
+    }
+  };
+
   const applyTextCardFontSizing = (card) => {
     if (!card) return;
     const rawValue = card.dataset.rawValue || "";
@@ -1033,19 +1130,32 @@
 
     const lines = displayValue.split(/\r?\n/);
     const availableHeightPx = Math.max(4, cardHeightPx - verticalPaddingPx * 2);
+    const availableWidthPx = Math.max(4, cardWidthPx - horizontalPaddingPx * 2);
     let fontSize = computeFontSizeForCard(availableHeightPx, displayValue);
     const fontStack = getFontStack(cardStyle.font_family);
     let blockMetrics = measureTextBlock(lines, fontSize, fontStack);
-    if (blockMetrics.height > availableHeightPx) {
-      const ratio = clamp(availableHeightPx / blockMetrics.height, 0.1, 1);
+    let safety = 0;
+    while (
+      safety < 8 &&
+      fontSize > MIN_FONT_SIZE &&
+      (blockMetrics.height > availableHeightPx || blockMetrics.width > availableWidthPx)
+    ) {
+      const ratioH = blockMetrics.height > 0 ? availableHeightPx / blockMetrics.height : 1;
+      const ratioW = blockMetrics.width > 0 ? availableWidthPx / blockMetrics.width : 1;
+      const ratio = clamp(Math.min(ratioH, ratioW), 0.05, 1);
       const adjusted = Math.max(MIN_FONT_SIZE, Math.floor(fontSize * ratio));
-      if (adjusted !== fontSize) {
+      if (adjusted === fontSize) {
+        fontSize = Math.max(MIN_FONT_SIZE, fontSize - 1);
+      } else {
         fontSize = adjusted;
-        blockMetrics = measureTextBlock(lines, fontSize, fontStack);
       }
+      blockMetrics = measureTextBlock(lines, fontSize, fontStack);
+      safety += 1;
     }
-    const availableWidthPx = Math.max(4, cardWidthPx - horizontalPaddingPx * 2);
-    const widthScale = clamp(availableWidthPx / blockMetrics.width, 0.25, 4);
+    const widthScale =
+      blockMetrics.width > 0 && blockMetrics.width > availableWidthPx
+        ? clamp(availableWidthPx / blockMetrics.width, 0.1, 1)
+        : 1;
 
     card.dataset.fontSize = fontSize;
     card.style.fontSize = `${fontSize}px`;
@@ -1106,6 +1216,7 @@
   const updateTestPreviewTexts = (items) => {
     if (!testPreviewTextOverlay) return;
     testPreviewTextOverlay.innerHTML = "";
+    ensureGuideElements();
     const texts = (Array.isArray(items) ? items : []).filter((entry) => entry.value && entry.value.trim());
     if (!texts.length) {
       const placeholder = document.createElement("p");
@@ -1289,6 +1400,8 @@
     const card = event.currentTarget;
     if (!card) return;
     selectPreviewTextCard(card);
+    ensureGuideElements();
+    hideGuides();
     dragState.card = card;
     dragState.name = card.dataset.name;
     dragState.pointerId = event.pointerId;
@@ -1328,6 +1441,8 @@
     dragState.startX = event.clientX;
     dragState.startY = event.clientY;
     selectPreviewTextCard(card);
+    ensureGuideElements();
+    hideGuides();
     if (card.setPointerCapture) {
       card.setPointerCapture(event.pointerId);
     }
@@ -1387,6 +1502,7 @@
     dragState.card.style.left = `${x}%`;
     dragState.card.style.top = `${y}%`;
     dragState.position = { x, y };
+    updateAlignmentGuides(x, y);
   };
 
   const handleTextPointerUp = (event) => {
@@ -1408,6 +1524,7 @@
     dragState.isResizing = false;
     dragState.resizeHandle = null;
     dragState.resizeSize = null;
+    hideGuides();
   };
 
   const setTestTextFeedback = (message, status = "info") => {
