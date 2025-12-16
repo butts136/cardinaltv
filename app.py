@@ -3948,16 +3948,6 @@ def temporary() -> Any:
     return render_template("temporary.html")
 
 
-@bp.route('/sw.js')
-def serve_sw():
-    # Serve the service worker script from the static directory under the blueprint
-    sw_path = FRONTEND_STATIC_DIR / 'js' / 'sw.js'
-    if not sw_path.exists():
-        abort(404)
-    # send_from_directory expects directory and filename
-    return send_from_directory(str(sw_path.parent), sw_path.name, mimetype='application/javascript')
-
-
 @bp.route("/media/<path:filename>")
 def serve_media(filename: str) -> Any:
     file_path = MEDIA_DIR / filename

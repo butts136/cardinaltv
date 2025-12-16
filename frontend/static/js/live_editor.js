@@ -12,6 +12,8 @@
     const editorRoot = document.querySelector("[data-editor-kind]") || document.querySelector("#custom-section");
     const editorKind = editorRoot?.dataset?.editorKind || "test";
     let editorVariant = editorRoot?.dataset?.editorVariant || "";
+    const slideshowDefaults = window.CardinalSlideshowDefaults || {};
+    const birthdayConfigShared = window.CardinalBirthdayConfig || null;
     if (!editorRoot) {
       return;
     }
@@ -55,6 +57,10 @@
     const selectedTextScaleXValue = document.querySelector("#selected-text-scale-x-value");
     const selectedTextScaleYInput = document.querySelector("#selected-text-scale-y");
     const selectedTextScaleYValue = document.querySelector("#selected-text-scale-y-value");
+    const selectedTextLetterSpacingInput = document.querySelector("#selected-text-letter-spacing");
+    const selectedTextLetterSpacingValue = document.querySelector("#selected-text-letter-spacing-value");
+    const selectedTextLineHeightInput = document.querySelector("#selected-text-line-height");
+    const selectedTextLineHeightValue = document.querySelector("#selected-text-line-height-value");
     const textStyleToggleButtons = document.querySelectorAll(".text-style-toggle");
     const selectedTextColorInput = document.querySelector("#selected-text-color");
     const selectedTextColorValue = document.querySelector("#selected-text-color-value");
@@ -71,18 +77,16 @@
     const DEFAULT_TEXT_SIZE = { width: 30, height: 12 };
     const DEFAULT_TEXT_COLOR = "#E10505";
     const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-    const DEFAULT_OPTIONS_BY_KIND = {
-      test: { color: DEFAULT_TEXT_COLOR },
-      birthday: { color: "#ffffff" },
-      time_change: { color: "#f8fafc" },
-      christmas: { color: "#f8fafc" },
-    };
+    const DEFAULT_LINE_HEIGHT = 1.2;
+    const DEFAULT_LETTER_SPACING = 0;
     const DEFAULT_LINE_OPTIONS = {
       font_size_auto: true,
       font_size: 48,
       scale_x: 1,
       scale_y: 1,
       font_family: "",
+      line_height: DEFAULT_LINE_HEIGHT,
+      letter_spacing: DEFAULT_LETTER_SPACING,
       width_percent: DEFAULT_TEXT_SIZE.width,
       height_percent: DEFAULT_TEXT_SIZE.height,
       color: DEFAULT_TEXT_COLOR,
@@ -95,6 +99,28 @@
       offset_y_percent: 0,
       curve: 0,
       angle: 0,
+    };
+    const getLineDefaultsForKind = (kind) => {
+      if (kind === "birthday") {
+        return {
+          ...(slideshowDefaults.BIRTHDAY_TEXT_OPTIONS_DEFAULT || {}),
+        };
+      }
+      if (kind === "time_change") {
+        return {
+          ...(slideshowDefaults.TIME_CHANGE_TEXT_OPTIONS_DEFAULT || {}),
+        };
+      }
+      if (kind === "christmas") {
+        return {
+          ...(slideshowDefaults.CHRISTMAS_TEXT_OPTIONS_DEFAULT || {}),
+        };
+      }
+      return {
+        ...DEFAULT_LINE_OPTIONS,
+        color:
+          slideshowDefaults.DEFAULT_CUSTOM_TEXT_COLOR || DEFAULT_LINE_OPTIONS.color || DEFAULT_TEXT_COLOR,
+      };
     };
     const clampPercent = (value) => clamp(Number(value) || 0, 0, 100);
     const clampOffset = (value) => clamp(Number(value) || 0, -100, 100);
@@ -140,6 +166,12 @@
           font_size: Number.isFinite(Number(opts.font_size)) ? Number(opts.font_size) : defaults.font_size,
           scale_x: Number.isFinite(Number(opts.scale_x)) ? Number(opts.scale_x) : 1,
           scale_y: Number.isFinite(Number(opts.scale_y)) ? Number(opts.scale_y) : 1,
+          line_height: Number.isFinite(Number(opts.line_height))
+            ? Number(opts.line_height)
+            : DEFAULT_LINE_OPTIONS.line_height,
+          letter_spacing: Number.isFinite(Number(opts.letter_spacing))
+            ? Number(opts.letter_spacing)
+            : DEFAULT_LINE_OPTIONS.letter_spacing,
           bold: Boolean(opts.bold),
           italic: Boolean(opts.italic),
           underline: Boolean(opts.underline),
@@ -183,6 +215,12 @@
             : Number.isFinite(Number(base.scale_y))
               ? Number(base.scale_y)
               : 1,
+          line_height: Number.isFinite(Number(entry?.style?.line_height))
+            ? Number(entry.style.line_height)
+            : base.line_height,
+          letter_spacing: Number.isFinite(Number(entry?.style?.letter_spacing))
+            ? Number(entry.style.letter_spacing)
+            : base.letter_spacing,
           font_family: entry?.style?.font_family || base.font_family,
           underline:
             typeof entry?.style?.underline === "boolean" ? entry.style.underline : base.underline,
@@ -206,9 +244,16 @@
     };
     const createEditorAdapter = (kind, variant) => {
       const settingsKey = SETTINGS_KEY_BY_KIND[kind] || "test_slide";
-      const lineDefaults = {
-        ...DEFAULT_LINE_OPTIONS,
-        color: DEFAULT_OPTIONS_BY_KIND[kind]?.color || DEFAULT_TEXT_COLOR,
+      const lineDefaults = getLineDefaultsForKind(kind);
+
+      const normalizeBirthdayConfig = (config) => {
+        if (birthdayConfigShared?.normalizeVariantConfig) {
+          return birthdayConfigShared.normalizeVariantConfig(config, variant || "before");
+        }
+        if (birthdayConfigShared?.normalizeLines) {
+          return { ...(config || {}), lines: birthdayConfigShared.normalizeLines(config) };
+        }
+        return config || {};
       };
 
       const fetchSettings = async () => {
@@ -379,21 +424,21 @@
         if (kind === "birthday") {
           return {
             async list() {
-              const config = await birthdayConfigApi.fetchConfig();
+              const config = normalizeBirthdayConfig(await birthdayConfigApi.fetchConfig());
               const lines = deriveLinesFromSettings(config);
               return lines.map((line, idx) => lineToEntry(line, idx, lineDefaults));
             },
             async add() {
-              const config = await birthdayConfigApi.fetchConfig();
+              const config = normalizeBirthdayConfig(await birthdayConfigApi.fetchConfig());
               const lines = [...deriveLinesFromSettings(config)];
               const newEntry = lineToEntry({ text: "[texte]", options: { ...lineDefaults } }, lines.length, lineDefaults);
               lines.push(entryToLine(newEntry, lineDefaults, lineDefaults));
-              const updated = await birthdayConfigApi.updateConfig({ lines });
+              const updated = normalizeBirthdayConfig(await birthdayConfigApi.updateConfig({ lines }));
               const normalizedLines = Array.isArray(updated?.lines) ? updated.lines : lines;
               return lineToEntry(normalizedLines[normalizedLines.length - 1], normalizedLines.length - 1, lineDefaults);
             },
             async update(name, payload) {
-              const config = await birthdayConfigApi.fetchConfig();
+              const config = normalizeBirthdayConfig(await birthdayConfigApi.fetchConfig());
               const lines = [...deriveLinesFromSettings(config)];
               const index = lines.findIndex((_, idx) => `text${idx + 1}` === name || `line${idx + 1}` === name || idx === name);
               if (index < 0) {
@@ -403,7 +448,7 @@
                 };
                 const newLine = entryToLine(lineToEntry(baseEntry, lines.length, lineDefaults), lineDefaults, lineDefaults);
                 lines.push(newLine);
-                const created = await birthdayConfigApi.updateConfig({ lines });
+                const created = normalizeBirthdayConfig(await birthdayConfigApi.updateConfig({ lines }));
                 const normalizedLines = Array.isArray(created?.lines) ? created.lines : lines;
                 return lineToEntry(normalizedLines[normalizedLines.length - 1], normalizedLines.length - 1, lineDefaults);
               }
@@ -428,7 +473,7 @@
                 lines.splice(index, 1);
               }
               const removed = payload.value !== undefined && !String(payload.value || "").trim();
-              const nextConfig = await birthdayConfigApi.updateConfig({ lines });
+              const nextConfig = normalizeBirthdayConfig(await birthdayConfigApi.updateConfig({ lines }));
               if (removed) {
                 return { deleted: name };
               }
@@ -437,7 +482,7 @@
               return lineToEntry(currentLine || updatedLine, Math.min(index, normalizedLines.length - 1), lineDefaults);
             },
             async remove(name) {
-              const config = await birthdayConfigApi.fetchConfig();
+              const config = normalizeBirthdayConfig(await birthdayConfigApi.fetchConfig());
               const lines = Array.isArray(config?.lines) ? [...config.lines] : [];
               const index = lines.findIndex((_, idx) => `text${idx + 1}` === name || `line${idx + 1}` === name || idx === name);
               if (index < 0) {
@@ -559,6 +604,8 @@
       bold: false,
       italic: false,
       underline: false,
+      line_height: DEFAULT_LINE_HEIGHT,
+      letter_spacing: DEFAULT_LETTER_SPACING,
     };
     const DEFAULT_TEXT_BACKGROUND = {
       color: "#000000",
@@ -829,6 +876,16 @@
     if (!Number.isFinite(num) || num <= 0) return "100%";
     return `${Math.round(num * 100)}%`;
   };
+  const formatLetterSpacingLabel = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return `${DEFAULT_LETTER_SPACING.toFixed(1)}px`;
+    return `${num.toFixed(1)}px`;
+  };
+  const formatLineHeightLabel = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) return `${DEFAULT_LINE_HEIGHT.toFixed(2)}x`;
+    return `${num.toFixed(2)}x`;
+  };
   const getFontStack = (fontFamily) => {
     const primary = fontFamily || DEFAULT_TEXT_STYLE.font_family;
     return `"${primary}", "Poppins", "Helvetica Neue", Arial, sans-serif`;
@@ -865,6 +922,24 @@
       }
       return clamp(num, 0.1, 4);
     };
+    const normalizeLineHeightValue = (value, fallback = DEFAULT_LINE_HEIGHT) => {
+      const num = Number(value);
+      if (!Number.isFinite(num) || num <= 0) {
+        const resolvedFallback = Number(fallback);
+        return Number.isFinite(resolvedFallback) && resolvedFallback > 0
+          ? clamp(resolvedFallback, 0.6, 3)
+          : DEFAULT_LINE_HEIGHT;
+      }
+      return clamp(num, 0.6, 3);
+    };
+    const normalizeLetterSpacingValue = (value, fallback = DEFAULT_LETTER_SPACING) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) {
+        const resolvedFallback = Number(fallback);
+        return Number.isFinite(resolvedFallback) ? clamp(resolvedFallback, -10, 30) : DEFAULT_LETTER_SPACING;
+      }
+      return clamp(num, -10, 30);
+    };
     const normalizeStylePayload = (raw) => {
       const source = typeof raw === "object" && raw ? raw : {};
       return {
@@ -878,6 +953,8 @@
           : DEFAULT_LINE_OPTIONS.font_size,
         scale_x: normalizeScaleValue(source.scale_x, 1),
         scale_y: normalizeScaleValue(source.scale_y, 1),
+        line_height: normalizeLineHeightValue(source.line_height, DEFAULT_LINE_OPTIONS.line_height),
+        letter_spacing: normalizeLetterSpacingValue(source.letter_spacing, DEFAULT_LINE_OPTIONS.letter_spacing),
         bold: toBoolean(source.bold, DEFAULT_TEXT_STYLE.bold),
         italic: toBoolean(source.italic, DEFAULT_TEXT_STYLE.italic),
         underline: toBoolean(source.underline, DEFAULT_TEXT_STYLE.underline),
@@ -974,6 +1051,8 @@
       font_size: Number(card?.dataset?.fontSize),
       scale_x: Number(card?.dataset?.scaleX),
       scale_y: Number(card?.dataset?.scaleY),
+      line_height: Number(card?.dataset?.lineHeight),
+      letter_spacing: Number(card?.dataset?.letterSpacing),
       bold: card?.dataset?.bold === "true" || card?.dataset?.bold === "1",
       italic: card?.dataset?.italic === "true" || card?.dataset?.italic === "1",
       underline: card?.dataset?.underline === "true" || card?.dataset?.underline === "1",
@@ -995,10 +1074,14 @@
     card.dataset.fontSizeAuto = resolved.font_size_auto ? "1" : "0";
     card.dataset.scaleX = String(resolved.scale_x);
     card.dataset.scaleY = String(resolved.scale_y);
+    card.dataset.lineHeight = String(resolved.line_height);
+    card.dataset.letterSpacing = String(resolved.letter_spacing);
     card.style.fontFamily = getFontStack(resolved.font_family);
     card.style.fontWeight = resolved.bold ? "700" : "400";
     card.style.fontStyle = resolved.italic ? "italic" : "normal";
     card.style.textDecoration = resolved.underline ? "underline" : "none";
+    card.style.lineHeight = `${resolved.line_height}`;
+    card.style.letterSpacing = `${resolved.letter_spacing}px`;
     if (resolved.font_size) {
       card.dataset.fontSize = resolved.font_size;
       card.style.fontSize = `${resolved.font_size}px`;
@@ -1015,27 +1098,38 @@
   };
 
   const MIN_FONT_SIZE = 6;
-  const TEXT_LINE_HEIGHT = 1.2;
+  const TEXT_LINE_HEIGHT = DEFAULT_LINE_HEIGHT;
   const CARD_VERTICAL_PADDING_RATIO = 0.08;
   const CARD_HORIZONTAL_PADDING_RATIO = 0.06;
   const CARD_MAX_PADDING_RATIO = 0.25;
   const MIN_VERTICAL_PADDING_PX = 8;
   const MIN_HORIZONTAL_PADDING_PX = 12;
-  const computeFontSizeForCard = (availableHeightPx, rawValue) => {
+  const computeFontSizeForCard = (availableHeightPx, rawValue, lineHeight = TEXT_LINE_HEIGHT) => {
     const { lineCount } = getTextLinesInfo(rawValue);
     if (!availableHeightPx || !lineCount) {
       return MIN_FONT_SIZE;
     }
-    const fontSizeByHeight = availableHeightPx / (lineCount * TEXT_LINE_HEIGHT);
+    const fontSizeByHeight = availableHeightPx / (lineCount * lineHeight);
     return Math.max(MIN_FONT_SIZE, Math.min(220, Math.floor(fontSizeByHeight)));
   };
 
-  const measureTextBlock = (lines, fontSize, fontStack) => {
+  const measureTextBlock = (
+    lines,
+    fontSize,
+    fontStack,
+    lineHeight = TEXT_LINE_HEIGHT,
+    letterSpacing = DEFAULT_LETTER_SPACING,
+  ) => {
     const normalizedLines = lines && lines.length ? lines : [""];
     if (!measureCtx) {
       const fallbackWidth =
-        Math.max(1, Math.max(...normalizedLines.map((line) => (line || "").length)) * fontSize * MEASUREMENT_FALLBACK_CHAR_WIDTH);
-      const fallbackLineHeight = fontSize * TEXT_LINE_HEIGHT;
+        Math.max(
+          1,
+          Math.max(
+            ...normalizedLines.map((line) => (line || "").length * fontSize * MEASUREMENT_FALLBACK_CHAR_WIDTH),
+          ) + Math.max(0, normalizedLines[0].length - 1) * letterSpacing,
+        );
+      const fallbackLineHeight = fontSize * lineHeight;
       return { width: fallbackWidth, height: fallbackLineHeight * normalizedLines.length };
     }
     measureCtx.font = `${fontSize}px ${fontStack}`;
@@ -1047,13 +1141,14 @@
       const left = Math.abs(metrics.actualBoundingBoxLeft ?? 0);
       const right = Math.abs(metrics.actualBoundingBoxRight ?? 0);
       const boundingWidth = Math.max(metrics.width || 0, left + right);
-      maxWidth = Math.max(maxWidth, boundingWidth);
+      const spacedWidth = boundingWidth + Math.max(0, (line || "").length - 1) * letterSpacing;
+      maxWidth = Math.max(maxWidth, spacedWidth);
       maxAscent = Math.max(maxAscent, metrics.actualBoundingBoxAscent ?? 0);
       maxDescent = Math.max(maxDescent, metrics.actualBoundingBoxDescent ?? 0);
     });
     const safety = fontSize * MEASUREMENT_SAFETY_RATIO;
-    const lineHeight = Math.max(fontSize * TEXT_LINE_HEIGHT, maxAscent + maxDescent + safety * 2);
-    const blockHeight = lineHeight * normalizedLines.length;
+    const resolvedLineHeight = Math.max(fontSize * lineHeight, maxAscent + maxDescent + safety * 2);
+    const blockHeight = resolvedLineHeight * normalizedLines.length;
     return {
       width: Math.max(1, maxWidth),
       height: Math.max(1, blockHeight),
@@ -1200,9 +1295,11 @@
     const lines = displayValue.split(/\r?\n/);
     const availableHeightPx = Math.max(4, cardHeightPx - verticalPaddingPx * 2);
     const availableWidthPx = Math.max(4, cardWidthPx - horizontalPaddingPx * 2);
-    let fontSize = computeFontSizeForCard(availableHeightPx, displayValue);
+    const lineHeight = Number(cardStyle.line_height) || TEXT_LINE_HEIGHT;
+    const letterSpacing = Number(cardStyle.letter_spacing) || DEFAULT_LETTER_SPACING;
+    let fontSize = computeFontSizeForCard(availableHeightPx, displayValue, lineHeight);
     const fontStack = getFontStack(cardStyle.font_family);
-    let blockMetrics = measureTextBlock(lines, fontSize, fontStack);
+    let blockMetrics = measureTextBlock(lines, fontSize, fontStack, lineHeight, letterSpacing);
     let safety = 0;
     while (
       safety < 8 &&
@@ -1218,7 +1315,7 @@
       } else {
         fontSize = adjusted;
       }
-      blockMetrics = measureTextBlock(lines, fontSize, fontStack);
+      blockMetrics = measureTextBlock(lines, fontSize, fontStack, lineHeight, letterSpacing);
       safety += 1;
     }
     const widthScale =
@@ -1228,12 +1325,14 @@
 
     card.dataset.fontSize = fontSize;
     card.style.fontSize = `${fontSize}px`;
-    card.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+    card.style.lineHeight = lineHeight.toString();
+    card.style.letterSpacing = `${letterSpacing}px`;
     const content = card.querySelector(".preview-text-content");
     if (content) {
       content.style.transformOrigin = "center";
       content.style.transform = `scale(${widthScale}, 1)`;
-      content.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+      content.style.lineHeight = lineHeight.toString();
+      content.style.letterSpacing = `${letterSpacing}px`;
       content.style.alignItems = "center";
       content.style.justifyContent = "center";
       content.style.textAlign = "center";
@@ -1354,6 +1453,20 @@
     if (selectedTextScaleYValue) {
       selectedTextScaleYValue.textContent = "100%";
     }
+    if (selectedTextLetterSpacingInput) {
+      selectedTextLetterSpacingInput.value = `${DEFAULT_LETTER_SPACING}`;
+      selectedTextLetterSpacingInput.disabled = true;
+    }
+    if (selectedTextLetterSpacingValue) {
+      selectedTextLetterSpacingValue.textContent = formatLetterSpacingLabel(DEFAULT_LETTER_SPACING);
+    }
+    if (selectedTextLineHeightInput) {
+      selectedTextLineHeightInput.value = `${DEFAULT_LINE_HEIGHT}`;
+      selectedTextLineHeightInput.disabled = true;
+    }
+    if (selectedTextLineHeightValue) {
+      selectedTextLineHeightValue.textContent = formatLineHeightLabel(DEFAULT_LINE_HEIGHT);
+    }
     updateStyleToggleUI(DEFAULT_TEXT_STYLE, false);
     if (selectedTextColorInput) {
       selectedTextColorInput.value = DEFAULT_TEXT_COLOR;
@@ -1435,6 +1548,20 @@
     }
     if (selectedTextScaleYValue) {
       selectedTextScaleYValue.textContent = formatScaleLabel(style.scale_y);
+    }
+    if (selectedTextLetterSpacingInput) {
+      selectedTextLetterSpacingInput.disabled = false;
+      selectedTextLetterSpacingInput.value = `${style.letter_spacing ?? DEFAULT_LETTER_SPACING}`;
+    }
+    if (selectedTextLetterSpacingValue) {
+      selectedTextLetterSpacingValue.textContent = formatLetterSpacingLabel(style.letter_spacing);
+    }
+    if (selectedTextLineHeightInput) {
+      selectedTextLineHeightInput.disabled = false;
+      selectedTextLineHeightInput.value = `${style.line_height || DEFAULT_LINE_HEIGHT}`;
+    }
+    if (selectedTextLineHeightValue) {
+      selectedTextLineHeightValue.textContent = formatLineHeightLabel(style.line_height);
     }
     updateStyleToggleUI(style, true);
     const resolvedColor = normalizeColorValue(entry.color);
@@ -2675,6 +2802,24 @@
       if (selectedTextScaleYValue && Object.prototype.hasOwnProperty.call(changes, "scale_y")) {
         selectedTextScaleYValue.textContent = formatScaleLabel(nextStyle.scale_y);
       }
+      if (
+        selectedTextLetterSpacingInput &&
+        Object.prototype.hasOwnProperty.call(changes, "letter_spacing")
+      ) {
+        selectedTextLetterSpacingInput.value = `${nextStyle.letter_spacing ?? DEFAULT_LETTER_SPACING}`;
+      }
+      if (
+        selectedTextLetterSpacingValue &&
+        Object.prototype.hasOwnProperty.call(changes, "letter_spacing")
+      ) {
+        selectedTextLetterSpacingValue.textContent = formatLetterSpacingLabel(nextStyle.letter_spacing);
+      }
+      if (selectedTextLineHeightInput && Object.prototype.hasOwnProperty.call(changes, "line_height")) {
+        selectedTextLineHeightInput.value = `${nextStyle.line_height || DEFAULT_LINE_HEIGHT}`;
+      }
+      if (selectedTextLineHeightValue && Object.prototype.hasOwnProperty.call(changes, "line_height")) {
+        selectedTextLineHeightValue.textContent = formatLineHeightLabel(nextStyle.line_height);
+      }
       updateStyleToggleUI(nextStyle, true);
     }
     applyStyleToPreviewCard(name, nextStyle);
@@ -2984,6 +3129,18 @@
       const value = Number(event.target.value);
       if (!Number.isFinite(value) || value <= 0) return;
       applyStyleChanges(currentSelectedTextName, { scale_y: value });
+    });
+    selectedTextLetterSpacingInput?.addEventListener("input", (event) => {
+      if (!currentSelectedTextName) return;
+      const value = Number(event.target.value);
+      if (!Number.isFinite(value)) return;
+      applyStyleChanges(currentSelectedTextName, { letter_spacing: value });
+    });
+    selectedTextLineHeightInput?.addEventListener("input", (event) => {
+      if (!currentSelectedTextName) return;
+      const value = Number(event.target.value);
+      if (!Number.isFinite(value) || value <= 0) return;
+      applyStyleChanges(currentSelectedTextName, { line_height: value });
     });
     textStyleToggleButtons?.forEach((button) => {
       button.addEventListener("click", () => {

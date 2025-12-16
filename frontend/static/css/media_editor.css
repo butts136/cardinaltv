@@ -335,11 +335,15 @@
   grid-template-columns: 7fr 3fr;
   align-items: start;
   gap: 1.5rem;
+  position: relative;
 }
 
 .preview-column {
   flex: 1 1 0;
   min-width: 0;
+  position: sticky;
+  top: 1rem;
+  align-self: flex-start;
 }
 
 .text-options-column {
@@ -369,6 +373,13 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .preview-column {
+    position: static;
+    top: auto;
+  }
 }
 
 .text-options-header h3 {
