@@ -3,7 +3,7 @@
  * tout en laissant les appels API se rafraîchir depuis le réseau.
  */
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 
@@ -11,6 +11,9 @@ const CORE_ASSETS = [
   "/",
   "/slideshow",
   "/static/css/styles.css",
+  "/static/js/slideshow/constants.js",
+  "/static/js/slideshow/birthday_config.js",
+  "/static/js/slideshow_cache.js",
   "/static/js/slideshow.js",
   "/static/img/favicon.png",
 ];
@@ -104,5 +107,39 @@ self.addEventListener("fetch", (event) => {
         .catch(() => cached);
       return cached || networkPromise;
     })
+  );
+});
+
+self.addEventListener("message", (event) => {
+  const data = event.data || {};
+  if (!data || data.type !== "update-cache") {
+    return;
+  }
+
+  const additions = Array.isArray(data.add) ? data.add : [];
+  const removals = Array.isArray(data.remove) ? data.remove : [];
+
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(MEDIA_CACHE);
+
+      for (const url of additions) {
+        try {
+          const response = await fetch(url, { mode: "no-cors" });
+          if (!response || response.status >= 400) continue;
+          await cache.put(url, response.clone());
+        } catch (error) {
+          // Ignore fetch errors; asset will be retried on next refresh.
+        }
+      }
+
+      for (const url of removals) {
+        try {
+          await cache.delete(url);
+        } catch (error) {
+          // Ignore deletion errors.
+        }
+      }
+    })()
   );
 });

@@ -25,5 +25,8 @@
 
 {% block body_scripts %}
     {{ super() }}
+    <script src="{{ url_for('static', filename='js/slideshow/constants.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/slideshow_cache.js') }}"></script>
     <script src="{{ url_for('static', filename='js/slideshow.js') }}"></script>
 {% endblock %}

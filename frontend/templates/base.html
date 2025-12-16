@@ -209,6 +209,8 @@
       })();
     </script>
     {% block scripts %}
+      <script src="{{ url_for('static', filename='js/slideshow/constants.js') }}"></script>
+      <script src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}"></script>
       <script src="{{ url_for('static', filename='js/slide_renderers.js') }}"></script>
       <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
     {% endblock %}
