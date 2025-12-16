@@ -2444,13 +2444,27 @@ const buildCustomSlideItem = (customData) => {
 
 const injectAutoSlidesIntoPlaylist = async (items) => {
   const base = Array.isArray(items) ? [...items] : [];
-  const enhancedBase = base.map((item, idx) => {
-    const orderVal = Number.isFinite(Number(item.order)) ? Number(item.order) : idx;
-    return { ...item, order: orderVal };
-  });
+  const enhancedBase = base
+    .map((item, idx) => {
+      const orderVal = Number.isFinite(Number(item.order)) ? Number(item.order) : idx;
+      return { ...item, order: orderVal, _baseIndex: idx };
+    })
+    .sort((a, b) => {
+      const oa = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
+      const ob = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
+      if (oa !== ob) return oa - ob;
+      return (a._baseIndex || 0) - (b._baseIndex || 0);
+    })
+    .map((item) => {
+      const cloned = { ...item };
+      delete cloned._baseIndex;
+      return cloned;
+    });
   const autoEntries = [];
 
-  const normalizedOrderIndex = (value, fallbackIndex = enhancedBase.length) => {
+  // Les diapos "auto" sont affichées en premier, puis la playlist des médias dans son ordre.
+  // On conserve `order_index` uniquement pour ordonner les diapos auto entre elles.
+  const normalizedOrderIndex = (value, fallbackIndex = 1_000_000) => {
     const parsed = Number.parseInt(value, 10);
     if (Number.isFinite(parsed) && parsed >= 0) return parsed;
     return fallbackIndex;
@@ -2521,14 +2535,13 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     });
   }
 
-  const combined = [...enhancedBase, ...autoEntries];
-  combined.sort((a, b) => {
+  autoEntries.sort((a, b) => {
     const oa = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
     const ob = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
     if (oa === ob) return String(a.id || "").localeCompare(String(b.id || ""));
     return oa - ob;
   });
-  return combined;
+  return [...autoEntries, ...enhancedBase];
 };
 
 const handleEmptyPlaylist = () => {
