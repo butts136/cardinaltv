@@ -97,6 +97,10 @@ AVAILABLE_TEST_FONT_FAMILIES = [
 ]
 DEFAULT_TEST_TEXT_STYLE = {
     "font_family": DEFAULT_TEST_FONT_FAMILY,
+    "font_size_auto": True,
+    "font_size": 48.0,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
     "bold": False,
     "italic": False,
     "underline": False,
@@ -367,7 +371,10 @@ STATIC_ROUTE_PREFIX = "static"
 
 BIRTHDAY_VARIANTS = {"before", "day", "weekend"}
 BIRTHDAY_TEXT_OPTIONS_DEFAULT = {
+    "font_size_auto": True,
     "font_size": 48.0,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
     "font_family": "",
     "width_percent": 100.0,
     "height_percent": 0.0,
@@ -431,7 +438,10 @@ TIME_CHANGE_CACHE_TTL = timedelta(hours=6)
 TIME_CHANGE_CACHE: Dict[str, Any] = {"year": None, "data": None, "fetched_at": None}
 TIME_CHANGE_SOURCE_URL = "https://www.timeanddate.com/time/change/canada/montreal?year={year}"
 TIME_CHANGE_TEXT_OPTIONS_DEFAULT = {
+    "font_size_auto": True,
     "font_size": 48.0,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
     "font_family": "",
     "width_percent": 100.0,
     "height_percent": 0.0,
@@ -699,8 +709,18 @@ def _read_birthday_config(variant: str) -> Dict[str, Any]:
     def normalize_text_options(raw: Any) -> Dict[str, Any]:
         options = copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT)
         if isinstance(raw, dict):
+            if isinstance(raw.get("font_size_auto"), bool):
+                options["font_size_auto"] = raw["font_size_auto"]
             if isinstance(raw.get("font_size"), (int, float)):
-                options["font_size"] = float(raw["font_size"])
+                options["font_size"] = max(6.0, min(220.0, float(raw["font_size"])))
+            if isinstance(raw.get("scale_x"), (int, float)):
+                scale_x = float(raw["scale_x"])
+                if scale_x > 0:
+                    options["scale_x"] = max(0.1, min(4.0, scale_x))
+            if isinstance(raw.get("scale_y"), (int, float)):
+                scale_y = float(raw["scale_y"])
+                if scale_y > 0:
+                    options["scale_y"] = max(0.1, min(4.0, scale_y))
             if isinstance(raw.get("font_family"), str):
                 options["font_family"] = raw["font_family"]
             if isinstance(raw.get("width_percent"), (int, float)):
@@ -817,8 +837,18 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
     def normalize_text_options(raw: Any) -> Dict[str, Any]:
         options = copy.deepcopy(BIRTHDAY_TEXT_OPTIONS_DEFAULT)
         if isinstance(raw, dict):
+            if isinstance(raw.get("font_size_auto"), bool):
+                options["font_size_auto"] = raw["font_size_auto"]
             if isinstance(raw.get("font_size"), (int, float)):
-                options["font_size"] = float(raw["font_size"])
+                options["font_size"] = max(6.0, min(220.0, float(raw["font_size"])))
+            if isinstance(raw.get("scale_x"), (int, float)):
+                scale_x = float(raw["scale_x"])
+                if scale_x > 0:
+                    options["scale_x"] = max(0.1, min(4.0, scale_x))
+            if isinstance(raw.get("scale_y"), (int, float)):
+                scale_y = float(raw["scale_y"])
+                if scale_y > 0:
+                    options["scale_y"] = max(0.1, min(4.0, scale_y))
             if isinstance(raw.get("font_family"), str):
                 options["font_family"] = raw["font_family"]
             if isinstance(raw.get("width_percent"), (int, float)):
@@ -949,8 +979,18 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
 def _normalize_time_change_text_options(raw: Any) -> Dict[str, Any]:
     options = copy.deepcopy(TIME_CHANGE_TEXT_OPTIONS_DEFAULT)
     if isinstance(raw, dict):
+        if isinstance(raw.get("font_size_auto"), bool):
+            options["font_size_auto"] = raw["font_size_auto"]
         if isinstance(raw.get("font_size"), (int, float)):
-            options["font_size"] = float(raw["font_size"])
+            options["font_size"] = max(6.0, min(220.0, float(raw["font_size"])))
+        if isinstance(raw.get("scale_x"), (int, float)):
+            scale_x = float(raw["scale_x"])
+            if scale_x > 0:
+                options["scale_x"] = max(0.1, min(4.0, scale_x))
+        if isinstance(raw.get("scale_y"), (int, float)):
+            scale_y = float(raw["scale_y"])
+            if scale_y > 0:
+                options["scale_y"] = max(0.1, min(4.0, scale_y))
         if isinstance(raw.get("font_family"), str):
             options["font_family"] = raw["font_family"]
         if isinstance(raw.get("width_percent"), (int, float)):
@@ -1187,7 +1227,10 @@ def _write_time_change_config_file(config: Dict[str, Any]) -> Dict[str, Any]:
 # ───────────────────────────────────────────────────────────────────────────────
 
 CHRISTMAS_TEXT_OPTIONS_DEFAULT = {
+    "font_size_auto": True,
     "font_size": 48.0,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
     "font_family": "",
     "width_percent": 100.0,
     "height_percent": 0.0,
@@ -1208,8 +1251,18 @@ CHRISTMAS_MAX_LINES = 50
 def _normalize_christmas_text_options(raw: Any) -> Dict[str, Any]:
     options = copy.deepcopy(CHRISTMAS_TEXT_OPTIONS_DEFAULT)
     if isinstance(raw, dict):
+        if isinstance(raw.get("font_size_auto"), bool):
+            options["font_size_auto"] = raw["font_size_auto"]
         if isinstance(raw.get("font_size"), (int, float)):
-            options["font_size"] = float(raw["font_size"])
+            options["font_size"] = max(6.0, min(220.0, float(raw["font_size"])))
+        if isinstance(raw.get("scale_x"), (int, float)):
+            scale_x = float(raw["scale_x"])
+            if scale_x > 0:
+                options["scale_x"] = max(0.1, min(4.0, scale_x))
+        if isinstance(raw.get("scale_y"), (int, float)):
+            scale_y = float(raw["scale_y"])
+            if scale_y > 0:
+                options["scale_y"] = max(0.1, min(4.0, scale_y))
         if isinstance(raw.get("font_family"), str):
             options["font_family"] = raw["font_family"]
         if isinstance(raw.get("width_percent"), (int, float)):
@@ -1732,8 +1785,34 @@ def _normalize_text_style(raw: Any) -> Dict[str, Any]:
         font_family = font_family.strip()
     if not font_family or font_family not in AVAILABLE_TEST_FONT_FAMILIES:
         font_family = DEFAULT_TEST_TEXT_STYLE["font_family"]
+    font_size_auto = _coerce_bool(raw.get("font_size_auto"), DEFAULT_TEST_TEXT_STYLE["font_size_auto"])
+    try:
+        font_size = float(raw.get("font_size", DEFAULT_TEST_TEXT_STYLE["font_size"]))
+    except (TypeError, ValueError):
+        font_size = float(DEFAULT_TEST_TEXT_STYLE["font_size"])
+    if math.isnan(font_size) or math.isinf(font_size):
+        font_size = float(DEFAULT_TEST_TEXT_STYLE["font_size"])
+    font_size = max(6.0, min(220.0, font_size))
+    try:
+        scale_x = float(raw.get("scale_x", DEFAULT_TEST_TEXT_STYLE["scale_x"]))
+    except (TypeError, ValueError):
+        scale_x = float(DEFAULT_TEST_TEXT_STYLE["scale_x"])
+    if math.isnan(scale_x) or math.isinf(scale_x) or scale_x <= 0:
+        scale_x = float(DEFAULT_TEST_TEXT_STYLE["scale_x"])
+    scale_x = max(0.1, min(4.0, scale_x))
+    try:
+        scale_y = float(raw.get("scale_y", DEFAULT_TEST_TEXT_STYLE["scale_y"]))
+    except (TypeError, ValueError):
+        scale_y = float(DEFAULT_TEST_TEXT_STYLE["scale_y"])
+    if math.isnan(scale_y) or math.isinf(scale_y) or scale_y <= 0:
+        scale_y = float(DEFAULT_TEST_TEXT_STYLE["scale_y"])
+    scale_y = max(0.1, min(4.0, scale_y))
     return {
         "font_family": font_family,
+        "font_size_auto": font_size_auto,
+        "font_size": font_size,
+        "scale_x": scale_x,
+        "scale_y": scale_y,
         "bold": _coerce_bool(raw.get("bold"), DEFAULT_TEST_TEXT_STYLE["bold"]),
         "italic": _coerce_bool(raw.get("italic"), DEFAULT_TEST_TEXT_STYLE["italic"]),
         "underline": _coerce_bool(raw.get("underline"), DEFAULT_TEST_TEXT_STYLE["underline"]),

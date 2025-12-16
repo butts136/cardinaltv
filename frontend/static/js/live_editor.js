@@ -49,6 +49,12 @@
     const selectedTextTextarea = document.querySelector("#selected-text-input");
     const selectedTextPlaceholder = document.querySelector("#selected-text-placeholder");
     const selectedTextFontSelect = document.querySelector("#selected-text-font");
+    const selectedTextFontAutoInput = document.querySelector("#selected-text-font-auto");
+    const selectedTextFontSizeInput = document.querySelector("#selected-text-font-size");
+    const selectedTextScaleXInput = document.querySelector("#selected-text-scale-x");
+    const selectedTextScaleXValue = document.querySelector("#selected-text-scale-x-value");
+    const selectedTextScaleYInput = document.querySelector("#selected-text-scale-y");
+    const selectedTextScaleYValue = document.querySelector("#selected-text-scale-y-value");
     const textStyleToggleButtons = document.querySelectorAll(".text-style-toggle");
     const selectedTextColorInput = document.querySelector("#selected-text-color");
     const selectedTextColorValue = document.querySelector("#selected-text-color-value");
@@ -72,7 +78,10 @@
       christmas: { color: "#f8fafc" },
     };
     const DEFAULT_LINE_OPTIONS = {
+      font_size_auto: true,
       font_size: 48,
+      scale_x: 1,
+      scale_y: 1,
       font_family: "",
       width_percent: DEFAULT_TEXT_SIZE.width,
       height_percent: DEFAULT_TEXT_SIZE.height,
@@ -127,7 +136,10 @@
         color: opts.color || defaults.color || DEFAULT_TEXT_COLOR,
         style: {
           font_family: opts.font_family || DEFAULT_TEXT_STYLE.font_family,
+          font_size_auto: typeof opts.font_size_auto === "boolean" ? opts.font_size_auto : true,
           font_size: Number.isFinite(Number(opts.font_size)) ? Number(opts.font_size) : defaults.font_size,
+          scale_x: Number.isFinite(Number(opts.scale_x)) ? Number(opts.scale_x) : 1,
+          scale_y: Number.isFinite(Number(opts.scale_y)) ? Number(opts.scale_y) : 1,
           bold: Boolean(opts.bold),
           italic: Boolean(opts.italic),
           underline: Boolean(opts.underline),
@@ -152,9 +164,25 @@
             ? Number(entry?.size?.height)
             : base.height_percent,
           color: entry?.color || base.color,
+          font_size_auto:
+            typeof entry?.style?.font_size_auto === "boolean"
+              ? entry.style.font_size_auto
+              : typeof base.font_size_auto === "boolean"
+                ? base.font_size_auto
+                : true,
           font_size: Number.isFinite(Number(entry?.style?.font_size))
             ? Number(entry.style.font_size)
             : base.font_size,
+          scale_x: Number.isFinite(Number(entry?.style?.scale_x))
+            ? Number(entry.style.scale_x)
+            : Number.isFinite(Number(base.scale_x))
+              ? Number(base.scale_x)
+              : 1,
+          scale_y: Number.isFinite(Number(entry?.style?.scale_y))
+            ? Number(entry.style.scale_y)
+            : Number.isFinite(Number(base.scale_y))
+              ? Number(base.scale_y)
+              : 1,
           font_family: entry?.style?.font_family || base.font_family,
           underline:
             typeof entry?.style?.underline === "boolean" ? entry.style.underline : base.underline,
@@ -546,7 +574,7 @@
       "top-left": { axis: "both", directionX: -1, directionY: -1 },
       "top-right": { axis: "both", directionX: 1, directionY: -1 },
       "bottom-left": { axis: "both", directionX: -1, directionY: 1 },
-      "bottom-right": { axis: "both", directionX: 1, directionY: 1, keepRatio: true },
+      "bottom-right": { axis: "both", directionX: 1, directionY: 1 },
     };
 
   const dragState = {
@@ -559,6 +587,8 @@
     isDragging: false,
     isResizing: false,
     resizeHandle: null,
+    startCenterX: null,
+    startCenterY: null,
     startWidth: null,
     startHeight: null,
     aspectRatio: 1,
@@ -576,6 +606,8 @@
   let currentSelectedTextName = null;
   const textUpdateTimers = new Map();
   const pendingTextChanges = new Map();
+  const styleUpdateTimers = new Map();
+  const pendingStyleChanges = new Map();
   let currentTestMeta = { ...DEFAULT_TEST_META };
   let metaUpdateTimer = null;
   let pendingMetaChanges = {};
@@ -792,6 +824,11 @@
   };
 
   const formatColorLabel = (value) => normalizeColorValue(value).toUpperCase();
+  const formatScaleLabel = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) return "100%";
+    return `${Math.round(num * 100)}%`;
+  };
   const getFontStack = (fontFamily) => {
     const primary = fontFamily || DEFAULT_TEXT_STYLE.font_family;
     return `"${primary}", "Poppins", "Helvetica Neue", Arial, sans-serif`;
@@ -818,13 +855,29 @@
     return fallback;
   };
     const normalizeFontFamily = (value) => (AVAILABLE_FONTS.includes(value) ? value : DEFAULT_TEXT_STYLE.font_family);
+    const normalizeScaleValue = (value, fallback = 1) => {
+      const num = Number(value);
+      if (!Number.isFinite(num) || num <= 0) {
+        const resolvedFallback = Number(fallback);
+        return Number.isFinite(resolvedFallback) && resolvedFallback > 0
+          ? clamp(resolvedFallback, 0.1, 4)
+          : 1;
+      }
+      return clamp(num, 0.1, 4);
+    };
     const normalizeStylePayload = (raw) => {
       const source = typeof raw === "object" && raw ? raw : {};
       return {
         font_family: normalizeFontFamily(source.font_family),
+        font_size_auto: toBoolean(
+          source.font_size_auto,
+          source.font_size_auto === undefined ? true : DEFAULT_LINE_OPTIONS.font_size_auto,
+        ),
         font_size: Number.isFinite(Number(source.font_size))
           ? Number(source.font_size)
           : DEFAULT_LINE_OPTIONS.font_size,
+        scale_x: normalizeScaleValue(source.scale_x, 1),
+        scale_y: normalizeScaleValue(source.scale_y, 1),
         bold: toBoolean(source.bold, DEFAULT_TEXT_STYLE.bold),
         italic: toBoolean(source.italic, DEFAULT_TEXT_STYLE.italic),
         underline: toBoolean(source.underline, DEFAULT_TEXT_STYLE.underline),
@@ -914,7 +967,13 @@
   const getCardStyleFromDataset = (card) =>
     normalizeStylePayload({
       font_family: card?.dataset?.fontFamily,
+      font_size_auto:
+        card?.dataset?.fontSizeAuto == null
+          ? undefined
+          : card.dataset.fontSizeAuto === "true" || card.dataset.fontSizeAuto === "1",
       font_size: Number(card?.dataset?.fontSize),
+      scale_x: Number(card?.dataset?.scaleX),
+      scale_y: Number(card?.dataset?.scaleY),
       bold: card?.dataset?.bold === "true" || card?.dataset?.bold === "1",
       italic: card?.dataset?.italic === "true" || card?.dataset?.italic === "1",
       underline: card?.dataset?.underline === "true" || card?.dataset?.underline === "1",
@@ -933,6 +992,9 @@
     card.dataset.bold = resolved.bold ? "1" : "0";
     card.dataset.italic = resolved.italic ? "1" : "0";
     card.dataset.underline = resolved.underline ? "1" : "0";
+    card.dataset.fontSizeAuto = resolved.font_size_auto ? "1" : "0";
+    card.dataset.scaleX = String(resolved.scale_x);
+    card.dataset.scaleY = String(resolved.scale_y);
     card.style.fontFamily = getFontStack(resolved.font_family);
     card.style.fontWeight = resolved.bold ? "700" : "400";
     card.style.fontStyle = resolved.italic ? "italic" : "normal";
@@ -1104,6 +1166,13 @@
     card.dataset.width = widthPercent;
     card.dataset.height = heightPercent;
 
+    const sharedRenderers = window.CardinalSlideRenderers || null;
+    if (sharedRenderers?.layoutCustomTextCard) {
+      const { width: overlayWidth, height: overlayHeight } = getOverlayDimensions();
+      sharedRenderers.layoutCustomTextCard(card, overlayWidth, overlayHeight);
+      return;
+    }
+
     const { width: overlayWidth, height: overlayHeight } = getOverlayDimensions();
     const cardWidthPx = overlayWidth * (widthPercent / 100);
     const cardHeightPx = overlayHeight * (heightPercent / 100);
@@ -1263,6 +1332,28 @@
       selectedTextFontSelect.value = DEFAULT_TEXT_STYLE.font_family;
       selectedTextFontSelect.disabled = true;
     }
+    if (selectedTextFontAutoInput) {
+      selectedTextFontAutoInput.checked = true;
+      selectedTextFontAutoInput.disabled = true;
+    }
+    if (selectedTextFontSizeInput) {
+      selectedTextFontSizeInput.value = `${DEFAULT_LINE_OPTIONS.font_size}`;
+      selectedTextFontSizeInput.disabled = true;
+    }
+    if (selectedTextScaleXInput) {
+      selectedTextScaleXInput.value = "1";
+      selectedTextScaleXInput.disabled = true;
+    }
+    if (selectedTextScaleXValue) {
+      selectedTextScaleXValue.textContent = "100%";
+    }
+    if (selectedTextScaleYInput) {
+      selectedTextScaleYInput.value = "1";
+      selectedTextScaleYInput.disabled = true;
+    }
+    if (selectedTextScaleYValue) {
+      selectedTextScaleYValue.textContent = "100%";
+    }
     updateStyleToggleUI(DEFAULT_TEXT_STYLE, false);
     if (selectedTextColorInput) {
       selectedTextColorInput.value = DEFAULT_TEXT_COLOR;
@@ -1322,6 +1413,28 @@
     if (selectedTextFontSelect) {
       selectedTextFontSelect.disabled = false;
       selectedTextFontSelect.value = style.font_family;
+    }
+    if (selectedTextFontAutoInput) {
+      selectedTextFontAutoInput.disabled = false;
+      selectedTextFontAutoInput.checked = Boolean(style.font_size_auto);
+    }
+    if (selectedTextFontSizeInput) {
+      selectedTextFontSizeInput.disabled = Boolean(style.font_size_auto);
+      selectedTextFontSizeInput.value = `${style.font_size || DEFAULT_LINE_OPTIONS.font_size}`;
+    }
+    if (selectedTextScaleXInput) {
+      selectedTextScaleXInput.disabled = false;
+      selectedTextScaleXInput.value = `${style.scale_x || 1}`;
+    }
+    if (selectedTextScaleXValue) {
+      selectedTextScaleXValue.textContent = formatScaleLabel(style.scale_x);
+    }
+    if (selectedTextScaleYInput) {
+      selectedTextScaleYInput.disabled = false;
+      selectedTextScaleYInput.value = `${style.scale_y || 1}`;
+    }
+    if (selectedTextScaleYValue) {
+      selectedTextScaleYValue.textContent = formatScaleLabel(style.scale_y);
     }
     updateStyleToggleUI(style, true);
     const resolvedColor = normalizeColorValue(entry.color);
@@ -1428,6 +1541,8 @@
     if (!card) return;
     const width = parseFloat(card.dataset.width) || DEFAULT_TEXT_SIZE.width;
     const height = parseFloat(card.dataset.height) || DEFAULT_TEXT_SIZE.height;
+    const startCenterX = parseFloat(card.style.left);
+    const startCenterY = parseFloat(card.style.top);
     dragState.card = card;
     dragState.name = card.dataset.name;
     dragState.pointerId = event.pointerId;
@@ -1436,6 +1551,8 @@
     dragState.position = null;
     dragState.startWidth = width;
     dragState.startHeight = height;
+    dragState.startCenterX = Number.isFinite(startCenterX) ? startCenterX : 50;
+    dragState.startCenterY = Number.isFinite(startCenterY) ? startCenterY : 50;
     dragState.aspectRatio = width / (height || 1);
     dragState.resizeSize = { width, height };
     dragState.startX = event.clientX;
@@ -1477,15 +1594,32 @@
       if (handleConfig.axis === "vertical" || handleConfig.axis === "both") {
         newHeight = clamp(dragState.startHeight + rawDeltaY * verticalDirection, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
       }
-      if (handleConfig.keepRatio) {
+      if (event.shiftKey && handleConfig.axis === "both") {
         const ratio = dragState.aspectRatio || 1;
-        const change =
-          Math.abs(newWidth - dragState.startWidth) > Math.abs(newHeight - dragState.startHeight)
-            ? newWidth - dragState.startWidth
-            : newHeight - dragState.startHeight;
-        newWidth = clamp(dragState.startWidth + change, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
-        newHeight = clamp(newWidth / ratio, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+        const deltaW = newWidth - dragState.startWidth;
+        const deltaH = newHeight - dragState.startHeight;
+        if (Math.abs(deltaW) >= Math.abs(deltaH)) {
+          newHeight = clamp(newWidth / ratio, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+        } else {
+          newWidth = clamp(newHeight * ratio, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+        }
       }
+
+      const widthDelta = newWidth - dragState.startWidth;
+      const heightDelta = newHeight - dragState.startHeight;
+      let nextCenterX = dragState.startCenterX;
+      let nextCenterY = dragState.startCenterY;
+      if (handleConfig.axis === "horizontal" || handleConfig.axis === "both") {
+        nextCenterX = (Number(dragState.startCenterX) || 50) + (widthDelta / 2) * horizontalDirection;
+        nextCenterX = clamp(nextCenterX, newWidth / 2, 100 - newWidth / 2);
+      }
+      if (handleConfig.axis === "vertical" || handleConfig.axis === "both") {
+        nextCenterY = (Number(dragState.startCenterY) || 50) + (heightDelta / 2) * verticalDirection;
+        nextCenterY = clamp(nextCenterY, newHeight / 2, 100 - newHeight / 2);
+      }
+      dragState.card.style.left = `${nextCenterX}%`;
+      dragState.card.style.top = `${nextCenterY}%`;
+      dragState.position = { x: nextCenterX, y: nextCenterY };
       updateCardSize(dragState.card, newWidth, newHeight);
       return;
     }
@@ -1523,6 +1657,8 @@
     dragState.isDragging = false;
     dragState.isResizing = false;
     dragState.resizeHandle = null;
+    dragState.startCenterX = null;
+    dragState.startCenterY = null;
     dragState.resizeSize = null;
     hideGuides();
   };
@@ -2196,6 +2332,35 @@
     textUpdateTimers.set(name, timer);
   };
 
+  const queueStyleUpdate = (name, style) => {
+    if (!name) return;
+    pendingStyleChanges.set(name, style);
+    const existing = styleUpdateTimers.get(name);
+    if (existing) {
+      clearTimeout(existing);
+    }
+    const timer = setTimeout(() => {
+      const pendingValue = pendingStyleChanges.get(name);
+      pendingStyleChanges.delete(name);
+      void updateTestTextStyle(name, pendingValue);
+      styleUpdateTimers.delete(name);
+    }, 350);
+    styleUpdateTimers.set(name, timer);
+  };
+
+  const applyStyleToPreviewCard = (name, style) => {
+    if (!name || !testPreviewTextOverlay) return;
+    const index = currentTestTexts.findIndex((entry) => entry.name === name);
+    if (index >= 0) {
+      currentTestTexts[index] = { ...currentTestTexts[index], style };
+    }
+    const selector = `.preview-text-card[data-name="${escapeSelectorValue(name)}"]`;
+    const card = testPreviewTextOverlay.querySelector(selector);
+    if (!card) return;
+    applyCardTypography(card, style);
+    applyTextCardFontSizing(card);
+  };
+
   const flushPendingMetaUpdates = async () => {
     if (!editorAdapter.supportsMeta) {
       pendingMetaChanges = {};
@@ -2236,13 +2401,39 @@
     );
   };
 
+  const flushPendingStyleUpdates = async () => {
+    const entries = Array.from(pendingStyleChanges.entries());
+    if (!entries.length) {
+      return;
+    }
+    entries.forEach(([name]) => {
+      const timer = styleUpdateTimers.get(name);
+      if (timer) {
+        clearTimeout(timer);
+        styleUpdateTimers.delete(name);
+      }
+    });
+    await Promise.allSettled(
+      entries.map(async ([name, style]) => {
+        await updateTestTextStyle(name, style);
+      }),
+    );
+  };
+
   const saveAllChanges = async () => {
     if (saveButton) {
       saveButton.disabled = true;
     }
     try {
-      const hasPending = pendingTextChanges.size > 0 || Object.keys(pendingMetaChanges).length > 0;
-      await Promise.allSettled([flushPendingMetaUpdates(), flushPendingTextUpdates()]);
+      const hasPending =
+        pendingTextChanges.size > 0 ||
+        pendingStyleChanges.size > 0 ||
+        Object.keys(pendingMetaChanges).length > 0;
+      await Promise.allSettled([
+        flushPendingMetaUpdates(),
+        flushPendingTextUpdates(),
+        flushPendingStyleUpdates(),
+      ]);
       if (!hasPending) {
         setTestTextFeedback("Aucune modification à enregistrer.", "info");
       } else {
@@ -2458,9 +2649,36 @@
       if (selectedTextFontSelect && Object.prototype.hasOwnProperty.call(changes, "font_family")) {
         selectedTextFontSelect.value = nextStyle.font_family;
       }
+      if (
+        selectedTextFontAutoInput &&
+        Object.prototype.hasOwnProperty.call(changes, "font_size_auto")
+      ) {
+        selectedTextFontAutoInput.checked = Boolean(nextStyle.font_size_auto);
+      }
+      if (
+        selectedTextFontSizeInput &&
+        (Object.prototype.hasOwnProperty.call(changes, "font_size_auto") ||
+          Object.prototype.hasOwnProperty.call(changes, "font_size"))
+      ) {
+        selectedTextFontSizeInput.disabled = Boolean(nextStyle.font_size_auto);
+        selectedTextFontSizeInput.value = `${nextStyle.font_size || DEFAULT_LINE_OPTIONS.font_size}`;
+      }
+      if (selectedTextScaleXInput && Object.prototype.hasOwnProperty.call(changes, "scale_x")) {
+        selectedTextScaleXInput.value = `${nextStyle.scale_x || 1}`;
+      }
+      if (selectedTextScaleXValue && Object.prototype.hasOwnProperty.call(changes, "scale_x")) {
+        selectedTextScaleXValue.textContent = formatScaleLabel(nextStyle.scale_x);
+      }
+      if (selectedTextScaleYInput && Object.prototype.hasOwnProperty.call(changes, "scale_y")) {
+        selectedTextScaleYInput.value = `${nextStyle.scale_y || 1}`;
+      }
+      if (selectedTextScaleYValue && Object.prototype.hasOwnProperty.call(changes, "scale_y")) {
+        selectedTextScaleYValue.textContent = formatScaleLabel(nextStyle.scale_y);
+      }
       updateStyleToggleUI(nextStyle, true);
     }
-    void updateTestTextStyle(name, nextStyle);
+    applyStyleToPreviewCard(name, nextStyle);
+    queueStyleUpdate(name, nextStyle);
   };
 
   const applyBackgroundChanges = (name, changes) => {
@@ -2733,6 +2951,39 @@
       const value = normalizeFontFamily(event.target.value);
       event.target.value = value;
       applyStyleChanges(currentSelectedTextName, { font_family: value });
+    });
+    selectedTextFontAutoInput?.addEventListener("change", (event) => {
+      if (!currentSelectedTextName) return;
+      const enabled = Boolean(event.target.checked);
+      if (selectedTextFontSizeInput) {
+        selectedTextFontSizeInput.disabled = enabled;
+      }
+      applyStyleChanges(currentSelectedTextName, { font_size_auto: enabled });
+    });
+    selectedTextFontSizeInput?.addEventListener("input", (event) => {
+      if (!currentSelectedTextName) return;
+      if (selectedTextFontAutoInput?.checked) {
+        return;
+      }
+      const raw = event.target.value;
+      if (raw == null || String(raw).trim() === "") {
+        return;
+      }
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0) return;
+      applyStyleChanges(currentSelectedTextName, { font_size: value });
+    });
+    selectedTextScaleXInput?.addEventListener("input", (event) => {
+      if (!currentSelectedTextName) return;
+      const value = Number(event.target.value);
+      if (!Number.isFinite(value) || value <= 0) return;
+      applyStyleChanges(currentSelectedTextName, { scale_x: value });
+    });
+    selectedTextScaleYInput?.addEventListener("input", (event) => {
+      if (!currentSelectedTextName) return;
+      const value = Number(event.target.value);
+      if (!Number.isFinite(value) || value <= 0) return;
+      applyStyleChanges(currentSelectedTextName, { scale_y: value });
     });
     textStyleToggleButtons?.forEach((button) => {
       button.addEventListener("click", () => {
