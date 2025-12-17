@@ -656,11 +656,13 @@
   pointer-events: none;
 }
 
-.preview-frame-content img,
-.preview-frame-content video {
+.preview-frame-media img,
+.preview-frame-media video {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
+  display: block;
 }
 
 .preview-text-overlay {
