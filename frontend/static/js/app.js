@@ -1268,7 +1268,8 @@ const sendOrderUpdate = async () => {
   });
 };
 
-const saveItem = async (id, payload) => {
+const saveItem = async (id, payload, options = {}) => {
+  const { render = true } = options || {};
   const updated = await fetchJSON(`api/media/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -1278,7 +1279,9 @@ const saveItem = async (id, payload) => {
   if (index >= 0) {
     mediaItems[index] = updated;
   }
-  renderMedia();
+  if (render) {
+    renderMedia();
+  }
 };
 
 const deleteItem = async (id) => {
@@ -1520,6 +1523,21 @@ const createMediaCard = (item, globalIndex, displayNumber, mediaCount, autoCount
   enabledInput.checked = Boolean(item.enabled);
   enabledInput.dataset.field = "enabled";
   const visibilitySwitch = createVisibilitySwitch(enabledInput);
+  enabledInput.addEventListener("change", async () => {
+    const previousValue = !enabledInput.checked;
+    visibilitySwitch.classList.add("visibility-toggle--busy");
+    enabledInput.disabled = true;
+    try {
+      await saveItem(item.id, { enabled: enabledInput.checked }, { render: false });
+    } catch (error) {
+      console.error("Impossible de mettre à jour la visibilité:", error);
+      enabledInput.checked = previousValue;
+      visibilitySwitch.dataset.state = previousValue ? "visible" : "hidden";
+    } finally {
+      enabledInput.disabled = false;
+      visibilitySwitch.classList.remove("visibility-toggle--busy");
+    }
+  });
 
   const headerActions = document.createElement("div");
   headerActions.className = "media-card-header-actions";

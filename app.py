@@ -4710,7 +4710,7 @@ def list_media() -> Any:
     items = []
     reference_time = _now()
     for item in store.all_items():
-        if not item.get("enabled", True):
+        if active_only and not item.get("enabled", True):
             continue
         if active_only and not _is_item_active(item, reference_time):
             continue
