@@ -9,6 +9,13 @@ const uploadForm = document.querySelector("#upload-form");
 const fileInput = document.querySelector("#file-input");
 const dropZone = document.querySelector("#drop-zone");
 const uploadFeedback = document.querySelector("#upload-feedback");
+const uploadFeedbackIcon = document.querySelector("#upload-feedback-icon");
+const uploadFeedbackTitle = document.querySelector("#upload-feedback-title");
+const uploadFeedbackSubtitle = document.querySelector("#upload-feedback-subtitle");
+const uploadPreview = document.querySelector("#upload-preview");
+const uploadProgress = document.querySelector("#upload-progress");
+const uploadProgressBar = document.querySelector("#upload-progress-bar");
+const uploadProgressText = document.querySelector("#upload-progress-text");
 const mediaList = document.querySelector("#media-list");
 const refreshButton = document.querySelector("#refresh-button");
 const hideAllButton = document.querySelector("#hide-all-button");
@@ -187,6 +194,8 @@ const pptList = document.querySelector("#ppt-list");
 
 let mediaItems = [];
 let selectedFiles = [];
+let uploadPreviewUrls = [];
+let uploadProgressTimer = null;
 let quebecTimeTimer = null;
 let overlaySettings = null;
 let birthdaySlideSettings = null;
@@ -624,6 +633,52 @@ window.CardinalApp = {
   clampValue,
 };
 
+// ---------------------------------------------------------------------------
+// Feedback pour le téléversement de fichiers
+// ---------------------------------------------------------------------------
+
+const getUploadStatusIcon = (status) => {
+  if (status === "success") return "✅";
+  if (status === "error") return "⚠️";
+  return "📁";
+};
+
+const setUploadFeedback = (message, status = "info", { subtitle = "", icon = "" } = {}) => {
+  if (!uploadFeedback) return;
+  const title = message || "";
+  if (uploadFeedbackTitle) {
+    uploadFeedbackTitle.textContent = title;
+  } else {
+    uploadFeedback.textContent = title;
+  }
+  if (uploadFeedbackSubtitle) {
+    uploadFeedbackSubtitle.textContent = subtitle || "";
+    uploadFeedbackSubtitle.setAttribute("aria-hidden", subtitle ? "false" : "true");
+  }
+  if (uploadFeedbackIcon) {
+    uploadFeedbackIcon.textContent = icon || getUploadStatusIcon(status);
+  }
+  uploadFeedback.dataset.status = status;
+  // Appliquer un style visuel selon le statut
+  uploadFeedback.classList.remove("feedback-error", "feedback-success", "feedback-info");
+  if (status === "error") {
+    uploadFeedback.classList.add("feedback-error");
+  } else if (status === "success") {
+    uploadFeedback.classList.add("feedback-success");
+  } else {
+    uploadFeedback.classList.add("feedback-info");
+  }
+};
+
+const setUploadProgress = (percent, { active = true } = {}) => {
+  if (!uploadProgress || !uploadProgressBar || !uploadProgressText) return;
+  const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+  uploadProgressBar.style.width = `${clamped}%`;
+  uploadProgressText.textContent = `${clamped}%`;
+  uploadProgress.setAttribute("aria-hidden", active ? "false" : "true");
+  uploadProgress.classList.toggle("visible", active);
+};
+
 const formatFileSize = (size) => {
   if (!Number.isFinite(size)) {
     return "";
@@ -635,6 +690,90 @@ const formatFileSize = (size) => {
     return `${(size / 1_000).toFixed(1)} Ko`;
   }
   return `${size} o`;
+};
+
+const formatSelectedFilesSubtitle = (files) => {
+  if (!files.length) return "";
+  if (files.length === 1) {
+    const file = files[0];
+    const size = formatFileSize(file.size);
+    return size ? `${file.name} · ${size}` : file.name;
+  }
+  const previewNames = files
+    .slice(0, 2)
+    .map((file) => file.name)
+    .filter(Boolean)
+    .join(", ");
+  const remaining = files.length - 2;
+  if (remaining > 0) {
+    return `${previewNames} + ${remaining} autre${remaining > 1 ? "s" : ""}`;
+  }
+  return previewNames;
+};
+
+const clearUploadPreview = () => {
+  if (uploadProgressTimer) {
+    clearTimeout(uploadProgressTimer);
+    uploadProgressTimer = null;
+  }
+  uploadPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+  uploadPreviewUrls = [];
+  if (!uploadPreview) return;
+  uploadPreview.innerHTML = "";
+  uploadPreview.setAttribute("aria-hidden", "true");
+};
+
+const buildUploadPreviewItem = (file) => {
+  const wrapper = document.createElement("div");
+  wrapper.className = "upload-preview-item";
+  const type = String(file.type || "").toLowerCase();
+  if (type.startsWith("image/")) {
+    const img = document.createElement("img");
+    const url = URL.createObjectURL(file);
+    uploadPreviewUrls.push(url);
+    img.src = url;
+    img.alt = file.name || "Aperçu de fichier";
+    wrapper.appendChild(img);
+  } else if (type.startsWith("video/")) {
+    const video = document.createElement("video");
+    const url = URL.createObjectURL(file);
+    uploadPreviewUrls.push(url);
+    video.src = url;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    wrapper.appendChild(video);
+    wrapper.classList.add("upload-preview-item--video");
+  } else {
+    const label = document.createElement("span");
+    const ext = (file.name || "").split(".").pop();
+    label.className = "upload-preview-placeholder";
+    label.textContent = (ext || "Fichier").slice(0, 6).toUpperCase();
+    wrapper.appendChild(label);
+  }
+  const caption = document.createElement("span");
+  caption.className = "upload-preview-label";
+  caption.textContent = file.name || "Fichier";
+  wrapper.appendChild(caption);
+  return wrapper;
+};
+
+const renderUploadPreview = (files) => {
+  if (!uploadPreview) return;
+  clearUploadPreview();
+  if (!files.length) return;
+  const previewFiles = files.slice(0, 3);
+  previewFiles.forEach((file) => {
+    uploadPreview.appendChild(buildUploadPreviewItem(file));
+  });
+  const remaining = files.length - previewFiles.length;
+  if (remaining > 0) {
+    const overflow = document.createElement("div");
+    overflow.className = "upload-preview-item upload-preview-count";
+    overflow.textContent = `+${remaining}`;
+    uploadPreview.appendChild(overflow);
+  }
+  uploadPreview.setAttribute("aria-hidden", "false");
 };
 
 const formatDateForInput = (value) => {
@@ -2340,38 +2479,91 @@ const loadMedia = async () => {
 const setSelectedFiles = (files) => {
   selectedFiles = Array.from(files || []);
   if (!selectedFiles.length) {
-    setUploadFeedback("Aucun fichier sélectionné.");
+    setUploadFeedback("Aucun fichier sélectionné.", "info", { icon: "📁" });
+    clearUploadPreview();
+    setUploadProgress(0, { active: false });
     return;
   }
+  const subtitle = formatSelectedFilesSubtitle(selectedFiles);
   if (selectedFiles.length === 1) {
-    setUploadFeedback(`Fichier prêt: ${selectedFiles[0].name}`);
+    setUploadFeedback("Fichier prêt à être téléversé.", "info", {
+      icon: "📄",
+      subtitle,
+    });
   } else {
-    setUploadFeedback(`${selectedFiles.length} fichiers prêts à être téléversés.`);
+    setUploadFeedback(`${selectedFiles.length} fichiers prêts à être téléversés.`, "info", {
+      icon: "🗂️",
+      subtitle,
+    });
   }
+  renderUploadPreview(selectedFiles);
+  setUploadProgress(0, { active: false });
 };
+
+const uploadFilesWithProgress = (files, onProgress) =>
+  new Promise((resolve, reject) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", buildApiUrl("api/upload"));
+    xhr.responseType = "json";
+    if (xhr.upload) {
+      xhr.upload.addEventListener("progress", (event) => {
+        if (!event.lengthComputable || !onProgress) return;
+        const percent = (event.loaded / event.total) * 100;
+        onProgress(percent);
+      });
+    }
+    xhr.addEventListener("load", () => {
+      const response = xhr.response || {};
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(response);
+        return;
+      }
+      const message = response?.message || xhr.responseText || "Requête échouée";
+      reject(new Error(message));
+    });
+    xhr.addEventListener("error", () => {
+      reject(new Error("Erreur réseau"));
+    });
+    xhr.send(formData);
+  });
 
 const performUpload = async () => {
   if (!selectedFiles.length) {
-    setUploadFeedback("Aucun fichier sélectionné.", "error");
+    setUploadFeedback("Aucun fichier sélectionné.", "error", { icon: "⚠️" });
     return;
   }
-  const formData = new FormData();
-  selectedFiles.forEach((file) => formData.append("files", file));
-  setUploadFeedback("Téléversement en cours...");
+  const subtitle = formatSelectedFilesSubtitle(selectedFiles);
+  setUploadFeedback(`Téléversement de ${selectedFiles.length} fichier(s) en cours...`, "info", {
+    icon: "📤",
+    subtitle,
+  });
+  setUploadProgress(0, { active: true });
   try {
-    await fetchJSON("api/upload", {
-      method: "POST",
-      body: formData,
+    const result = await uploadFilesWithProgress(selectedFiles, (percent) => {
+      setUploadProgress(percent, { active: true });
     });
-    setUploadFeedback("Téléversement réussi !");
+    const count = result?.items?.length || selectedFiles.length;
+    setUploadProgress(100, { active: true });
+    setUploadFeedback(`${count} fichier(s) téléversé(s) avec succès !`, "success", { icon: "✅" });
     if (fileInput) {
       fileInput.value = "";
     }
     selectedFiles = [];
+    clearUploadPreview();
+    uploadProgressTimer = setTimeout(() => {
+      setUploadProgress(0, { active: false });
+    }, 700);
     await loadMedia();
   } catch (error) {
-    console.error(error);
-    setUploadFeedback("Erreur lors du téléversement.", "error");
+    console.error("Erreur lors du téléversement:", error);
+    const errorMessage = error?.message || "Erreur inconnue";
+    setUploadFeedback(`Erreur: ${errorMessage}`, "error", {
+      icon: "⚠️",
+      subtitle: formatSelectedFilesSubtitle(selectedFiles),
+    });
+    setUploadProgress(0, { active: false });
   }
 };
 
@@ -5154,7 +5346,19 @@ const formatServiceLabel = (employee) => {
     const value = Math.max(0, info.days);
     return `${value} jour${value > 1 ? "s" : ""} de service`;
   }
-  return `${info.months} mois de service`;
+  const years = Math.floor(info.months / 12);
+  const months = info.months % 12;
+  const parts = [];
+  if (years > 0) {
+    parts.push(`${years} an${years > 1 ? "s" : ""}`);
+  }
+  if (months > 0) {
+    parts.push(`${months} mois`);
+  }
+  if (!parts.length) {
+    return "0 mois de service";
+  }
+  return `${parts.join(" et ")} de service`;
 };
 
 const renderTeamPreviewCard = (employee) => {
@@ -6395,6 +6599,10 @@ const submitPptUploadForm = async (event) => {
 // ---------------------------------------------------------------------------
 
 if (uploadForm && fileInput && dropZone) {
+  setUploadFeedback("Aucun fichier sélectionné.", "info", { icon: "📁" });
+  setUploadProgress(0, { active: false });
+  clearUploadPreview();
+
   uploadForm.addEventListener("submit", (event) => {
     event.preventDefault();
     void performUpload();

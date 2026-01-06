@@ -459,9 +459,8 @@ button {
 }
 
 #upload-feedback {
-  min-height: 1.4rem;
-  font-size: 0.9rem;
-  color: var(--muted);
+  flex: 1;
+  min-width: min(320px, 100%);
 }
 
 .section-header {
@@ -500,6 +499,7 @@ button {
 
 .upload-actions {
   justify-content: flex-start;
+  align-items: flex-start;
 }
 
 .media-list {
@@ -877,6 +877,7 @@ input[type="datetime-local"]:focus {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
     z-index: 1100;
   }
@@ -1265,6 +1266,7 @@ input[type="datetime-local"]:focus {
   display: block;
   padding: 0;
   background: transparent;
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
@@ -1352,6 +1354,7 @@ input[type="datetime-local"]:focus {
   color: #f8fafc;
   text-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   background: transparent;
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
   border-radius: 0;
   box-shadow: none;
@@ -1464,6 +1467,7 @@ input[type="datetime-local"]:focus {
   color: #f8fafc;
   text-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
   background: transparent;
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
   border-radius: 0;
   box-shadow: none;
@@ -1627,4 +1631,159 @@ input[type="datetime-local"]:focus {
   .media-card-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Upload Feedback Styles
+--------------------------------------------------------------------------- */
+
+#upload-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  transition: background 0.2s ease, color 0.2s ease;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#upload-feedback.feedback-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+#upload-feedback.feedback-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+#upload-feedback.feedback-info {
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent-2);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+#upload-feedback:empty {
+  display: none;
+}
+
+.upload-status-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.upload-status-icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.upload-status-title {
+  font-weight: 600;
+  display: block;
+}
+
+.upload-status-subtitle {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+.upload-status-subtitle[aria-hidden="true"] {
+  display: none;
+}
+
+.upload-preview {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.upload-preview[aria-hidden="true"] {
+  display: none;
+}
+
+.upload-preview-item {
+  position: relative;
+  width: 120px;
+  height: 76px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.upload-preview-item img,
+.upload-preview-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.upload-preview-item video {
+  background: #000;
+}
+
+.upload-preview-label {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.62rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upload-preview-count {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.upload-preview-placeholder {
+  font-weight: 600;
+}
+
+#upload-feedback .upload-progress {
+  width: min(260px, 100%);
+  height: 10px;
+}
+
+#upload-feedback .upload-progress.visible {
+  display: flex;
+  align-items: center;
+}
+
+#upload-feedback .upload-progress-text {
+  margin-left: calc(100% + 0.5rem);
+  font-size: 0.75rem;
+  color: #fff;
 }

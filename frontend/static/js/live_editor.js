@@ -777,14 +777,18 @@
     testPreviewMedia.innerHTML = "";
   };
 
+    const setPreviewFallback = () => {
+    if (!testPreviewMedia) return;
+    clearTestPreview();
+    testPreviewMedia.classList.add("preview-frame-media--fallback");
+  };
+
   const updateTestPreview = (entry) => {
     if (!testPreviewMedia) return;
     clearTestPreview();
+    testPreviewMedia.classList.remove("preview-frame-media--fallback");
     if (!entry) {
-      const placeholder = document.createElement("p");
-      placeholder.className = "preview-placeholder";
-      placeholder.textContent = "Aucun fond actif pour le moment.";
-      testPreviewMedia.appendChild(placeholder);
+      setPreviewFallback();
       return;
     }
     let mediaElement;
@@ -797,6 +801,7 @@
       mediaElement.loop = true;
       mediaElement.autoplay = true;
       mediaElement.playsInline = true;
+      mediaElement.setAttribute("playsinline", "");
       mediaElement.preload = "metadata";
     }
     mediaElement.src = entry.url;
@@ -1245,6 +1250,24 @@
     }
   };
 
+  const OVERLAY_LAYOUT_KINDS = new Set(["birthday", "time_change", "christmas"]);
+
+  const getOverlayLayoutOptions = (card) => ({
+    width_percent: Number(card?.dataset?.width) || DEFAULT_TEXT_SIZE.width,
+    height_percent: Number(card?.dataset?.height) || DEFAULT_TEXT_SIZE.height,
+    font_size_auto:
+      card?.dataset?.fontSizeAuto == null
+        ? true
+        : card.dataset.fontSizeAuto === "true" || card.dataset.fontSizeAuto === "1",
+    font_size: Number(card?.dataset?.fontSize) || DEFAULT_LINE_OPTIONS.font_size,
+    scale_x: Number(card?.dataset?.scaleX) || 1,
+    scale_y: Number(card?.dataset?.scaleY) || 1,
+    font_family: card?.dataset?.fontFamily || DEFAULT_TEXT_STYLE.font_family,
+    line_height: Number(card?.dataset?.lineHeight) || DEFAULT_LINE_HEIGHT,
+    letter_spacing: Number(card?.dataset?.letterSpacing) || DEFAULT_LETTER_SPACING,
+    angle: Number(card?.dataset?.angle) || 0,
+  });
+
   const applyTextCardFontSizing = (card) => {
     if (!card) return;
     const rawValue = card.dataset.rawValue || "";
@@ -1262,6 +1285,20 @@
     card.dataset.height = heightPercent;
 
     const sharedRenderers = window.CardinalSlideRenderers || null;
+    if (OVERLAY_LAYOUT_KINDS.has(editorKind) && sharedRenderers?.layoutOverlayTextLine) {
+      const { width: overlayWidth, height: overlayHeight } = getOverlayDimensions();
+      const content = card.querySelector(".preview-text-content");
+      sharedRenderers.layoutOverlayTextLine(
+        card,
+        content,
+        displayValue,
+        rawValue,
+        getOverlayLayoutOptions(card),
+        overlayWidth,
+        overlayHeight,
+      );
+      return;
+    }
     if (sharedRenderers?.layoutCustomTextCard) {
       const { width: overlayWidth, height: overlayHeight } = getOverlayDimensions();
       sharedRenderers.layoutCustomTextCard(card, overlayWidth, overlayHeight);
@@ -1387,10 +1424,12 @@
     ensureGuideElements();
     const texts = (Array.isArray(items) ? items : []).filter((entry) => entry.value && entry.value.trim());
     if (!texts.length) {
-      const placeholder = document.createElement("p");
-      placeholder.className = "preview-text-card preview-placeholder";
-      placeholder.textContent = "Les textes ajoutés apparaissent ici.";
-      testPreviewTextOverlay.appendChild(placeholder);
+      if (editorKind === "custom" || editorKind === "test") {
+        const placeholder = document.createElement("p");
+        placeholder.className = "preview-text-card preview-placeholder";
+        placeholder.textContent = "Aucun texte configuré.";
+        testPreviewTextOverlay.appendChild(placeholder);
+      }
       return;
     }
     texts.forEach((entry) => {

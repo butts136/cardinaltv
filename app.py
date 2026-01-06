@@ -697,6 +697,7 @@ def _ensure_number(
         number = maximum
     if integer:
         return int(round(number))
+    return number
 
 
 def _read_birthday_config(variant: str) -> Dict[str, Any]:

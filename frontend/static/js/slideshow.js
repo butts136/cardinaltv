@@ -7,6 +7,12 @@ const statusLabel = document.querySelector("#slideshow-status");
 const overlayContainer = document.querySelector("#slideshow-brand");
 const overlayLogo = document.querySelector("#overlay-logo");
 const overlayContent = document.querySelector("#overlay-content");
+if (overlayLogo) {
+  overlayLogo.addEventListener("error", () => {
+    overlayLogo.removeAttribute("src");
+    overlayLogo.style.display = "none";
+  });
+}
 
 const rootElement = document.documentElement;
 const urlParams = new URLSearchParams(window.location.search);
@@ -75,7 +81,6 @@ const applyLineBackground = (element, opts) => {
 };
 const BASE_CANVAS_WIDTH = Number(canvas?.dataset.baseWidth) || 1920;
 const BASE_CANVAS_HEIGHT = Number(canvas?.dataset.baseHeight) || 1080;
-const OVERLAY_DISABLED = true;
 
 const skipState = new Map();
 let playlist = [];
@@ -103,7 +108,10 @@ let christmasSlideSettings = { ...DEFAULT_CHRISTMAS_SLIDE };
 let christmasInfo = null;
 let lastChristmasFetch = 0;
 const CHRISTMAS_REFRESH_MS = 60 * 60 * 1000; // 1 hour in milliseconds
-let customSlideSettings = { ...DEFAULT_CUSTOM_SLIDE };
+let testSlideSettings = { ...DEFAULT_CUSTOM_SLIDE };
+let testSlidePayload = null;
+let lastTestSlideFetch = 0;
+const TEST_SLIDE_REFRESH_MS = 15 * 1000;
 let customSlidesPayload = null;
 let lastCustomSlidesFetch = 0;
 const CUSTOM_SLIDE_REFRESH_MS = 15 * 1000;
@@ -347,22 +355,6 @@ const stopClock = () => {
 };
 
 const applyOverlaySettings = (input = {}) => {
-  if (OVERLAY_DISABLED) {
-    overlaySettings = { ...DEFAULT_OVERLAY, enabled: false };
-    if (overlayContent) {
-      overlayContent.innerHTML = "";
-    }
-    if (overlayLogo) {
-      overlayLogo.style.display = "none";
-    }
-    if (overlayContainer) {
-      overlayContainer.hidden = true;
-      overlayContainer.style.display = "none";
-    }
-    stopClock();
-    return;
-  }
-
   overlaySettings = {
     ...DEFAULT_OVERLAY,
     ...input,
@@ -391,8 +383,13 @@ const applyOverlaySettings = (input = {}) => {
   rootElement.style.setProperty("--overlay-fg", textColor);
 
   if (overlayLogo) {
-    overlayLogo.src = resolveAssetUrl(logoPath);
-    overlayLogo.style.display = logoPath ? "" : "none";
+    if (logoPath) {
+      overlayLogo.src = resolveAssetUrl(logoPath);
+      overlayLogo.style.display = "";
+    } else {
+      overlayLogo.removeAttribute("src");
+      overlayLogo.style.display = "none";
+    }
   }
 
   overlayContainer.hidden = false;
@@ -603,10 +600,12 @@ const refreshOverlaySettings = async () => {
         ...DEFAULT_CHRISTMAS_SLIDE,
         ...(data && data.christmas_slide ? data.christmas_slide : {}),
       };
-      customSlideSettings = {
+      testSlideSettings = {
         ...DEFAULT_CUSTOM_SLIDE,
         ...(data && data.test_slide ? data.test_slide : {}),
       };
+      testSlidePayload = null;
+      lastTestSlideFetch = 0;
       await fetchTimeChangeInfo(true);
       await fetchChristmasInfo(true);
     }
@@ -1388,7 +1387,19 @@ const formatServiceLabel = (employee) => {
     const value = Math.max(0, info.days);
     return `${value} jour${value > 1 ? "s" : ""} de service`;
   }
-  return `${info.months} mois de service`;
+  const years = Math.floor(info.months / 12);
+  const months = info.months % 12;
+  const parts = [];
+  if (years > 0) {
+    parts.push(`${years} an${years > 1 ? "s" : ""}`);
+  }
+  if (months > 0) {
+    parts.push(`${months} mois`);
+  }
+  if (!parts.length) {
+    return "0 mois de service";
+  }
+  return `${parts.join(" et ")} de service`;
 };
 
 const renderTeamCard = (employee) => {
@@ -2113,7 +2124,7 @@ const renderCustomSlide = (item) => {
   const tokenMap = buildCustomTokenMap(payload.meta || {});
   const durationSeconds = Math.max(
     1,
-    Math.round(Number(item.duration) || customSlideSettings.duration || DEFAULT_CUSTOM_SLIDE.duration),
+    Math.round(Number(item.duration) || DEFAULT_CUSTOM_SLIDE.duration),
   );
 
   const stageEl = document.createElement("div");
@@ -2383,6 +2394,58 @@ const buildChristmasSlideItem = (christmasData) => {
   };
 };
 
+const fetchTestSlide = async (force = false) => {
+  const now = Date.now();
+  if (!force && testSlidePayload && now - lastTestSlideFetch < TEST_SLIDE_REFRESH_MS) {
+    return testSlidePayload;
+  }
+  try {
+    const data = await fetchJSON("api/test/slide");
+    testSlidePayload = data || null;
+    lastTestSlideFetch = now;
+    return testSlidePayload;
+  } catch (error) {
+    console.warn("Impossible de récupérer la diapo personnalisée:", error);
+    testSlidePayload = null;
+    lastTestSlideFetch = now;
+    return null;
+  }
+};
+
+const buildTestSlideItem = (testData) => {
+  const background = testData?.background || null;
+  const mimetype = (background && background.mimetype) || "application/x-custom-slide";
+  const duration = Math.max(
+    1,
+    Number(testData?.duration) || DEFAULT_CUSTOM_SLIDE.duration,
+  );
+  const orderIndex = Number.isFinite(Number(testData?.order_index))
+    ? Number(testData.order_index)
+    : 0;
+  const slideName = testData?.meta?.name || "Diapo personnalisée";
+  const itemId = `${CUSTOM_SLIDE_ID}test`;
+  return {
+    id: itemId,
+    custom_slide: true,
+    custom_slide_id: null,
+    original_name: slideName,
+    filename: background?.name || itemId,
+    duration,
+    enabled: true,
+    skip_rounds: 0,
+    mimetype,
+    display_mimetype: mimetype,
+    background,
+    order: orderIndex,
+    custom_payload: {
+      background,
+      texts: Array.isArray(testData?.texts) ? testData.texts : [],
+      meta: testData?.meta || null,
+      signature: testData?.signature || null,
+    },
+  };
+};
+
 const fetchCustomSlidesList = async (force = false) => {
   const now = Date.now();
   if (
@@ -2518,6 +2581,17 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
       autoEntries.push({
         ...teamItem,
         order: normalizedOrderIndex(teamSlideSettings.order_index),
+      });
+    }
+  }
+
+  if (testSlideSettings.enabled) {
+    const testData = await fetchTestSlide();
+    if (testData?.enabled && testData?.has_background && testData?.has_texts) {
+      const testItem = buildTestSlideItem(testData);
+      autoEntries.push({
+        ...testItem,
+        order: normalizedOrderIndex(testData.order_index),
       });
     }
   }

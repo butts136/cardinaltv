@@ -3,15 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050912" />
+    <meta name="description" content="Cardinal TV - Système de diaporama et affichage dynamique" />
     <title>{% block title %}Cardinal TV{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
+    <!-- Préchargement des ressources critiques -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
     {% block head_extra %}{% endblock %}
   </head>
   <body class="app-shell {% block body_class %}{% endblock %}" data-base-url="{{ url_for('main.index') }}">
     <aside class="app-sidebar">
       <div class="sidebar-brand">
-        <img src="{{ url_for('static', filename='img/logo-1.png') }}" alt="Cardinal TV" class="sidebar-logo" />
+        <img src="{{ url_for('static', filename='img/logo-1.png') }}" alt="Cardinal TV" class="sidebar-logo" loading="eager" />
         <div>
           <p class="brand-kicker">Cardinal TV</p>
           <p class="brand-title">Panneau de contrôle</p>
@@ -209,10 +214,10 @@
       })();
     </script>
     {% block scripts %}
-      <script src="{{ url_for('static', filename='js/slideshow/constants.js') }}"></script>
-      <script src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}"></script>
-      <script src="{{ url_for('static', filename='js/slide_renderers.js') }}"></script>
-      <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+      <script defer src="{{ url_for('static', filename='js/slideshow/constants.js') }}"></script>
+      <script defer src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}"></script>
+      <script defer src="{{ url_for('static', filename='js/slide_renderers.js') }}"></script>
+      <script defer type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
     {% endblock %}
   </body>
 </html>
