@@ -1,11 +1,11 @@
 (() => {
   const DEFAULT_OVERLAY = {
-    enabled: true,
+    enabled: false,
     mode: "clock",
     height_vh: 5,
     background_color: "#f0f0f0",
     text_color: "#111111",
-    logo_path: "static/img/logo-groupe-cardinal.png",
+    logo_path: "",
     ticker_text: "Bienvenue sur Cardinal TV",
   };
 

@@ -53,6 +53,9 @@ TIME_CHANGE_SLIDE_ASSETS_DIR = DATA_DIR / "time_change" / "background"
 TIME_CHANGE_CONFIG_FILE = DATA_DIR / "time_change" / "config.json"
 CHRISTMAS_SLIDE_ASSETS_DIR = DATA_DIR / "christmas" / "background"
 CHRISTMAS_CONFIG_FILE = DATA_DIR / "christmas" / "config.json"
+INFO_BANDS_DIR = DATA_DIR / "info_bands"
+INFO_BANDS_CONFIG_FILE = INFO_BANDS_DIR / "config.json"
+INFO_BANDS_DIR.mkdir(parents=True, exist_ok=True)
 CUSTOM_SLIDES_DIR = DATA_DIR / "custom_slides"
 CUSTOM_SLIDES_INDEX_FILE = CUSTOM_SLIDES_DIR / "slides.json"
 CUSTOM_SLIDE_DEFAULT_SETTINGS = {
@@ -139,12 +142,12 @@ TEST_BACKGROUND_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 DEFAULT_SETTINGS = {
     "overlay": {
-        "enabled": True,
+        "enabled": False,
         "mode": "clock",
         "height_vh": 5.0,
         "background_color": "#f0f0f0",
         "text_color": "#111111",
-        "logo_path": "static/img/logo-groupe-cardinal.png",
+        "logo_path": "",
         "ticker_text": "Bienvenue sur Cardinal TV",
     },
     # Settings for the auto-generated "Notre Équipe" slide.
@@ -3721,6 +3724,287 @@ def time_change() -> Any:
 @bp.route("/diaporama/noel")
 def christmas() -> Any:
     return render_template("christmas.html")
+
+
+@bp.route("/diaporama/bandes-informatives", endpoint="info_bands")
+def info_bands_page() -> Any:
+    return render_template("info_bands.html")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Info Bands API
+# ─────────────────────────────────────────────────────────────────────────────
+
+DEFAULT_INFO_BANDS_CONFIG: Dict[str, Any] = {
+    "enabled": False,
+    "frame": {"size": 100, "position": "bottom-right"},
+    "bands": {
+        "primary": "horizontal",
+        "horizontal": {"background": "#ffffff"},
+        "vertical": {"background": "#a3a3a3"},
+    },
+    "widgets": [],
+}
+
+
+def _load_info_bands_config() -> Dict[str, Any]:
+    """Load info bands configuration from JSON file."""
+    try:
+        if INFO_BANDS_CONFIG_FILE.exists():
+            raw = json.loads(INFO_BANDS_CONFIG_FILE.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                # Merge with defaults to ensure all keys exist
+                config = copy.deepcopy(DEFAULT_INFO_BANDS_CONFIG)
+                config["enabled"] = bool(raw.get("enabled", False))
+                frame = raw.get("frame", {})
+                if isinstance(frame, dict):
+                    config["frame"]["size"] = _ensure_number(frame.get("size"), 100, minimum=50, maximum=100)
+                    pos = frame.get("position", "bottom-right")
+                    if pos in ("top-left", "top-right", "bottom-left", "bottom-right", "center"):
+                        config["frame"]["position"] = pos
+                bands = raw.get("bands", {})
+                if isinstance(bands, dict):
+                    primary = bands.get("primary")
+                    if primary in ("horizontal", "vertical"):
+                        config["bands"]["primary"] = primary
+                    for band_key in ("horizontal", "vertical"):
+                        band = bands.get(band_key, {})
+                        if isinstance(band, dict):
+                            bg = band.get("background")
+                            if isinstance(bg, str) and bg:
+                                config["bands"][band_key]["background"] = bg
+                widgets = raw.get("widgets", [])
+                if isinstance(widgets, list):
+                    normalized_widgets = []
+                    for widget in widgets:
+                        if not isinstance(widget, dict):
+                            continue
+                        widget_id = str(widget.get("id") or "").strip()
+                        widget_type = str(widget.get("type") or "").strip()
+                        if not widget_type:
+                            continue
+                        x = _ensure_number(widget.get("x"), 50, minimum=0, maximum=100)
+                        y = _ensure_number(widget.get("y"), 50, minimum=0, maximum=100)
+                        scale = _ensure_number(widget.get("scale"), 1.0, minimum=0.1)
+                        width = _ensure_number(widget.get("width"), 0.0, minimum=0.0)
+                        height = _ensure_number(widget.get("height"), 0.0, minimum=0.0)
+                        padding = _ensure_number(widget.get("padding"), 0.0, minimum=0.0)
+                        radius = _ensure_number(widget.get("radius"), 0.0, minimum=0.0)
+                        background_opacity = _ensure_number(
+                            widget.get("background_opacity"), 0.0, minimum=0.0, maximum=1.0
+                        )
+                        border_width = _ensure_number(widget.get("border_width"), 0.0, minimum=0.0)
+                        font_size = _ensure_number(widget.get("font_size"), 0.0, minimum=0.0)
+                        background_color = widget.get("background_color")
+                        if not isinstance(background_color, str) or not background_color:
+                            background_color = "#000000"
+                        border_color = widget.get("border_color")
+                        if not isinstance(border_color, str) or not border_color:
+                            border_color = "#ffffff"
+                        text_color = widget.get("text_color")
+                        if not isinstance(text_color, str) or not text_color:
+                            text_color = "#111111"
+                        image_src = widget.get("image_src")
+                        if not isinstance(image_src, str):
+                            image_src = ""
+                        text = widget.get("text")
+                        if not isinstance(text, str):
+                            text = ""
+                        show_seconds = bool(widget.get("show_seconds"))
+                        enabled = widget.get("enabled")
+                        if enabled is None:
+                            enabled = True
+                        else:
+                            enabled = bool(enabled)
+                        weather_city = widget.get("weather_city")
+                        if not isinstance(weather_city, str):
+                            weather_city = ""
+                        weather_lat = widget.get("weather_lat")
+                        weather_lon = widget.get("weather_lon")
+                        try:
+                            weather_lat = float(weather_lat) if weather_lat is not None else None
+                        except Exception:
+                            weather_lat = None
+                        try:
+                            weather_lon = float(weather_lon) if weather_lon is not None else None
+                        except Exception:
+                            weather_lon = None
+                        progress_style = widget.get("progress_style")
+                        if progress_style not in ("numeric", "dots", "bars", "steps", "bar"):
+                            progress_style = "numeric"
+                        progress_direction = widget.get("progress_direction")
+                        if progress_direction not in ("horizontal", "vertical"):
+                            progress_direction = "horizontal"
+                        normalized_widgets.append(
+                            {
+                                "id": widget_id or uuid.uuid4().hex,
+                                "type": widget_type,
+                                "x": x,
+                                "y": y,
+                                "scale": scale,
+                                "width": width,
+                                "height": height,
+                                "padding": padding,
+                                "radius": radius,
+                                "background_color": background_color,
+                                "background_opacity": background_opacity,
+                                "border_color": border_color,
+                                "border_width": border_width,
+                                "text_color": text_color,
+                                "font_size": font_size,
+                                "image_src": image_src,
+                                "text": text,
+                                "show_seconds": show_seconds,
+                                "enabled": enabled,
+                                "weather_city": weather_city,
+                                "weather_lat": weather_lat,
+                                "weather_lon": weather_lon,
+                                "progress_style": progress_style,
+                                "progress_direction": progress_direction,
+                            }
+                        )
+                    config["widgets"] = normalized_widgets
+                return config
+    except Exception:
+        pass
+    return copy.deepcopy(DEFAULT_INFO_BANDS_CONFIG)
+
+
+def _save_info_bands_config(config: Dict[str, Any]) -> None:
+    """Save info bands configuration to JSON file."""
+    INFO_BANDS_CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+
+@bp.route("/api/info-bands", methods=["GET"])
+def api_info_bands_get() -> Any:
+    """Get current info bands configuration."""
+    return jsonify(_load_info_bands_config())
+
+
+@bp.route("/api/info-bands", methods=["POST"])
+def api_info_bands_update() -> Any:
+    """Update info bands configuration."""
+    payload = request.get_json(force=True, silent=True) or {}
+    config = _load_info_bands_config()
+
+    # Update enabled
+    if "enabled" in payload:
+        config["enabled"] = bool(payload["enabled"])
+
+    # Update frame settings
+    if "frame" in payload and isinstance(payload["frame"], dict):
+        frame = payload["frame"]
+        if "size" in frame:
+            config["frame"]["size"] = _ensure_number(frame["size"], config["frame"]["size"], minimum=50, maximum=100)
+        if "position" in frame:
+            pos = frame["position"]
+            if pos in ("top-left", "top-right", "bottom-left", "bottom-right", "center"):
+                config["frame"]["position"] = pos
+
+    # Update band backgrounds
+    if "bands" in payload and isinstance(payload["bands"], dict):
+        bands_payload = payload["bands"]
+        primary = bands_payload.get("primary")
+        if primary in ("horizontal", "vertical"):
+            config["bands"]["primary"] = primary
+        for band_key in ("horizontal", "vertical"):
+            band = bands_payload.get(band_key, {})
+            if isinstance(band, dict) and "background" in band:
+                bg = band["background"]
+                if isinstance(bg, str) and bg:
+                    config["bands"][band_key]["background"] = bg
+
+    if "widgets" in payload and isinstance(payload["widgets"], list):
+        normalized_widgets = []
+        for widget in payload["widgets"]:
+            if not isinstance(widget, dict):
+                continue
+            widget_id = str(widget.get("id") or "").strip()
+            widget_type = str(widget.get("type") or "").strip()
+            if not widget_type:
+                continue
+            x = _ensure_number(widget.get("x"), 50, minimum=0, maximum=100)
+            y = _ensure_number(widget.get("y"), 50, minimum=0, maximum=100)
+            scale = _ensure_number(widget.get("scale"), 1.0, minimum=0.1)
+            width = _ensure_number(widget.get("width"), 0.0, minimum=0.0)
+            height = _ensure_number(widget.get("height"), 0.0, minimum=0.0)
+            padding = _ensure_number(widget.get("padding"), 0.0, minimum=0.0)
+            radius = _ensure_number(widget.get("radius"), 0.0, minimum=0.0)
+            background_opacity = _ensure_number(widget.get("background_opacity"), 0.0, minimum=0.0, maximum=1.0)
+            border_width = _ensure_number(widget.get("border_width"), 0.0, minimum=0.0)
+            font_size = _ensure_number(widget.get("font_size"), 0.0, minimum=0.0)
+            background_color = widget.get("background_color")
+            if not isinstance(background_color, str) or not background_color:
+                background_color = "#000000"
+            border_color = widget.get("border_color")
+            if not isinstance(border_color, str) or not border_color:
+                border_color = "#ffffff"
+            text_color = widget.get("text_color")
+            if not isinstance(text_color, str) or not text_color:
+                text_color = "#111111"
+            image_src = widget.get("image_src")
+            if not isinstance(image_src, str):
+                image_src = ""
+            text = widget.get("text")
+            if not isinstance(text, str):
+                text = ""
+            show_seconds = bool(widget.get("show_seconds"))
+            enabled = widget.get("enabled")
+            if enabled is None:
+                enabled = True
+            else:
+                enabled = bool(enabled)
+            weather_city = widget.get("weather_city")
+            if not isinstance(weather_city, str):
+                weather_city = ""
+            weather_lat = widget.get("weather_lat")
+            weather_lon = widget.get("weather_lon")
+            try:
+                weather_lat = float(weather_lat) if weather_lat is not None else None
+            except Exception:
+                weather_lat = None
+            try:
+                weather_lon = float(weather_lon) if weather_lon is not None else None
+            except Exception:
+                weather_lon = None
+            progress_style = widget.get("progress_style")
+            if progress_style not in ("numeric", "dots", "bars", "steps", "bar"):
+                progress_style = "numeric"
+            progress_direction = widget.get("progress_direction")
+            if progress_direction not in ("horizontal", "vertical"):
+                progress_direction = "horizontal"
+            normalized_widgets.append(
+                {
+                    "id": widget_id or uuid.uuid4().hex,
+                    "type": widget_type,
+                    "x": x,
+                    "y": y,
+                    "scale": scale,
+                    "width": width,
+                    "height": height,
+                    "padding": padding,
+                    "radius": radius,
+                    "background_color": background_color,
+                    "background_opacity": background_opacity,
+                    "border_color": border_color,
+                    "border_width": border_width,
+                    "text_color": text_color,
+                    "font_size": font_size,
+                    "image_src": image_src,
+                    "text": text,
+                    "show_seconds": show_seconds,
+                    "enabled": enabled,
+                    "weather_city": weather_city,
+                    "weather_lat": weather_lat,
+                    "weather_lon": weather_lon,
+                    "progress_style": progress_style,
+                    "progress_direction": progress_direction,
+                }
+            )
+        config["widgets"] = normalized_widgets
+
+    _save_info_bands_config(config)
+    return jsonify({"success": True, "config": config})
 
 
 def _load_custom_slides_index() -> Dict[str, Any]:

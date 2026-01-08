@@ -1,0 +1,2159 @@
+{% extends "diaporama_base.html" %}
+
+{% block body_class %}diaporama-page info-bands-layout-page{% endblock %}
+
+{% block title %}Diaporama · Bandes informatives{% endblock %}
+
+{% block page_title %}Bandes informatives{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Configurez les bandes et widgets autour du slideshow.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Retour</a>
+{% endblock %}
+
+{% block content %}
+  <div class="info-bands-page">
+    <div class="info-bands-layout">
+      <div class="info-bands-column info-bands-column--preview">
+        <section class="card info-bands-preview-card">
+          <p class="eyebrow">Aperçu</p>
+          <h2>Visualisation du layout</h2>
+          <p class="playlist-subtitle">Aperçu en temps réel de la disposition des bandes.</p>
+
+          <div class="info-bands-preview-container">
+            <div id="bands-preview" class="info-bands-preview">
+              <div id="preview-band-horizontal" class="preview-band preview-band-horizontal"></div>
+              <div id="preview-band-vertical" class="preview-band preview-band-vertical"></div>
+              <div id="preview-widgets-layer" class="preview-widgets-layer" aria-hidden="true"></div>
+              <div id="preview-frame" class="preview-frame">
+                <iframe
+                  id="bands-slideshow-preview"
+                  class="info-bands-iframe"
+                  title="Aperçu du slideshow"
+                  loading="lazy"
+                  src="{{ url_for('main.slideshow') }}?preview=1"
+                ></iframe>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="info-bands-column info-bands-column--options">
+        <section class="card info-bands-config">
+          <div class="info-bands-config-header">
+            <div>
+              <p class="eyebrow">Configuration</p>
+              <h2>Activation des bandes</h2>
+              <p class="playlist-subtitle">Activez les bandes informatives autour du slideshow.</p>
+            </div>
+            <label class="visibility-toggle info-bands-toggle">
+              <span class="visibility-toggle-label visibility-toggle-label-on">Activé</span>
+              <div class="visibility-toggle-switch">
+                <input type="checkbox" id="bands-enabled" class="visibility-toggle-checkbox" />
+                <span class="visibility-toggle-slider"></span>
+              </div>
+              <span class="visibility-toggle-label visibility-toggle-label-off">Désactivé</span>
+            </label>
+          </div>
+
+          <div class="info-bands-config-grid">
+            <div class="info-bands-block" id="frame-config-section">
+              <p class="eyebrow">Frame du slideshow</p>
+              <h3>Taille et position</h3>
+              <p class="playlist-subtitle">
+                Définissez la taille du frame et sa position. L'espace restant sera occupé par les bandes.
+              </p>
+
+              <div class="info-bands-controls info-bands-controls--compact">
+                <div class="control-group">
+                  <label for="frame-size">Taille du frame</label>
+                  <div class="range-with-value">
+                    <input type="range" id="frame-size" min="50" max="100" step="5" value="100" />
+                    <span id="frame-size-value">100%</span>
+                  </div>
+                </div>
+
+                <div class="control-group">
+                  <label for="frame-position">Position du frame</label>
+                  <select id="frame-position">
+                    <option value="top-left">Coin supérieur gauche</option>
+                    <option value="top-right">Coin supérieur droit</option>
+                    <option value="bottom-left">Coin inférieur gauche</option>
+                    <option value="bottom-right" selected>Coin inférieur droit</option>
+                    <option value="center">Centré</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="info-bands-block" id="bands-colors-section">
+              <p class="eyebrow">Apparence</p>
+              <h3>Couleurs des bandes</h3>
+              <p class="playlist-subtitle">Personnalisez les couleurs de fond des bandes horizontale et verticale.</p>
+
+              <div class="info-bands-controls info-bands-controls--compact">
+                <div class="control-group">
+                  <label for="band-primary">Bande dominante</label>
+                  <select id="band-primary">
+                    <option value="horizontal">Bande horizontale</option>
+                    <option value="vertical">Bande verticale</option>
+                  </select>
+                </div>
+
+                <div class="control-group">
+                  <label for="band-horizontal-bg">Bande horizontale</label>
+                  <div class="color-input-group">
+                    <input type="color" id="band-horizontal-bg" value="#ffffff" />
+                    <input type="text" id="band-horizontal-bg-text" value="#ffffff" class="color-text-input" />
+                  </div>
+                </div>
+
+                <div class="control-group">
+                  <label for="band-vertical-bg">Bande verticale</label>
+                  <div class="color-input-group">
+                    <input type="color" id="band-vertical-bg" value="#a3a3a3" />
+                    <input type="text" id="band-vertical-bg-text" value="#a3a3a3" class="color-text-input" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <p class="eyebrow">Widgets</p>
+          <h2>Éléments sur les bandes</h2>
+          <p class="playlist-subtitle">Ajoutez des widgets comme une horloge, la date, une image ou du texte défilant.</p>
+
+          <div class="widgets-panel">
+            <div class="widget-library">
+              <button type="button" class="widget-chip" data-widget-type="image">Image</button>
+              <button type="button" class="widget-chip" data-widget-type="text">Texte fixe</button>
+              <button type="button" class="widget-chip" data-widget-type="ticker">Texte défilant</button>
+              <button type="button" class="widget-chip" data-widget-type="weather">Température</button>
+              <button type="button" class="widget-chip" data-widget-type="progress">Suivi des diapositives</button>
+            </div>
+            <p class="widget-hint">
+              Cliquez pour ajouter, glissez pour positionner, tirez le coin pour redimensionner, clic droit pour supprimer.
+            </p>
+          </div>
+        </section>
+
+        <section class="card widget-settings" id="widget-settings-section">
+          <p class="eyebrow">Réglages</p>
+          <h2>Configuration du widget</h2>
+          <p class="playlist-subtitle">Personnalisez l'apparence, la taille et le contenu du widget sélectionné.</p>
+
+          <div class="info-bands-controls info-bands-controls--compact">
+            <div class="control-group">
+              <label for="widget-selected-label">Widget sélectionné</label>
+              <select id="widget-selected-label"></select>
+            </div>
+
+            <div class="control-group">
+              <label for="widget-width">Largeur (px)</label>
+              <input type="number" id="widget-width" min="0" step="10" value="0" />
+              <span class="field-hint">0 pour automatique</span>
+            </div>
+
+            <div class="control-group">
+              <label for="widget-height">Hauteur (px)</label>
+              <input type="number" id="widget-height" min="0" step="10" value="0" />
+              <span class="field-hint">0 pour automatique</span>
+            </div>
+
+            <div class="control-group">
+              <label for="widget-scale">Taille globale</label>
+              <div class="range-with-value">
+                <input type="range" id="widget-scale" min="0.1" max="10" step="0.05" value="1" />
+                <span id="widget-scale-value">1.00</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="widget-padding">Padding (px)</label>
+              <input type="number" id="widget-padding" min="0" step="1" value="0" />
+            </div>
+
+            <div class="control-group">
+              <label for="widget-radius">Arrondi (px)</label>
+              <input type="number" id="widget-radius" min="0" step="1" value="0" />
+            </div>
+
+            <div class="control-group">
+              <label for="widget-background-color">Fond</label>
+              <div class="color-input-group">
+                <input type="color" id="widget-background-color" value="#000000" />
+                <input type="text" id="widget-background-color-text" value="#000000" class="color-text-input" />
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="widget-background-opacity">Opacité du fond</label>
+              <div class="range-with-value">
+                <input type="range" id="widget-background-opacity" min="0" max="1" step="0.05" value="0" />
+                <span id="widget-background-opacity-value">0.00</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="widget-border-color">Bordure</label>
+              <div class="color-input-group">
+                <input type="color" id="widget-border-color" value="#ffffff" />
+                <input type="text" id="widget-border-color-text" value="#ffffff" class="color-text-input" />
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="widget-border-width">Épaisseur bordure (px)</label>
+              <input type="number" id="widget-border-width" min="0" step="1" value="0" />
+            </div>
+
+            <div class="control-group">
+              <label for="widget-text-color">Texte</label>
+              <div class="color-input-group">
+                <input type="color" id="widget-text-color" value="#111111" />
+                <input type="text" id="widget-text-color-text" value="#111111" class="color-text-input" />
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="widget-font-size">Taille texte (px)</label>
+              <input type="number" id="widget-font-size" min="0" step="1" value="0" />
+              <span class="field-hint">0 pour automatique</span>
+            </div>
+          </div>
+
+          <div class="widget-specific" id="widget-text-settings">
+            <div class="widget-specific-header">
+              <h3>Texte fixe</h3>
+              <label class="visibility-toggle widget-toggle">
+                <span class="visibility-toggle-label visibility-toggle-label-on">Activé</span>
+                <div class="visibility-toggle-switch">
+                  <input type="checkbox" id="widget-text-enabled" class="visibility-toggle-checkbox" />
+                  <span class="visibility-toggle-slider"></span>
+                </div>
+                <span class="visibility-toggle-label visibility-toggle-label-off">Désactivé</span>
+              </label>
+            </div>
+            <div class="widget-specific-body">
+              <div class="info-bands-controls info-bands-controls--compact">
+                <div class="control-group">
+                  <label for="widget-text-content">Contenu</label>
+                  <textarea id="widget-text-content" rows="3"></textarea>
+                  <span class="field-hint">
+                    Variables : [days] [days_week] [month] [Month] [monthdigit] [year] [hour] [minutes] [seconds]
+                    [secondscomablink] | Entrée pour passer à la ligne
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="widget-specific" id="widget-ticker-settings">
+            <div class="widget-specific-header">
+              <h3>Texte défilant</h3>
+              <label class="visibility-toggle widget-toggle">
+                <span class="visibility-toggle-label visibility-toggle-label-on">Activé</span>
+                <div class="visibility-toggle-switch">
+                  <input type="checkbox" id="widget-ticker-enabled" class="visibility-toggle-checkbox" />
+                  <span class="visibility-toggle-slider"></span>
+                </div>
+                <span class="visibility-toggle-label visibility-toggle-label-off">Désactivé</span>
+              </label>
+            </div>
+            <div class="widget-specific-body">
+              <div class="info-bands-controls info-bands-controls--compact">
+                <div class="control-group">
+                  <label for="widget-ticker-content">Contenu</label>
+                  <textarea id="widget-ticker-content" rows="3"></textarea>
+                  <span class="field-hint">
+                    Variables : [days] [days_week] [month] [Month] [monthdigit] [year] [hour] [minutes] [seconds]
+                    [secondscomablink] | Entrée pour passer à la ligne
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="widget-specific" id="widget-image-settings">
+            <div class="widget-specific-header">
+              <h3>Image</h3>
+              <label class="visibility-toggle widget-toggle">
+                <span class="visibility-toggle-label visibility-toggle-label-on">Activé</span>
+                <div class="visibility-toggle-switch">
+                  <input type="checkbox" id="widget-image-enabled" class="visibility-toggle-checkbox" />
+                  <span class="visibility-toggle-slider"></span>
+                </div>
+                <span class="visibility-toggle-label visibility-toggle-label-off">Désactivé</span>
+              </label>
+            </div>
+            <div class="widget-specific-body">
+              <div class="info-bands-controls info-bands-controls--compact">
+                <div class="control-group">
+                  <label for="widget-image-upload">Fichier</label>
+                  <input type="file" id="widget-image-upload" accept="image/*" />
+                </div>
+                <div class="control-group">
+                  <label>Action</label>
+                  <button type="button" id="widget-image-clear" class="secondary-button">Retirer l'image</button>
+                </div>
+              </div>
+              <div class="widget-image-preview" id="widget-image-preview" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <div class="widget-specific" id="widget-weather-settings">
+            <div class="widget-specific-header">
+              <h3>Température</h3>
+              <label class="visibility-toggle widget-toggle">
+                <span class="visibility-toggle-label visibility-toggle-label-on">Activé</span>
+                <div class="visibility-toggle-switch">
+                  <input type="checkbox" id="widget-weather-enabled" class="visibility-toggle-checkbox" />
+                  <span class="visibility-toggle-slider"></span>
+                </div>
+                <span class="visibility-toggle-label visibility-toggle-label-off">Désactivé</span>
+              </label>
+            </div>
+            <div class="widget-specific-body">
+              <div class="info-bands-controls info-bands-controls--compact">
+                <div class="control-group">
+                  <label for="widget-weather-city">Ville</label>
+                  <input type="text" id="widget-weather-city" autocomplete="off" />
+                  <div class="widget-weather-suggestions" id="widget-weather-suggestions" aria-live="polite"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="widget-specific" id="widget-progress-settings">
+            <div class="widget-specific-header">
+              <h3>Progression</h3>
+              <label class="visibility-toggle widget-toggle">
+                <span class="visibility-toggle-label visibility-toggle-label-on">Activé</span>
+                <div class="visibility-toggle-switch">
+                  <input type="checkbox" id="widget-progress-enabled" class="visibility-toggle-checkbox" />
+                  <span class="visibility-toggle-slider"></span>
+                </div>
+                <span class="visibility-toggle-label visibility-toggle-label-off">Désactivé</span>
+              </label>
+            </div>
+            <div class="widget-specific-body">
+              <div class="info-bands-controls info-bands-controls--compact">
+                <div class="control-group">
+                  <label for="widget-progress-style">Style</label>
+                  <select id="widget-progress-style">
+                    <option value="numeric">Numérique (actuel/total)</option>
+                    <option value="dots">Points</option>
+                    <option value="bars">Barres</option>
+                    <option value="steps">Paliers</option>
+                    <option value="bar">Barre de progression</option>
+                  </select>
+                </div>
+                <div class="control-group">
+                  <label for="widget-progress-direction">Direction</label>
+                  <select id="widget-progress-direction">
+                    <option value="horizontal">Horizontale</option>
+                    <option value="vertical">Verticale</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="info-bands-actions">
+          <button type="button" id="save-bands-config" class="primary-button">
+            Enregistrer la configuration
+          </button>
+          <span id="save-feedback" class="save-feedback"></span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const enabledCheckbox = document.getElementById('bands-enabled');
+      const frameSizeInput = document.getElementById('frame-size');
+      const frameSizeValue = document.getElementById('frame-size-value');
+      const framePositionSelect = document.getElementById('frame-position');
+      const bandHorizontalBg = document.getElementById('band-horizontal-bg');
+      const bandHorizontalBgText = document.getElementById('band-horizontal-bg-text');
+      const bandVerticalBg = document.getElementById('band-vertical-bg');
+      const bandVerticalBgText = document.getElementById('band-vertical-bg-text');
+      const bandPrimarySelect = document.getElementById('band-primary');
+      const saveButton = document.getElementById('save-bands-config');
+      const saveFeedback = document.getElementById('save-feedback');
+      const widgetChips = document.querySelectorAll('.widget-chip');
+      const widgetSettingsSection = document.getElementById('widget-settings-section');
+      const widgetSelectedLabel = document.getElementById('widget-selected-label');
+      const widgetScaleInput = document.getElementById('widget-scale');
+      const widgetScaleValue = document.getElementById('widget-scale-value');
+      const widgetWidthInput = document.getElementById('widget-width');
+      const widgetHeightInput = document.getElementById('widget-height');
+      const widgetPaddingInput = document.getElementById('widget-padding');
+      const widgetRadiusInput = document.getElementById('widget-radius');
+      const widgetBackgroundColor = document.getElementById('widget-background-color');
+      const widgetBackgroundColorText = document.getElementById('widget-background-color-text');
+      const widgetBackgroundOpacity = document.getElementById('widget-background-opacity');
+      const widgetBackgroundOpacityValue = document.getElementById('widget-background-opacity-value');
+      const widgetBorderColor = document.getElementById('widget-border-color');
+      const widgetBorderColorText = document.getElementById('widget-border-color-text');
+      const widgetBorderWidth = document.getElementById('widget-border-width');
+      const widgetTextColor = document.getElementById('widget-text-color');
+      const widgetTextColorText = document.getElementById('widget-text-color-text');
+      const widgetFontSize = document.getElementById('widget-font-size');
+      const widgetImageSettings = document.getElementById('widget-image-settings');
+      const widgetImageUpload = document.getElementById('widget-image-upload');
+      const widgetImageClear = document.getElementById('widget-image-clear');
+      const widgetImagePreview = document.getElementById('widget-image-preview');
+      const widgetTextSettings = document.getElementById('widget-text-settings');
+      const widgetTextContent = document.getElementById('widget-text-content');
+      const widgetTickerSettings = document.getElementById('widget-ticker-settings');
+      const widgetTickerContent = document.getElementById('widget-ticker-content');
+      const widgetWeatherSettings = document.getElementById('widget-weather-settings');
+      const widgetWeatherCity = document.getElementById('widget-weather-city');
+      const widgetWeatherSuggestions = document.getElementById('widget-weather-suggestions');
+      const widgetProgressSettings = document.getElementById('widget-progress-settings');
+      const widgetProgressStyle = document.getElementById('widget-progress-style');
+      const widgetProgressDirection = document.getElementById('widget-progress-direction');
+      const widgetTextToggle = document.getElementById('widget-text-enabled');
+      const widgetTickerToggle = document.getElementById('widget-ticker-enabled');
+      const widgetImageToggle = document.getElementById('widget-image-enabled');
+      const widgetWeatherToggle = document.getElementById('widget-weather-enabled');
+      const widgetProgressToggle = document.getElementById('widget-progress-enabled');
+
+      const previewContainer = document.getElementById('bands-preview');
+      const previewBandHorizontal = document.getElementById('preview-band-horizontal');
+      const previewBandVertical = document.getElementById('preview-band-vertical');
+      const previewWidgetsLayer = document.getElementById('preview-widgets-layer');
+      const previewFrame = document.getElementById('preview-frame');
+      const frameConfigSection = document.getElementById('frame-config-section');
+      const bandsColorsSection = document.getElementById('bands-colors-section');
+
+      if (!enabledCheckbox || !frameSizeInput || !previewContainer) {
+        return;
+      }
+
+      let currentConfig = null;
+      let widgets = [];
+      let selectedWidgetId = null;
+      let draggingWidgetId = null;
+      let resizingWidgetId = null;
+
+      const widgetLabels = {
+        clock: 'Horloge',
+        date: 'Date',
+        logo: 'Image',
+        image: 'Image',
+        text: 'Texte fixe',
+        ticker: 'Texte défilant',
+        weather: 'Température',
+        progress: 'Suivi des diapositives'
+      };
+
+      const DEFAULT_WIDGET_STYLE = {
+        scale: 1,
+        width: 0,
+        height: 0,
+        padding: 0,
+        radius: 0,
+        background_color: '#000000',
+        background_opacity: 0,
+        border_color: '#ffffff',
+        border_width: 0,
+        text_color: '#111111',
+        font_size: 0,
+        image_src: '',
+        text: '',
+        show_seconds: false,
+        enabled: true,
+        weather_city: '',
+        weather_lat: null,
+        weather_lon: null,
+        progress_style: 'numeric',
+        progress_direction: 'horizontal'
+      };
+
+      const DEFAULT_WIDGET_TICKER = 'Bienvenue sur Cardinal TV';
+      const WIDGET_BASE_WIDTH = 1920;
+      const WIDGET_BASE_HEIGHT = 1080;
+      const PREVIEW_PROGRESS_TOTAL = 7;
+      const PREVIEW_PROGRESS_CURRENT = 3;
+      const SUPPORTED_PROGRESS_STYLES = ['numeric', 'dots', 'bars', 'steps', 'bar'];
+      const WEATHER_REFRESH_MS = 10 * 60 * 1000;
+
+      let widgetTokenEntries = [];
+      let widgetProgressNodes = [];
+      let widgetAutoFitEntries = [];
+      let widgetWeatherEntries = [];
+      let tokenUpdateTimer = null;
+      let widgetResizeObserver = null;
+      let weatherUpdateTimer = null;
+      let weatherSuggestTimer = null;
+
+      const defaultConfig = {
+        enabled: false,
+        frame: { size: 100, position: 'bottom-right' },
+        bands: {
+          primary: 'horizontal',
+          horizontal: { background: '#ffffff' },
+          vertical: { background: '#a3a3a3' }
+        },
+        widgets: []
+      };
+
+      const normalizeBaseUrl = (value) => {
+        if (!value) return '/';
+        return value.endsWith('/') ? value : `${value}/`;
+      };
+
+      const baseUrl = normalizeBaseUrl(document.body?.dataset?.baseUrl || '/');
+
+      const buildApiUrl = (path) => {
+        if (!path) return baseUrl;
+        if (typeof path !== 'string') return baseUrl;
+        const lowered = path.toLowerCase();
+        if (lowered.startsWith('http://') || lowered.startsWith('https://') || path.startsWith('//')) {
+          return path;
+        }
+        if (path.startsWith('/')) {
+          return path;
+        }
+        return `${baseUrl}${path.replace(/^\//, '')}`;
+      };
+
+      const fetchJson = async (url) => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      };
+
+      const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+      const isValidHex = (value) => typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value.trim());
+
+      const normalizeHex = (value, fallback) => (isValidHex(value) ? value.trim() : fallback);
+
+      const normalizeWidgetNumber = (value, fallback, min, max = null) => {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return fallback;
+        const clampedMin = Math.max(min, num);
+        if (max === null || max === undefined) return clampedMin;
+        return Math.min(max, clampedMin);
+      };
+
+      const normalizeProgressStyle = (value) => {
+        if (SUPPORTED_PROGRESS_STYLES.includes(value)) return value;
+        return DEFAULT_WIDGET_STYLE.progress_style;
+      };
+
+      const normalizeWidgetType = (value) => {
+        const raw = String(value || '').trim().toLowerCase();
+        if (raw === 'logo') return 'image';
+        if (raw === 'clock' || raw === 'date') return 'text';
+        return raw;
+      };
+
+      const hexToRgba = (hex, opacity) => {
+        if (!isValidHex(hex)) return `rgba(0, 0, 0, ${opacity})`;
+        const normalized = hex.replace('#', '');
+        const r = parseInt(normalized.slice(0, 2), 16);
+        const g = parseInt(normalized.slice(2, 4), 16);
+        const b = parseInt(normalized.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      };
+
+      const resolveWidgetImage = (value) => {
+        if (!value) return '';
+        if (value.startsWith('data:')) return value;
+        return buildApiUrl(value);
+      };
+
+      const setNodeVar = (node, name, value) => {
+        if (!node) return;
+        if (value === null || value === undefined || value === '') {
+          node.style.removeProperty(name);
+        } else {
+          node.style.setProperty(name, value);
+        }
+      };
+
+      const buildTickerTrack = (track, text) => {
+        if (!track) return;
+        track.innerHTML = '';
+        for (let i = 0; i < 2; i += 1) {
+          const item = document.createElement('span');
+          item.className = 'info-band-widget-ticker-item';
+          item.textContent = text;
+          track.appendChild(item);
+        }
+      };
+
+      const updateTickerGap = (track) => {
+        if (!track) return;
+        const ticker = track.parentElement;
+        if (!ticker) return;
+        const gap = ticker.clientWidth;
+        if (gap > 0) {
+          track.style.setProperty('--ticker-gap', `${gap}px`);
+        } else {
+          track.style.removeProperty('--ticker-gap');
+        }
+      };
+
+      const setTickerTrackText = (track, text) => {
+        if (!track) return;
+        const items = track.querySelectorAll('.info-band-widget-ticker-item');
+        if (!items.length) {
+          track.textContent = text;
+          return;
+        }
+        items.forEach((item) => {
+          item.textContent = text;
+        });
+      };
+
+      const updateTickerGaps = () => {
+        widgetAutoFitEntries.forEach((entry) => {
+          if (entry.tickerTrack) {
+            updateTickerGap(entry.tickerTrack);
+          }
+        });
+      };
+
+      const getWidgetNodeById = (id) => {
+        if (!previewWidgetsLayer || !id) return null;
+        return previewWidgetsLayer.querySelector(`[data-widget-id="${id}"]`);
+      };
+
+      const getNodeContentBox = (node) => {
+        const styles = window.getComputedStyle(node);
+        const paddingX = parseFloat(styles.paddingLeft || '0') + parseFloat(styles.paddingRight || '0');
+        const paddingY = parseFloat(styles.paddingTop || '0') + parseFloat(styles.paddingBottom || '0');
+        const width = Math.max(0, node.clientWidth - paddingX);
+        const height = Math.max(0, node.clientHeight - paddingY);
+        return { width, height };
+      };
+
+      const fitStretchToBox = (element, boxWidth, boxHeight) => {
+        if (!element || boxWidth <= 0 || boxHeight <= 0) return;
+        const initialFont = 200;
+        element.style.fontSize = `${initialFont}px`;
+        element.style.lineHeight = '1';
+        element.style.transform = 'none';
+        element.style.whiteSpace = 'pre';
+        element.style.width = 'max-content';
+        element.style.height = 'max-content';
+        const rect = element.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const scaleX = boxWidth / rect.width;
+        const scaleY = boxHeight / rect.height;
+        element.style.transformOrigin = 'center';
+        element.style.transform = `scale(${scaleX}, ${scaleY})`;
+      };
+
+      const applyWidgetTextFit = (entry) => {
+        if (!entry || !entry.node || !entry.widget) return;
+        if (entry.widget.font_size && Number(entry.widget.font_size) > 0) return;
+        if ((entry.widget.width || 0) <= 0 && (entry.widget.height || 0) <= 0) return;
+        const { width, height } = getNodeContentBox(entry.node);
+        if (width <= 0 || height <= 0) return;
+        const widgetScale = normalizeWidgetNumber(entry.widget.scale, DEFAULT_WIDGET_STYLE.scale, 0.1, 10);
+        const scaledWidth = width * widgetScale;
+        const scaledHeight = height * widgetScale;
+        if (entry.type === 'ticker' && entry.tickerTrack) {
+          entry.tickerTrack.style.lineHeight = '1';
+          entry.tickerTrack.style.fontSize = `${Math.max(1, height)}px`;
+          entry.tickerTrack.style.transform = 'none';
+          return;
+        }
+        if (entry.type === 'progress' && entry.progressTrack) {
+          const style = normalizeProgressStyle(entry.widget.progress_style);
+          if (style === 'bar') {
+            entry.progressTrack.style.transform = 'none';
+            entry.progressTrack.style.fontSize = '';
+            entry.progressTrack.style.lineHeight = '1';
+            entry.progressTrack.style.width = '100%';
+            entry.progressTrack.style.height = '100%';
+            return;
+          }
+          fitStretchToBox(entry.progressTrack, scaledWidth, scaledHeight);
+          return;
+        }
+        if (entry.labelEl) {
+          fitStretchToBox(entry.labelEl, scaledWidth, scaledHeight);
+        }
+      };
+
+      const applyWidgetTextFitAll = () => {
+        requestAnimationFrame(() => {
+          widgetAutoFitEntries.forEach((entry) => applyWidgetTextFit(entry));
+        });
+      };
+
+      const renderProgressTrack = (track, widget, current, total) => {
+        if (!track || !widget) return;
+        const style = normalizeProgressStyle(widget.progress_style);
+        const direction = widget.progress_direction === 'vertical' ? 'vertical' : 'horizontal';
+        track.classList.toggle('is-vertical', direction === 'vertical');
+        track.classList.toggle('is-horizontal', direction !== 'vertical');
+        track.dataset.style = style;
+        track.style.removeProperty('--progress-ratio');
+        if (style === 'bar') {
+          track.textContent = '';
+          const bar = document.createElement('div');
+          bar.className = 'info-band-progress-bar';
+          const fill = document.createElement('div');
+          fill.className = 'info-band-progress-bar-fill';
+          bar.appendChild(fill);
+          track.appendChild(bar);
+          track.style.setProperty('--progress-ratio', total > 0 ? Math.min(Math.max(1, current), total) / total : 0);
+          return;
+        }
+        if (total <= 0) {
+          track.textContent = style === 'numeric' ? '0/0' : '';
+          return;
+        }
+        const clampedCurrent = Math.min(Math.max(1, current), total);
+        if (style === 'numeric') {
+          track.textContent = `${clampedCurrent}/${total}`;
+          return;
+        }
+        track.textContent = '';
+        const count = Math.max(1, total);
+        for (let i = 1; i <= count; i += 1) {
+          const dot = document.createElement('span');
+          dot.className = `info-band-progress-dot${i === clampedCurrent ? ' is-active' : ''}`;
+          dot.setAttribute('aria-hidden', 'true');
+          track.appendChild(dot);
+        }
+      };
+
+      const updateWidgetProgress = () => {
+        if (!widgetProgressNodes.length) return;
+        const total = PREVIEW_PROGRESS_TOTAL;
+        const current = total > 0 ? Math.min(total, PREVIEW_PROGRESS_CURRENT) : 0;
+        widgetProgressNodes.forEach(({ track, widget }) => {
+          renderProgressTrack(track, widget, current, total);
+        });
+        applyWidgetTextFitAll();
+      };
+
+      const formatTokenString = (template) => {
+        if (!template) return '';
+        const now = new Date();
+        const dayLabel = now.toLocaleDateString('fr-FR', { weekday: 'long' });
+        const monthLower = now.toLocaleDateString('fr-FR', { month: 'long' });
+        const monthCap = monthLower.charAt(0).toUpperCase() + monthLower.slice(1);
+        const monthDigit = String(now.getMonth() + 1).padStart(2, '0');
+        const seconds = now.getSeconds();
+        const replacements = {
+          days: String(now.getDate()).padStart(2, '0'),
+          days_week: dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1),
+          month: monthLower,
+          monthdigit: monthDigit,
+          year: String(now.getFullYear()),
+          hour: String(now.getHours()).padStart(2, '0'),
+          minutes: String(now.getMinutes()).padStart(2, '0'),
+          seconds: String(seconds).padStart(2, '0'),
+          secondscomablink: seconds % 2 === 0 ? ':' : ' '
+        };
+        return template.replace(/\[([^\]]+)\]/g, (match, rawKey) => {
+          if (!rawKey) return match;
+          if (rawKey === 'Month') return monthCap;
+          const key = rawKey.toLowerCase();
+          if (key === 'month') return monthLower;
+          return replacements[key] ?? match;
+        });
+      };
+
+      const updateWidgetTokens = () => {
+        if (!widgetTokenEntries.length) return;
+        widgetTokenEntries.forEach((entry) => {
+          const text = formatTokenString(entry.template);
+          if (entry.isTicker && entry.track) {
+            setTickerTrackText(entry.track, text);
+            updateTickerGap(entry.track);
+          } else if (entry.el) {
+            entry.el.textContent = text;
+          }
+        });
+        applyWidgetTextFitAll();
+      };
+
+      const formatWeatherLabel = (temp) => {
+        if (!Number.isFinite(temp)) return 'Température';
+        return `${Math.round(temp)}°C`;
+      };
+
+      const clearWeatherSuggestions = () => {
+        if (!widgetWeatherSuggestions) return;
+        widgetWeatherSuggestions.innerHTML = '';
+        widgetWeatherSuggestions.classList.remove('is-visible');
+      };
+
+      const renderWeatherSuggestions = (results) => {
+        if (!widgetWeatherSuggestions) return;
+        widgetWeatherSuggestions.innerHTML = '';
+        if (!Array.isArray(results) || !results.length) {
+          widgetWeatherSuggestions.classList.remove('is-visible');
+          return;
+        }
+        results.forEach((item) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'widget-weather-suggestion';
+          button.textContent = item.label;
+          button.dataset.lat = String(item.latitude);
+          button.dataset.lon = String(item.longitude);
+          button.dataset.city = item.city;
+          button.addEventListener('click', () => {
+            const widget = getWidgetForType('weather');
+            if (!widget) return;
+            widget.weather_city = item.city;
+            widget.weather_lat = item.latitude;
+            widget.weather_lon = item.longitude;
+            if (widgetWeatherCity) {
+              widgetWeatherCity.value = item.city;
+            }
+            clearWeatherSuggestions();
+            renderWidgets();
+          });
+          widgetWeatherSuggestions.appendChild(button);
+        });
+        widgetWeatherSuggestions.classList.add('is-visible');
+      };
+
+      const fetchWeatherSuggestions = async (query) => {
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+          query
+        )}&count=6&language=fr&format=json`;
+        const data = await fetchJson(url);
+        const results = Array.isArray(data?.results) ? data.results : [];
+        return results.map((item) => {
+          const name = item.name || '';
+          const country = item.country || '';
+          const admin = item.admin1 || '';
+          const parts = [name, admin, country].filter(Boolean);
+          return {
+            label: parts.join(', '),
+            city: name,
+            latitude: item.latitude,
+            longitude: item.longitude
+          };
+        });
+      };
+
+      const fetchWeatherForWidget = async (widget) => {
+        if (!widget) return null;
+        let lat = typeof widget.weather_lat === 'number' ? widget.weather_lat : null;
+        let lon = typeof widget.weather_lon === 'number' ? widget.weather_lon : null;
+        const city = typeof widget.weather_city === 'string' ? widget.weather_city.trim() : '';
+        if ((!lat || !lon) && city) {
+          const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+            city
+          )}&count=1&language=fr&format=json`;
+          const data = await fetchJson(url);
+          const result = data?.results?.[0];
+          if (result && Number.isFinite(result.latitude) && Number.isFinite(result.longitude)) {
+            lat = result.latitude;
+            lon = result.longitude;
+            widget.weather_lat = lat;
+            widget.weather_lon = lon;
+          }
+        }
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&temperature_unit=celsius`;
+        const weatherData = await fetchJson(weatherUrl);
+        return weatherData?.current?.temperature_2m ?? null;
+      };
+
+      const updateWidgetWeather = () => {
+        if (!widgetWeatherEntries.length) return;
+        widgetWeatherEntries.forEach((entry) => {
+          const widget = entry.widget;
+          if (!widget || widget.enabled === false) return;
+          const city = typeof widget.weather_city === 'string' ? widget.weather_city.trim() : '';
+          if (!city) {
+            entry.labelEl.textContent = 'Température';
+            return;
+          }
+          fetchWeatherForWidget(widget)
+            .then((temp) => {
+              entry.labelEl.textContent = formatWeatherLabel(temp);
+              applyWidgetTextFitAll();
+            })
+            .catch(() => {
+              entry.labelEl.textContent = 'Température';
+            });
+        });
+      };
+
+      const syncTokenTimer = () => {
+        if (tokenUpdateTimer) {
+          clearInterval(tokenUpdateTimer);
+          tokenUpdateTimer = null;
+        }
+        if (!widgetTokenEntries.length) return;
+        updateWidgetTokens();
+        tokenUpdateTimer = setInterval(updateWidgetTokens, 1000);
+      };
+
+      const syncWeatherTimer = () => {
+        if (weatherUpdateTimer) {
+          clearInterval(weatherUpdateTimer);
+          weatherUpdateTimer = null;
+        }
+        if (!widgetWeatherEntries.length) return;
+        updateWidgetWeather();
+        weatherUpdateTimer = setInterval(updateWidgetWeather, WEATHER_REFRESH_MS);
+      };
+
+      const applyWidgetStyles = (node, widget) => {
+        if (!node || !widget || typeof widget !== 'object') return;
+        const scale = normalizeWidgetNumber(widget.scale, DEFAULT_WIDGET_STYLE.scale, 0.1, 10);
+        node.style.setProperty('--widget-scale', scale);
+
+        const width = normalizeWidgetNumber(widget.width, DEFAULT_WIDGET_STYLE.width, 0);
+        const widthPercent = width > 0 ? (width / WIDGET_BASE_WIDTH) * 100 : 0;
+        setNodeVar(node, '--widget-width', widthPercent > 0 ? `${widthPercent}%` : null);
+
+        const height = normalizeWidgetNumber(widget.height, DEFAULT_WIDGET_STYLE.height, 0);
+        const heightPercent = height > 0 ? (height / WIDGET_BASE_HEIGHT) * 100 : 0;
+        setNodeVar(node, '--widget-height', heightPercent > 0 ? `${heightPercent}%` : null);
+
+        const padding = normalizeWidgetNumber(widget.padding, DEFAULT_WIDGET_STYLE.padding, 0);
+        node.style.setProperty('--widget-padding', `${padding}px`);
+
+        const radius = normalizeWidgetNumber(widget.radius, DEFAULT_WIDGET_STYLE.radius, 0);
+        node.style.setProperty('--widget-radius', `${radius}px`);
+
+        const backgroundColor = normalizeHex(widget.background_color, DEFAULT_WIDGET_STYLE.background_color);
+        const backgroundOpacity = normalizeWidgetNumber(
+          widget.background_opacity,
+          DEFAULT_WIDGET_STYLE.background_opacity,
+          0,
+          1
+        );
+        node.style.setProperty(
+          '--widget-bg',
+          backgroundOpacity > 0 ? hexToRgba(backgroundColor, backgroundOpacity) : 'transparent'
+        );
+
+        const borderColor = normalizeHex(widget.border_color, DEFAULT_WIDGET_STYLE.border_color);
+        const borderWidth = normalizeWidgetNumber(widget.border_width, DEFAULT_WIDGET_STYLE.border_width, 0);
+        node.style.setProperty('--widget-border', borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : 'none');
+
+        const textColor = normalizeHex(widget.text_color, DEFAULT_WIDGET_STYLE.text_color);
+        node.style.setProperty('--widget-text-color', textColor);
+
+        const fontSize = normalizeWidgetNumber(widget.font_size, DEFAULT_WIDGET_STYLE.font_size, 0);
+        setNodeVar(node, '--widget-font-size', fontSize > 0 ? `${fontSize}px` : null);
+      };
+
+      const getDefaultWidgetPosition = () => {
+        const count = widgets.length;
+        const offset = Math.min(30, count * 6);
+        return {
+          x: clamp(50 + offset, 10, 90),
+          y: clamp(50 + offset, 10, 90)
+        };
+      };
+
+      function normalizeWidgets(list) {
+        if (!Array.isArray(list)) return [];
+        return list
+          .map((item) => {
+            if (!item || typeof item !== 'object') return null;
+            const rawType = String(item.type || '').trim().toLowerCase();
+            if (!rawType) return null;
+            let normalizedType = rawType === 'logo' ? 'image' : rawType;
+            let text = typeof item.text === 'string' ? item.text : DEFAULT_WIDGET_STYLE.text;
+            if (normalizedType === 'clock') {
+              normalizedType = 'text';
+              if (!text) text = '[hour]:[minutes]:[seconds]';
+            }
+            if (normalizedType === 'date') {
+              normalizedType = 'text';
+              if (!text) text = '[days] [month] [year]';
+            }
+            const rawX = Number(item.x);
+            const rawY = Number(item.y);
+            const x = Number.isFinite(rawX) ? clamp(rawX, 0, 100) : 50;
+            const y = Number.isFinite(rawY) ? clamp(rawY, 0, 100) : 50;
+            const scale = normalizeWidgetNumber(item.scale, DEFAULT_WIDGET_STYLE.scale, 0.1, 10);
+            const width = normalizeWidgetNumber(item.width, DEFAULT_WIDGET_STYLE.width, 0);
+            const height = normalizeWidgetNumber(item.height, DEFAULT_WIDGET_STYLE.height, 0);
+            const padding = normalizeWidgetNumber(item.padding, DEFAULT_WIDGET_STYLE.padding, 0);
+            const radius = normalizeWidgetNumber(item.radius, DEFAULT_WIDGET_STYLE.radius, 0);
+            const background_color = normalizeHex(item.background_color, DEFAULT_WIDGET_STYLE.background_color);
+            const background_opacity = normalizeWidgetNumber(
+              item.background_opacity,
+              DEFAULT_WIDGET_STYLE.background_opacity,
+              0,
+              1
+            );
+            const border_color = normalizeHex(item.border_color, DEFAULT_WIDGET_STYLE.border_color);
+            const border_width = normalizeWidgetNumber(item.border_width, DEFAULT_WIDGET_STYLE.border_width, 0);
+            const text_color = normalizeHex(item.text_color, DEFAULT_WIDGET_STYLE.text_color);
+            const font_size = normalizeWidgetNumber(item.font_size, DEFAULT_WIDGET_STYLE.font_size, 0);
+            const image_src = typeof item.image_src === 'string' ? item.image_src : DEFAULT_WIDGET_STYLE.image_src;
+            const show_seconds = Boolean(item.show_seconds);
+            const enabled = item.enabled === undefined ? true : Boolean(item.enabled);
+            const weather_city = typeof item.weather_city === 'string' ? item.weather_city : DEFAULT_WIDGET_STYLE.weather_city;
+            const weather_lat = Number.isFinite(Number(item.weather_lat)) ? Number(item.weather_lat) : null;
+            const weather_lon = Number.isFinite(Number(item.weather_lon)) ? Number(item.weather_lon) : null;
+            const progress_style = normalizeProgressStyle(item.progress_style);
+            const progress_direction =
+              item.progress_direction === 'vertical' ? 'vertical' : DEFAULT_WIDGET_STYLE.progress_direction;
+            return {
+              id: String(item.id || '').trim() || `widget-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              type: normalizedType,
+              x,
+              y,
+              scale,
+              width,
+              height,
+              padding,
+              radius,
+              background_color,
+              background_opacity,
+              border_color,
+              border_width,
+              text_color,
+              font_size,
+              image_src,
+              text,
+              show_seconds,
+              enabled,
+              weather_city,
+              weather_lat,
+              weather_lon,
+              progress_style,
+              progress_direction
+            };
+          })
+          .filter(Boolean);
+      }
+
+      function applyConfigToUI(config) {
+        const safe = config && typeof config === 'object' ? config : defaultConfig;
+        const frame = safe.frame || defaultConfig.frame;
+        const bands = safe.bands || defaultConfig.bands;
+        const horizontal = bands.horizontal || defaultConfig.bands.horizontal;
+        const vertical = bands.vertical || defaultConfig.bands.vertical;
+        const primary = bands.primary === 'vertical' ? 'vertical' : defaultConfig.bands.primary;
+
+        enabledCheckbox.checked = Boolean(safe.enabled);
+        frameSizeInput.value = frame.size ?? defaultConfig.frame.size;
+        frameSizeValue.textContent = frameSizeInput.value + '%';
+        framePositionSelect.value = frame.position || defaultConfig.frame.position;
+        bandHorizontalBg.value = horizontal.background || defaultConfig.bands.horizontal.background;
+        bandHorizontalBgText.value = bandHorizontalBg.value;
+        bandVerticalBg.value = vertical.background || defaultConfig.bands.vertical.background;
+        bandVerticalBgText.value = bandVerticalBg.value;
+        if (bandPrimarySelect) {
+          bandPrimarySelect.value = primary;
+        }
+        widgets = normalizeWidgets(safe.widgets);
+        if (selectedWidgetId && !widgets.some((widget) => widget.id === selectedWidgetId)) {
+          selectedWidgetId = null;
+        }
+        updateWidgetSettingsPanel();
+
+        updateSectionVisibility(enabledCheckbox.checked);
+        updatePreview();
+      }
+
+      function updateSectionVisibility(enabled) {
+        const opacity = enabled ? '1' : '0.5';
+        const pointerEvents = enabled ? 'auto' : 'none';
+        [frameConfigSection, bandsColorsSection].forEach(section => {
+          if (section) {
+            section.style.opacity = opacity;
+            section.style.pointerEvents = pointerEvents;
+          }
+        });
+      }
+
+      const getSelectedWidget = () =>
+        selectedWidgetId ? widgets.find((widget) => widget.id === selectedWidgetId) : null;
+
+      const ensureSelectedWidget = () => {
+        if (!widgets.length) {
+          selectedWidgetId = null;
+          return null;
+        }
+        if (!selectedWidgetId || !widgets.some((widget) => widget.id === selectedWidgetId)) {
+          selectedWidgetId = widgets[0].id;
+        }
+        return getSelectedWidget();
+      };
+
+      const getWidgetForType = (type) => {
+        const normalized = normalizeWidgetType(type);
+        const selected = getSelectedWidget();
+        if (selected && normalizeWidgetType(selected.type) === normalized) {
+          return selected;
+        }
+        return widgets.find((widget) => normalizeWidgetType(widget.type) === normalized) || null;
+      };
+
+      const setInputValue = (input, value) => {
+        if (!input) return;
+        const nextValue = value === null || value === undefined ? '' : String(value);
+        if (input.value !== nextValue) {
+          input.value = nextValue;
+        }
+      };
+
+      const setToggleValue = (input, value) => {
+        if (!input) return;
+        input.checked = Boolean(value);
+      };
+
+      const setToggleDisabled = (input, disabled) => {
+        if (!input) return;
+        input.disabled = Boolean(disabled);
+      };
+
+      const setWidgetSettingsEnabled = (enabled) => {
+        if (!widgetSettingsSection) return;
+        widgetSettingsSection.classList.toggle('is-disabled', !enabled);
+        const inputs = widgetSettingsSection.querySelectorAll('input, textarea, select, button');
+        inputs.forEach((input) => {
+          input.disabled = !enabled;
+        });
+      };
+
+      const setWidgetSectionState = (section, enabled, forceDisabled = false) => {
+        if (!section) return;
+        section.classList.toggle('is-disabled', !enabled);
+        const inputs = section.querySelectorAll('input, textarea, select, button');
+        inputs.forEach((input) => {
+          if (forceDisabled) {
+            input.disabled = true;
+            return;
+          }
+          if (input.closest('.visibility-toggle')) {
+            input.disabled = false;
+            return;
+          }
+          input.disabled = !enabled;
+        });
+      };
+
+      const updateWidgetImagePreview = (widget) => {
+        if (!widgetImagePreview) return;
+        widgetImagePreview.innerHTML = '';
+        const src = resolveWidgetImage(widget?.image_src || '');
+        if (src) {
+          const img = document.createElement('img');
+          img.src = src;
+          img.alt = 'Image du widget';
+          widgetImagePreview.appendChild(img);
+        } else {
+          widgetImagePreview.textContent = 'Aucune image';
+        }
+      };
+
+      const updateWidgetSelectionList = () => {
+        if (!widgetSelectedLabel) return;
+        widgetSelectedLabel.innerHTML = '';
+        if (!widgets.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'Aucun widget';
+          widgetSelectedLabel.appendChild(option);
+          widgetSelectedLabel.disabled = true;
+          return;
+        }
+        const typeCounts = {};
+        widgets.forEach((widget) => {
+          const type = normalizeWidgetType(widget.type);
+          typeCounts[type] = (typeCounts[type] || 0) + 1;
+        });
+        const typeIndices = {};
+        widgets.forEach((widget) => {
+          const type = normalizeWidgetType(widget.type);
+          const labelBase = widgetLabels[type] || widget.type || 'Widget';
+          const index = (typeIndices[type] || 0) + 1;
+          typeIndices[type] = index;
+          const suffix = typeCounts[type] > 1 ? ` #${index}` : '';
+          const state = widget.enabled === false ? ' (désactivé)' : '';
+          const option = document.createElement('option');
+          option.value = widget.id;
+          option.textContent = `${labelBase}${suffix}${state}`;
+          widgetSelectedLabel.appendChild(option);
+        });
+        widgetSelectedLabel.disabled = false;
+        if (selectedWidgetId) {
+          widgetSelectedLabel.value = selectedWidgetId;
+        }
+      };
+
+      const updateWidgetSettingsPanel = () => {
+        if (!widgetSettingsSection) return;
+        const hasWidgets = widgets.length > 0;
+        if (!hasWidgets) {
+          setWidgetSettingsEnabled(false);
+          updateWidgetSelectionList();
+          if (widgetTextContent) widgetTextContent.value = '';
+          if (widgetTickerContent) widgetTickerContent.value = '';
+          updateWidgetImagePreview(null);
+          if (widgetWeatherCity) widgetWeatherCity.value = '';
+          setToggleValue(widgetTextToggle, false);
+          setToggleValue(widgetTickerToggle, false);
+          setToggleValue(widgetImageToggle, false);
+          setToggleValue(widgetWeatherToggle, false);
+          setToggleValue(widgetProgressToggle, false);
+          setWidgetSectionState(widgetTextSettings, false, true);
+          setWidgetSectionState(widgetTickerSettings, false, true);
+          setWidgetSectionState(widgetImageSettings, false, true);
+          setWidgetSectionState(widgetWeatherSettings, false, true);
+          setWidgetSectionState(widgetProgressSettings, false, true);
+          return;
+        }
+        ensureSelectedWidget();
+        updateWidgetSelectionList();
+        const widget = getSelectedWidget();
+        if (!widget) {
+          setWidgetSettingsEnabled(false);
+          return;
+        }
+        setWidgetSettingsEnabled(true);
+        if (widgetSelectedLabel) {
+          widgetSelectedLabel.value = widget.id;
+        }
+
+        const scale = normalizeWidgetNumber(widget.scale, DEFAULT_WIDGET_STYLE.scale, 0.1, 10);
+        widget.scale = scale;
+        setInputValue(widgetScaleInput, scale);
+        if (widgetScaleValue) widgetScaleValue.textContent = scale.toFixed(2);
+
+        const width = normalizeWidgetNumber(widget.width, DEFAULT_WIDGET_STYLE.width, 0);
+        widget.width = width;
+        setInputValue(widgetWidthInput, width);
+
+        const height = normalizeWidgetNumber(widget.height, DEFAULT_WIDGET_STYLE.height, 0);
+        widget.height = height;
+        setInputValue(widgetHeightInput, height);
+
+        const padding = normalizeWidgetNumber(widget.padding, DEFAULT_WIDGET_STYLE.padding, 0);
+        widget.padding = padding;
+        setInputValue(widgetPaddingInput, padding);
+
+        const radius = normalizeWidgetNumber(widget.radius, DEFAULT_WIDGET_STYLE.radius, 0);
+        widget.radius = radius;
+        setInputValue(widgetRadiusInput, radius);
+
+        const backgroundColor = normalizeHex(widget.background_color, DEFAULT_WIDGET_STYLE.background_color);
+        widget.background_color = backgroundColor;
+        setInputValue(widgetBackgroundColor, backgroundColor);
+        setInputValue(widgetBackgroundColorText, backgroundColor);
+
+        const backgroundOpacity = normalizeWidgetNumber(
+          widget.background_opacity,
+          DEFAULT_WIDGET_STYLE.background_opacity,
+          0,
+          1
+        );
+        widget.background_opacity = backgroundOpacity;
+        setInputValue(widgetBackgroundOpacity, backgroundOpacity);
+        if (widgetBackgroundOpacityValue) widgetBackgroundOpacityValue.textContent = backgroundOpacity.toFixed(2);
+
+        const borderColor = normalizeHex(widget.border_color, DEFAULT_WIDGET_STYLE.border_color);
+        widget.border_color = borderColor;
+        setInputValue(widgetBorderColor, borderColor);
+        setInputValue(widgetBorderColorText, borderColor);
+
+        const borderWidth = normalizeWidgetNumber(widget.border_width, DEFAULT_WIDGET_STYLE.border_width, 0);
+        widget.border_width = borderWidth;
+        setInputValue(widgetBorderWidth, borderWidth);
+
+        const textColor = normalizeHex(widget.text_color, DEFAULT_WIDGET_STYLE.text_color);
+        widget.text_color = textColor;
+        setInputValue(widgetTextColor, textColor);
+        setInputValue(widgetTextColorText, textColor);
+
+        const fontSize = normalizeWidgetNumber(widget.font_size, DEFAULT_WIDGET_STYLE.font_size, 0);
+        widget.font_size = fontSize;
+        setInputValue(widgetFontSize, fontSize);
+
+        const textWidget = getWidgetForType('text');
+        const tickerWidget = getWidgetForType('ticker');
+        const imageWidget = getWidgetForType('image');
+        const weatherWidget = getWidgetForType('weather');
+        const progressWidget = getWidgetForType('progress');
+
+        if (widgetTextContent) {
+          widgetTextContent.value = textWidget?.text || '';
+        }
+        if (widgetTickerContent) {
+          widgetTickerContent.value = tickerWidget?.text || '';
+        }
+        updateWidgetImagePreview(imageWidget);
+        if (widgetWeatherCity) {
+          widgetWeatherCity.value = weatherWidget?.weather_city || '';
+        }
+
+        if (progressWidget) {
+          const progressStyle = normalizeProgressStyle(progressWidget.progress_style);
+          progressWidget.progress_style = progressStyle;
+          setInputValue(widgetProgressStyle, progressStyle);
+
+          const progressDirection = progressWidget.progress_direction === 'vertical' ? 'vertical' : 'horizontal';
+          progressWidget.progress_direction = progressDirection;
+          setInputValue(widgetProgressDirection, progressDirection);
+        } else {
+          setInputValue(widgetProgressStyle, DEFAULT_WIDGET_STYLE.progress_style);
+          setInputValue(widgetProgressDirection, DEFAULT_WIDGET_STYLE.progress_direction);
+        }
+
+        setToggleValue(widgetTextToggle, textWidget ? textWidget.enabled !== false : false);
+        setToggleValue(widgetTickerToggle, tickerWidget ? tickerWidget.enabled !== false : false);
+        setToggleValue(widgetImageToggle, imageWidget ? imageWidget.enabled !== false : false);
+        setToggleValue(widgetWeatherToggle, weatherWidget ? weatherWidget.enabled !== false : false);
+        setToggleValue(widgetProgressToggle, progressWidget ? progressWidget.enabled !== false : false);
+        setWidgetSectionState(widgetTextSettings, Boolean(textWidget), !textWidget);
+        setWidgetSectionState(widgetTickerSettings, Boolean(tickerWidget), !tickerWidget);
+        setWidgetSectionState(widgetImageSettings, Boolean(imageWidget), !imageWidget);
+        setWidgetSectionState(widgetWeatherSettings, Boolean(weatherWidget), !weatherWidget);
+        setWidgetSectionState(widgetProgressSettings, Boolean(progressWidget), !progressWidget);
+        setToggleDisabled(widgetTextToggle, !textWidget);
+        setToggleDisabled(widgetTickerToggle, !tickerWidget);
+        setToggleDisabled(widgetImageToggle, !imageWidget);
+        setToggleDisabled(widgetWeatherToggle, !weatherWidget);
+        setToggleDisabled(widgetProgressToggle, !progressWidget);
+      };
+
+      const updateSelectedWidget = (updates = {}) => {
+        const widget = getSelectedWidget();
+        if (!widget) return;
+        Object.assign(widget, updates);
+        renderWidgets();
+      };
+
+      const selectWidget = (id) => {
+        selectedWidgetId = id;
+        updateWidgetSettingsPanel();
+        renderWidgets();
+      };
+
+      const removeWidget = (id) => {
+        widgets = widgets.filter((widget) => widget.id !== id);
+        if (selectedWidgetId === id) {
+          selectedWidgetId = null;
+        }
+        updateWidgetSettingsPanel();
+        renderWidgets();
+      };
+
+      function renderWidgets() {
+        if (!previewWidgetsLayer) return;
+        previewWidgetsLayer.innerHTML = '';
+        widgetTokenEntries = [];
+        widgetProgressNodes = [];
+        widgetAutoFitEntries = [];
+        widgetWeatherEntries = [];
+
+        const size = parseInt(frameSizeInput.value, 10);
+        const enabled = enabledCheckbox.checked;
+        const hasWidgets = widgets.length > 0;
+        const shouldShow = enabled && size < 100 && hasWidgets;
+
+        previewWidgetsLayer.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+        previewWidgetsLayer.classList.toggle('is-disabled', !shouldShow);
+
+        if (!shouldShow) {
+          if (tokenUpdateTimer) {
+            clearInterval(tokenUpdateTimer);
+            tokenUpdateTimer = null;
+          }
+          if (weatherUpdateTimer) {
+            clearInterval(weatherUpdateTimer);
+            weatherUpdateTimer = null;
+          }
+          return;
+        }
+
+        widgets.forEach((widget) => {
+          if (!widget || typeof widget !== 'object') return;
+          const rawType = String(widget.type || '').trim().toLowerCase();
+          if (!rawType) return;
+
+          let type = rawType === 'logo' ? 'image' : rawType;
+          let normalizedText = null;
+          if (type === 'clock') {
+            type = 'text';
+            normalizedText =
+              typeof widget.text === 'string' && widget.text.length
+                ? widget.text
+                : '[hour]:[minutes]:[seconds]';
+          } else if (type === 'date') {
+            type = 'text';
+            normalizedText =
+              typeof widget.text === 'string' && widget.text.length
+                ? widget.text
+                : '[days] [month] [year]';
+          }
+
+          const node = document.createElement('div');
+          node.className = `info-band-widget info-band-widget--${type || 'default'}`;
+          if (widget.id === selectedWidgetId) node.classList.add('is-selected');
+          if (widget.id === draggingWidgetId || widget.id === resizingWidgetId) {
+            node.classList.add('is-dragging');
+          }
+          if (widget.enabled === false) {
+            node.classList.add('is-disabled');
+          }
+          node.classList.add('is-draggable');
+          node.dataset.widgetId = widget.id;
+          const x = Number.isFinite(Number(widget.x)) ? clamp(Number(widget.x), 0, 100) : 50;
+          const y = Number.isFinite(Number(widget.y)) ? clamp(Number(widget.y), 0, 100) : 50;
+          node.style.left = `${x}%`;
+          node.style.top = `${y}%`;
+          applyWidgetStyles(node, widget);
+
+          if (type === 'image') {
+            const img = document.createElement('img');
+            img.className = 'info-band-widget-logo';
+            const src = resolveWidgetImage(widget.image_src || '');
+            if (src) {
+              img.src = src;
+              img.alt = 'Image';
+              node.appendChild(img);
+            } else {
+              const label = document.createElement('span');
+              label.className = 'info-band-widget-label';
+              label.textContent = 'Image';
+              node.appendChild(label);
+              widgetAutoFitEntries.push({ node, widget, type, labelEl: label });
+            }
+          } else if (type === 'text') {
+            const label = document.createElement('span');
+            label.className = 'info-band-widget-label';
+            const initial =
+              normalizedText ??
+              (typeof widget.text === 'string' && widget.text.length ? widget.text : 'Votre texte');
+            label.textContent = initial;
+            node.appendChild(label);
+            widgetAutoFitEntries.push({ node, widget, type, labelEl: label });
+            if (/\[(days|days_week|month|Month|monthdigit|year|hour|minutes|seconds|secondscomablink)\]/i.test(initial)) {
+              widgetTokenEntries.push({ widget, el: label, template: initial, isTicker: false });
+            }
+          } else if (type === 'ticker') {
+            const ticker = document.createElement('div');
+            ticker.className = 'info-band-widget-ticker';
+            const track = document.createElement('div');
+            track.className = 'info-band-widget-ticker-track';
+            const textValue =
+              typeof widget.text === 'string' && widget.text.length ? widget.text : DEFAULT_WIDGET_TICKER;
+            buildTickerTrack(track, textValue);
+            ticker.appendChild(track);
+            node.appendChild(ticker);
+            updateTickerGap(track);
+            widgetAutoFitEntries.push({ node, widget, type, tickerTrack: track });
+            if (/\[(days|days_week|month|Month|monthdigit|year|hour|minutes|seconds|secondscomablink)\]/i.test(textValue)) {
+              widgetTokenEntries.push({ widget, track, template: textValue, isTicker: true });
+            }
+          } else if (type === 'weather') {
+            const label = document.createElement('span');
+            label.className = 'info-band-widget-label';
+            label.textContent = 'Température';
+            node.appendChild(label);
+            widgetAutoFitEntries.push({ node, widget, type, labelEl: label });
+            widgetWeatherEntries.push({ widget, labelEl: label });
+          } else if (type === 'progress') {
+            const progress = document.createElement('div');
+            progress.className = 'info-band-widget-progress';
+            const track = document.createElement('div');
+            track.className = 'info-band-widget-progress-track';
+            progress.appendChild(track);
+            node.appendChild(progress);
+            widgetProgressNodes.push({ track, widget });
+            widgetAutoFitEntries.push({ node, widget, type, progressTrack: track });
+          } else {
+            const label = document.createElement('span');
+            label.className = 'info-band-widget-label';
+            label.textContent = type || 'Widget';
+            node.appendChild(label);
+            widgetAutoFitEntries.push({ node, widget, type: 'label', labelEl: label });
+          }
+
+          const resizeHandles = document.createElement('div');
+          resizeHandles.className = 'info-band-widget-resize-handles';
+          const handleCorner = document.createElement('div');
+          handleCorner.className = 'info-band-widget-resize-handle info-band-widget-resize-handle--corner';
+          handleCorner.addEventListener('pointerdown', (event) => startWidgetResize(event, widget, 'both'));
+          resizeHandles.appendChild(handleCorner);
+          node.appendChild(resizeHandles);
+
+          node.addEventListener('pointerdown', (event) => startWidgetDrag(event, widget));
+          node.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            removeWidget(widget.id);
+          });
+          previewWidgetsLayer.appendChild(node);
+        });
+
+        updateWidgetProgress();
+        updateWidgetWeather();
+        applyWidgetTextFitAll();
+        updateTickerGaps();
+        if (!widgetResizeObserver && 'ResizeObserver' in window) {
+          widgetResizeObserver = new ResizeObserver(() => {
+            applyWidgetTextFitAll();
+            updateTickerGaps();
+          });
+          widgetResizeObserver.observe(previewWidgetsLayer);
+        }
+        syncTokenTimer();
+        syncWeatherTimer();
+      }
+
+      function updatePreview() {
+        const size = parseInt(frameSizeInput.value, 10);
+        const position = framePositionSelect.value;
+        const hBg = bandHorizontalBg.value;
+        const vBg = bandVerticalBg.value;
+        const enabled = enabledCheckbox.checked;
+        const primary = bandPrimarySelect && bandPrimarySelect.value === 'vertical' ? 'vertical' : 'horizontal';
+        const isHorizontalPrimary = primary !== 'vertical';
+
+        const bandSize = 100 - size;
+
+        previewBandHorizontal.style.cssText = '';
+        previewBandVertical.style.cssText = '';
+        previewBandHorizontal.style.display = 'none';
+        previewBandVertical.style.display = 'none';
+        previewFrame.style.top = '0';
+        previewFrame.style.left = '0';
+        previewFrame.style.right = '0';
+        previewFrame.style.bottom = '0';
+
+        if (!enabled || size >= 100) {
+          previewFrame.style.width = '100%';
+          previewFrame.style.height = '100%';
+          renderWidgets();
+          return;
+        }
+
+        previewBandHorizontal.style.background = hBg;
+        previewBandVertical.style.background = vBg;
+        previewBandHorizontal.style.zIndex = isHorizontalPrimary ? '2' : '1';
+        previewBandVertical.style.zIndex = isHorizontalPrimary ? '1' : '2';
+
+        switch (position) {
+          case 'top-left':
+            previewFrame.style.width = size + '%';
+            previewFrame.style.height = size + '%';
+            previewFrame.style.top = '0';
+            previewFrame.style.left = '0';
+            previewFrame.style.right = 'auto';
+            previewFrame.style.bottom = 'auto';
+            previewBandHorizontal.style.display = 'block';
+            previewBandHorizontal.style.height = bandSize + '%';
+            previewBandHorizontal.style.width = isHorizontalPrimary ? '100%' : size + '%';
+            previewBandHorizontal.style.bottom = '0';
+            previewBandHorizontal.style.top = 'auto';
+            previewBandHorizontal.style.left = '0';
+            previewBandHorizontal.style.right = 'auto';
+            previewBandVertical.style.display = 'block';
+            previewBandVertical.style.width = bandSize + '%';
+            previewBandVertical.style.height = isHorizontalPrimary ? size + '%' : '100%';
+            previewBandVertical.style.right = '0';
+            previewBandVertical.style.left = 'auto';
+            previewBandVertical.style.top = '0';
+            previewBandVertical.style.bottom = 'auto';
+            break;
+
+          case 'top-right':
+            previewFrame.style.width = size + '%';
+            previewFrame.style.height = size + '%';
+            previewFrame.style.top = '0';
+            previewFrame.style.right = '0';
+            previewFrame.style.left = 'auto';
+            previewFrame.style.bottom = 'auto';
+            previewBandHorizontal.style.display = 'block';
+            previewBandHorizontal.style.height = bandSize + '%';
+            previewBandHorizontal.style.width = isHorizontalPrimary ? '100%' : size + '%';
+            previewBandHorizontal.style.bottom = '0';
+            previewBandHorizontal.style.top = 'auto';
+            previewBandHorizontal.style.left = isHorizontalPrimary ? '0' : 'auto';
+            previewBandHorizontal.style.right = isHorizontalPrimary ? 'auto' : '0';
+            previewBandVertical.style.display = 'block';
+            previewBandVertical.style.width = bandSize + '%';
+            previewBandVertical.style.height = isHorizontalPrimary ? size + '%' : '100%';
+            previewBandVertical.style.left = '0';
+            previewBandVertical.style.right = 'auto';
+            previewBandVertical.style.top = '0';
+            previewBandVertical.style.bottom = 'auto';
+            break;
+
+          case 'bottom-left':
+            previewFrame.style.width = size + '%';
+            previewFrame.style.height = size + '%';
+            previewFrame.style.bottom = '0';
+            previewFrame.style.left = '0';
+            previewFrame.style.top = 'auto';
+            previewFrame.style.right = 'auto';
+            previewBandHorizontal.style.display = 'block';
+            previewBandHorizontal.style.height = bandSize + '%';
+            previewBandHorizontal.style.width = isHorizontalPrimary ? '100%' : size + '%';
+            previewBandHorizontal.style.top = '0';
+            previewBandHorizontal.style.bottom = 'auto';
+            previewBandHorizontal.style.left = '0';
+            previewBandHorizontal.style.right = 'auto';
+            previewBandVertical.style.display = 'block';
+            previewBandVertical.style.width = bandSize + '%';
+            previewBandVertical.style.height = isHorizontalPrimary ? size + '%' : '100%';
+            previewBandVertical.style.right = '0';
+            previewBandVertical.style.left = 'auto';
+            previewBandVertical.style.bottom = '0';
+            previewBandVertical.style.top = 'auto';
+            break;
+
+          case 'bottom-right':
+            previewFrame.style.width = size + '%';
+            previewFrame.style.height = size + '%';
+            previewFrame.style.bottom = '0';
+            previewFrame.style.right = '0';
+            previewFrame.style.top = 'auto';
+            previewFrame.style.left = 'auto';
+            previewBandHorizontal.style.display = 'block';
+            previewBandHorizontal.style.height = bandSize + '%';
+            previewBandHorizontal.style.width = isHorizontalPrimary ? '100%' : size + '%';
+            previewBandHorizontal.style.top = '0';
+            previewBandHorizontal.style.bottom = 'auto';
+            previewBandHorizontal.style.left = isHorizontalPrimary ? '0' : 'auto';
+            previewBandHorizontal.style.right = isHorizontalPrimary ? 'auto' : '0';
+            previewBandVertical.style.display = 'block';
+            previewBandVertical.style.width = bandSize + '%';
+            previewBandVertical.style.height = isHorizontalPrimary ? size + '%' : '100%';
+            previewBandVertical.style.left = '0';
+            previewBandVertical.style.right = 'auto';
+            previewBandVertical.style.bottom = '0';
+            previewBandVertical.style.top = 'auto';
+            break;
+
+          case 'center':
+            const halfBand = bandSize / 2;
+            previewFrame.style.width = size + '%';
+            previewFrame.style.height = size + '%';
+            previewFrame.style.top = halfBand + '%';
+            previewFrame.style.left = halfBand + '%';
+            previewFrame.style.right = 'auto';
+            previewFrame.style.bottom = 'auto';
+            previewBandHorizontal.style.display = 'block';
+            previewBandHorizontal.style.height = halfBand + '%';
+            previewBandHorizontal.style.width = isHorizontalPrimary ? '100%' : size + '%';
+            previewBandHorizontal.style.top = '0';
+            previewBandHorizontal.style.left = isHorizontalPrimary ? '0' : halfBand + '%';
+            previewBandHorizontal.style.right = 'auto';
+            previewBandVertical.style.display = 'block';
+            previewBandVertical.style.width = halfBand + '%';
+            previewBandVertical.style.height = isHorizontalPrimary ? size + '%' : '100%';
+            previewBandVertical.style.left = '0';
+            previewBandVertical.style.top = isHorizontalPrimary ? halfBand + '%' : '0';
+            previewBandVertical.style.bottom = 'auto';
+            break;
+        }
+        renderWidgets();
+      }
+
+      function startWidgetDrag(event, widget) {
+        if (!widget || !previewContainer) return;
+        if (event.button !== 0) return;
+        if (event.target && event.target.closest('.info-band-widget-resize-handle')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        selectWidget(widget.id);
+        draggingWidgetId = widget.id;
+        renderWidgets();
+
+        const stageRect = previewContainer.getBoundingClientRect();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const startWidgetX = Number.isFinite(Number(widget.x)) ? Number(widget.x) : 50;
+        const startWidgetY = Number.isFinite(Number(widget.y)) ? Number(widget.y) : 50;
+
+        const onMove = (moveEvent) => {
+          const dx = (moveEvent.clientX - startX) / stageRect.width * 100;
+          const dy = (moveEvent.clientY - startY) / stageRect.height * 100;
+          widget.x = clamp(startWidgetX + dx, 0, 100);
+          widget.y = clamp(startWidgetY + dy, 0, 100);
+          renderWidgets();
+        };
+
+        const onUp = () => {
+          draggingWidgetId = null;
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          renderWidgets();
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      }
+
+      function startWidgetResize(event, widget, axis) {
+        if (!widget || !previewContainer) return;
+        event.preventDefault();
+        event.stopPropagation();
+        selectWidget(widget.id);
+        resizingWidgetId = widget.id;
+        renderWidgets();
+
+        const stageRect = previewContainer.getBoundingClientRect();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const startWidgetX = Number.isFinite(Number(widget.x)) ? Number(widget.x) : 50;
+        const startWidgetY = Number.isFinite(Number(widget.y)) ? Number(widget.y) : 50;
+        const scaleX = stageRect.width ? WIDGET_BASE_WIDTH / stageRect.width : 0;
+        const scaleY = stageRect.height ? WIDGET_BASE_HEIGHT / stageRect.height : 0;
+        let startWidth = normalizeWidgetNumber(widget.width, DEFAULT_WIDGET_STYLE.width, 0);
+        let startHeight = normalizeWidgetNumber(widget.height, DEFAULT_WIDGET_STYLE.height, 0);
+
+        if (startWidth <= 0 || startHeight <= 0) {
+          const node = getWidgetNodeById(widget.id);
+          if (node) {
+            const rect = node.getBoundingClientRect();
+            const scale = normalizeWidgetNumber(widget.scale, DEFAULT_WIDGET_STYLE.scale, 0.1, 10);
+            const safeScale = scale > 0 ? scale : 1;
+            if (startWidth <= 0 && rect.width) {
+              startWidth = (rect.width / safeScale) * scaleX;
+            }
+            if (startHeight <= 0 && rect.height) {
+              startHeight = (rect.height / safeScale) * scaleY;
+            }
+          }
+        }
+
+        const onMove = (moveEvent) => {
+          const dx = moveEvent.clientX - startX;
+          const dy = moveEvent.clientY - startY;
+          const deltaXPercent = stageRect.width ? (dx / stageRect.width) * 100 : 0;
+          const deltaYPercent = stageRect.height ? (dy / stageRect.height) * 100 : 0;
+          if (axis === 'width' || axis === 'both') {
+            widget.width = Math.max(0, startWidth + dx * scaleX);
+            widget.x = clamp(startWidgetX + deltaXPercent / 2, 0, 100);
+          }
+          if (axis === 'height' || axis === 'both') {
+            widget.height = Math.max(0, startHeight + dy * scaleY);
+            widget.y = clamp(startWidgetY + deltaYPercent / 2, 0, 100);
+          }
+          updateWidgetSettingsPanel();
+          renderWidgets();
+        };
+
+        const onUp = () => {
+          resizingWidgetId = null;
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          renderWidgets();
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      }
+
+      const addWidget = (type) => {
+        if (!type) return;
+        const normalizedType = String(type).trim().toLowerCase();
+        const id = window.crypto?.randomUUID
+          ? window.crypto.randomUUID()
+          : `widget-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const { x, y } = getDefaultWidgetPosition();
+        const widget = {
+          id,
+          type: normalizedType,
+          x,
+          y,
+          scale: DEFAULT_WIDGET_STYLE.scale,
+          width: DEFAULT_WIDGET_STYLE.width,
+          height: DEFAULT_WIDGET_STYLE.height,
+          padding: DEFAULT_WIDGET_STYLE.padding,
+          radius: DEFAULT_WIDGET_STYLE.radius,
+          background_color: DEFAULT_WIDGET_STYLE.background_color,
+          background_opacity: DEFAULT_WIDGET_STYLE.background_opacity,
+          border_color: DEFAULT_WIDGET_STYLE.border_color,
+          border_width: DEFAULT_WIDGET_STYLE.border_width,
+          text_color: DEFAULT_WIDGET_STYLE.text_color,
+          font_size: DEFAULT_WIDGET_STYLE.font_size,
+          image_src: DEFAULT_WIDGET_STYLE.image_src,
+          text:
+            normalizedType === 'ticker'
+              ? DEFAULT_WIDGET_TICKER
+              : normalizedType === 'text'
+                ? 'Votre texte'
+                : DEFAULT_WIDGET_STYLE.text,
+          show_seconds: DEFAULT_WIDGET_STYLE.show_seconds,
+          enabled: DEFAULT_WIDGET_STYLE.enabled,
+          weather_city: DEFAULT_WIDGET_STYLE.weather_city,
+          weather_lat: DEFAULT_WIDGET_STYLE.weather_lat,
+          weather_lon: DEFAULT_WIDGET_STYLE.weather_lon,
+          progress_style: DEFAULT_WIDGET_STYLE.progress_style,
+          progress_direction: DEFAULT_WIDGET_STYLE.progress_direction
+        };
+        widgets = [...widgets, widget];
+        renderWidgets();
+        selectWidget(id);
+      };
+
+      const bindWidgetColorInputs = (colorInput, textInput, field) => {
+        if (!colorInput || !textInput) return;
+        colorInput.addEventListener('input', () => {
+          textInput.value = colorInput.value;
+          updateSelectedWidget({ [field]: colorInput.value });
+        });
+        textInput.addEventListener('input', () => {
+          if (!isValidHex(textInput.value)) return;
+          colorInput.value = textInput.value;
+          updateSelectedWidget({ [field]: textInput.value });
+        });
+      };
+
+      enabledCheckbox.addEventListener('change', () => {
+        updateSectionVisibility(enabledCheckbox.checked);
+        updatePreview();
+      });
+
+      frameSizeInput.addEventListener('input', () => {
+        frameSizeValue.textContent = frameSizeInput.value + '%';
+        updatePreview();
+      });
+
+      framePositionSelect.addEventListener('change', updatePreview);
+
+      bandHorizontalBg.addEventListener('input', () => {
+        bandHorizontalBgText.value = bandHorizontalBg.value;
+        updatePreview();
+      });
+      bandHorizontalBgText.addEventListener('input', () => {
+        if (/^#[0-9A-Fa-f]{6}$/.test(bandHorizontalBgText.value)) {
+          bandHorizontalBg.value = bandHorizontalBgText.value;
+          updatePreview();
+        }
+      });
+
+      bandVerticalBg.addEventListener('input', () => {
+        bandVerticalBgText.value = bandVerticalBg.value;
+        updatePreview();
+      });
+      bandVerticalBgText.addEventListener('input', () => {
+        if (/^#[0-9A-Fa-f]{6}$/.test(bandVerticalBgText.value)) {
+          bandVerticalBg.value = bandVerticalBgText.value;
+          updatePreview();
+        }
+      });
+      if (bandPrimarySelect) {
+        bandPrimarySelect.addEventListener('change', updatePreview);
+      }
+
+      if (widgetSelectedLabel) {
+        widgetSelectedLabel.addEventListener('change', () => {
+          const id = widgetSelectedLabel.value;
+          if (!id) return;
+          selectWidget(id);
+        });
+      }
+
+      if (widgetScaleInput) {
+        widgetScaleInput.addEventListener('input', () => {
+          const nextScale = normalizeWidgetNumber(widgetScaleInput.value, DEFAULT_WIDGET_STYLE.scale, 0.1, 10);
+          widgetScaleInput.value = nextScale;
+          if (widgetScaleValue) widgetScaleValue.textContent = nextScale.toFixed(2);
+          updateSelectedWidget({ scale: nextScale });
+        });
+      }
+
+      if (widgetWidthInput) {
+        widgetWidthInput.addEventListener('input', () => {
+          const width = normalizeWidgetNumber(widgetWidthInput.value, DEFAULT_WIDGET_STYLE.width, 0);
+          widgetWidthInput.value = width;
+          updateSelectedWidget({ width });
+        });
+      }
+
+      if (widgetHeightInput) {
+        widgetHeightInput.addEventListener('input', () => {
+          const height = normalizeWidgetNumber(widgetHeightInput.value, DEFAULT_WIDGET_STYLE.height, 0);
+          widgetHeightInput.value = height;
+          updateSelectedWidget({ height });
+        });
+      }
+
+      if (widgetPaddingInput) {
+        widgetPaddingInput.addEventListener('input', () => {
+          const padding = normalizeWidgetNumber(widgetPaddingInput.value, DEFAULT_WIDGET_STYLE.padding, 0);
+          widgetPaddingInput.value = padding;
+          updateSelectedWidget({ padding });
+        });
+      }
+
+      if (widgetRadiusInput) {
+        widgetRadiusInput.addEventListener('input', () => {
+          const radius = normalizeWidgetNumber(widgetRadiusInput.value, DEFAULT_WIDGET_STYLE.radius, 0);
+          widgetRadiusInput.value = radius;
+          updateSelectedWidget({ radius });
+        });
+      }
+
+      if (widgetBackgroundOpacity) {
+        widgetBackgroundOpacity.addEventListener('input', () => {
+          const opacity = normalizeWidgetNumber(
+            widgetBackgroundOpacity.value,
+            DEFAULT_WIDGET_STYLE.background_opacity,
+            0,
+            1
+          );
+          widgetBackgroundOpacity.value = opacity;
+          if (widgetBackgroundOpacityValue) widgetBackgroundOpacityValue.textContent = opacity.toFixed(2);
+          updateSelectedWidget({ background_opacity: opacity });
+        });
+      }
+
+      if (widgetBorderWidth) {
+        widgetBorderWidth.addEventListener('input', () => {
+          const borderWidth = normalizeWidgetNumber(widgetBorderWidth.value, DEFAULT_WIDGET_STYLE.border_width, 0);
+          widgetBorderWidth.value = borderWidth;
+          updateSelectedWidget({ border_width: borderWidth });
+        });
+      }
+
+      if (widgetFontSize) {
+        widgetFontSize.addEventListener('input', () => {
+          const fontSize = normalizeWidgetNumber(widgetFontSize.value, DEFAULT_WIDGET_STYLE.font_size, 0);
+          widgetFontSize.value = fontSize;
+          updateSelectedWidget({ font_size: fontSize });
+        });
+      }
+
+      bindWidgetColorInputs(widgetBackgroundColor, widgetBackgroundColorText, 'background_color');
+      bindWidgetColorInputs(widgetBorderColor, widgetBorderColorText, 'border_color');
+      bindWidgetColorInputs(widgetTextColor, widgetTextColorText, 'text_color');
+
+      if (widgetImageUpload) {
+        widgetImageUpload.addEventListener('change', (event) => {
+          const widget = getWidgetForType('image');
+          if (!widget) return;
+          const file = event.target?.files ? event.target.files[0] : null;
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            widget.image_src = String(reader.result || '');
+            updateWidgetImagePreview(widget);
+            renderWidgets();
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      if (widgetImageClear) {
+        widgetImageClear.addEventListener('click', () => {
+          const widget = getWidgetForType('image');
+          if (!widget) return;
+          widget.image_src = '';
+          if (widgetImageUpload) widgetImageUpload.value = '';
+          updateWidgetImagePreview(widget);
+          renderWidgets();
+        });
+      }
+
+      if (widgetTextContent) {
+        widgetTextContent.addEventListener('input', () => {
+          const widget = getWidgetForType('text');
+          if (!widget) return;
+          widget.text = widgetTextContent.value;
+          renderWidgets();
+        });
+      }
+
+      if (widgetTickerContent) {
+        widgetTickerContent.addEventListener('input', () => {
+          const widget = getWidgetForType('ticker');
+          if (!widget) return;
+          widget.text = widgetTickerContent.value;
+          renderWidgets();
+        });
+      }
+
+      if (widgetWeatherCity) {
+        widgetWeatherCity.addEventListener('input', () => {
+          const widget = getWidgetForType('weather');
+          if (!widget) return;
+          const value = widgetWeatherCity.value;
+          widget.weather_city = value;
+          widget.weather_lat = null;
+          widget.weather_lon = null;
+          if (weatherSuggestTimer) {
+            clearTimeout(weatherSuggestTimer);
+          }
+          if (!value || value.trim().length < 2) {
+            clearWeatherSuggestions();
+            renderWidgets();
+            return;
+          }
+          weatherSuggestTimer = setTimeout(async () => {
+            try {
+              const results = await fetchWeatherSuggestions(value.trim());
+              renderWeatherSuggestions(results);
+            } catch (error) {
+              clearWeatherSuggestions();
+            }
+          }, 300);
+          renderWidgets();
+        });
+        widgetWeatherCity.addEventListener('blur', () => {
+          setTimeout(() => {
+            clearWeatherSuggestions();
+          }, 150);
+        });
+      }
+
+      if (widgetProgressStyle) {
+        widgetProgressStyle.addEventListener('change', () => {
+          const widget = getWidgetForType('progress');
+          if (!widget) return;
+          widget.progress_style = normalizeProgressStyle(widgetProgressStyle.value);
+          renderWidgets();
+        });
+      }
+
+      if (widgetProgressDirection) {
+        widgetProgressDirection.addEventListener('change', () => {
+          const widget = getWidgetForType('progress');
+          if (!widget) return;
+          widget.progress_direction = widgetProgressDirection.value === 'vertical' ? 'vertical' : 'horizontal';
+          renderWidgets();
+        });
+      }
+
+      const bindWidgetEnabledToggle = (toggle, type) => {
+        if (!toggle) return;
+        toggle.addEventListener('change', () => {
+          const widget = getWidgetForType(type);
+          if (!widget) {
+            toggle.checked = false;
+            return;
+          }
+          widget.enabled = Boolean(toggle.checked);
+          updateWidgetSettingsPanel();
+          renderWidgets();
+        });
+      };
+
+      bindWidgetEnabledToggle(widgetTextToggle, 'text');
+      bindWidgetEnabledToggle(widgetTickerToggle, 'ticker');
+      bindWidgetEnabledToggle(widgetImageToggle, 'image');
+      bindWidgetEnabledToggle(widgetWeatherToggle, 'weather');
+      bindWidgetEnabledToggle(widgetProgressToggle, 'progress');
+
+      widgetChips.forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const type = chip.dataset.widgetType;
+          addWidget(type);
+        });
+      });
+
+      saveButton.addEventListener('click', async () => {
+        const config = {
+          enabled: enabledCheckbox.checked,
+          frame: {
+            size: parseInt(frameSizeInput.value, 10),
+            position: framePositionSelect.value
+          },
+          bands: {
+            primary: bandPrimarySelect && bandPrimarySelect.value === 'vertical' ? 'vertical' : 'horizontal',
+            horizontal: { background: bandHorizontalBg.value },
+            vertical: { background: bandVerticalBg.value }
+          },
+          widgets: widgets.map((widget) => ({
+            id: widget.id,
+            type: widget.type,
+            x: widget.x,
+            y: widget.y,
+            scale: widget.scale,
+            width: widget.width,
+            height: widget.height,
+            padding: widget.padding,
+            radius: widget.radius,
+            background_color: widget.background_color,
+            background_opacity: widget.background_opacity,
+            border_color: widget.border_color,
+            border_width: widget.border_width,
+            text_color: widget.text_color,
+            font_size: widget.font_size,
+            image_src: widget.image_src,
+            text: widget.text,
+            show_seconds: widget.show_seconds,
+            enabled: widget.enabled !== false,
+            weather_city: widget.weather_city,
+            weather_lat: widget.weather_lat,
+            weather_lon: widget.weather_lon,
+            progress_style: widget.progress_style,
+            progress_direction: widget.progress_direction
+          }))
+        };
+
+        try {
+          saveButton.disabled = true;
+          saveFeedback.textContent = 'Enregistrement...';
+          saveFeedback.className = 'save-feedback';
+
+          const res = await fetch(buildApiUrl('api/info-bands'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+          });
+
+          if (res.ok) {
+            saveFeedback.textContent = '✓ Configuration enregistrée';
+            saveFeedback.className = 'save-feedback save-feedback-success';
+            const payload = await res.json();
+            currentConfig = payload?.config || config;
+            applyConfigToUI(currentConfig);
+          } else {
+            const message = await res.text();
+            throw new Error(message || 'Failed to save');
+          }
+        } catch (err) {
+          console.error('Failed to save info bands config:', err);
+          saveFeedback.textContent = '✗ Erreur lors de l\'enregistrement';
+          saveFeedback.className = 'save-feedback save-feedback-error';
+        } finally {
+          saveButton.disabled = false;
+          setTimeout(() => {
+            saveFeedback.textContent = '';
+          }, 3000);
+        }
+      });
+
+      async function loadConfig() {
+        try {
+          const res = await fetch(buildApiUrl('api/info-bands'));
+          if (res.ok) {
+            currentConfig = await res.json();
+            applyConfigToUI(currentConfig);
+          } else {
+            throw new Error(await res.text());
+          }
+        } catch (err) {
+          console.error('Failed to load info bands config:', err);
+          applyConfigToUI(defaultConfig);
+        }
+      }
+
+      loadConfig();
+    })();
+  </script>
+{% endblock %}

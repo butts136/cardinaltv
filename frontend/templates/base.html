@@ -69,6 +69,7 @@
           <a class="nav-sublink {% if endpoint == 'main.playlist' %}is-active{% endif %}" href="{{ url_for('main.playlist') }}">Playlist</a>
           <a class="nav-sublink {% if endpoint == 'main.employees' %}is-active{% endif %}" href="{{ url_for('main.employees') }}">Employés</a>
           <a class="nav-sublink {% if endpoint == 'main.team' %}is-active{% endif %}" href="{{ url_for('main.team') }}">Notre Équipe</a>
+          <a class="nav-sublink {% if endpoint == 'main.info_bands' %}is-active{% endif %}" href="{{ url_for('main.info_bands') }}">Bandes informatives</a>
 
           <div class="nav-submenu {% if endpoint in fetes_endpoints %}is-expanded{% endif %}">
             <button type="button" class="nav-submenu-toggle {% if endpoint in fetes_endpoints %}is-active{% endif %}" aria-expanded="{{ 'true' if endpoint in fetes_endpoints else 'false' }}">

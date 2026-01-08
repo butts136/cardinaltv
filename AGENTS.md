@@ -62,3 +62,115 @@ Si une diapo ne supporte pas ces champs côté serveur, **ne pas** activer `show
 - Les nouvelles diapositives personnalisées utilisent `editor_kind="custom"` et les endpoints `/api/custom-slides/*` (ne pas étendre `/api/test/*`).
 - Garder l’éditeur **moderne et robuste** : inputs optionnels, fallback sûrs, pas de collision d’IDs.
 - Toute amélioration doit conserver la réutilisabilité (préfixes, `editor_kind`, endpoints génériques).
+---
+
+## Bandes informatives — système de layout slideshow
+
+### Concept
+Le slideshow peut fonctionner en **plein écran** (frame 16:9 à 100%) ou en **mode réduit** avec des **bandes informatives** qui remplissent l'espace libre autour du frame.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   BANDE HORIZONTALE (top)                   │
+├──────────────┬──────────────────────────────────────────────┤
+│              │                                              │
+│    BANDE     │                                              │
+│   VERTICALE  │            SLIDESHOW FRAME                   │
+│    (left)    │              (16:9 ratio)                    │
+│              │                                              │
+│              │                                              │
+└──────────────┴──────────────────────────────────────────────┘
+  Exemple : frame 80% positionné en bas-droite
+```
+
+### Architecture
+
+#### Fichiers
+- **Backend** : `app.py` — endpoints `/api/info-bands/*`
+- **Config** : `data/info_bands/config.json`
+- **Page admin** : `frontend/templates/info_bands.html`
+- **CSS** : `frontend/static/css/styles.css` (section bandes)
+- **JS slideshow** : `frontend/static/js/slideshow.js` (intégration layout)
+
+#### Structure de données (`data/info_bands/config.json`)
+```json
+{
+  "enabled": false,
+  "frame": {
+    "size": 100,
+    "position": "bottom-right"
+  },
+  "bands": {
+    "horizontal": {
+      "background": "#1a1a2e",
+      "widgets": []
+    },
+    "vertical": {
+      "background": "#1a1a2e",
+      "widgets": []
+    }
+  },
+  "widgets": []
+}
+```
+
+#### Positions possibles du frame
+| Valeur | Description |
+|--------|-------------|
+| `top-left` | Coin supérieur gauche |
+| `top-right` | Coin supérieur droit |
+| `bottom-left` | Coin inférieur gauche |
+| `bottom-right` | Coin inférieur droit |
+| `center` | Centré (bandes égales des deux côtés) |
+
+#### Calcul des bandes
+- **Frame size** : 50% à 100% (conserve toujours le ratio 16:9)
+- Si `position = bottom-right` et `size = 80%` :
+  - Bande horizontale : 20% de la hauteur (en haut)
+  - Bande verticale : 20% de la largeur (à gauche)
+
+### Widgets (phase future)
+Les widgets sont des éléments flottants placés sur les bandes :
+- **Horloge** : affiche l'heure actuelle
+- **Date** : affiche la date du jour
+- **Logo** : image personnalisée
+- **Texte défilant** : ticker de messages
+- **Météo** : conditions actuelles (si API configurée)
+
+Chaque widget aura :
+```json
+{
+  "id": "uuid",
+  "type": "clock|date|logo|ticker|weather",
+  "band": "horizontal|vertical",
+  "position": { "x": 50, "y": 50 },
+  "size": { "width": 200, "height": 100 },
+  "config": { ... }
+}
+```
+
+### Endpoints API
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| `GET` | `/api/info-bands` | Récupère la configuration complète |
+| `POST` | `/api/info-bands` | Met à jour la configuration |
+| `GET` | `/api/info-bands/widgets` | Liste les widgets disponibles |
+| `POST` | `/api/info-bands/widgets` | Ajoute un widget |
+| `DELETE` | `/api/info-bands/widgets/<id>` | Supprime un widget |
+
+### Intégration slideshow
+
+Le fichier `slideshow.js` doit :
+1. Charger la config des bandes au démarrage
+2. Appliquer le layout CSS dynamiquement
+3. Créer les containers pour les bandes si activées
+4. Positionner le frame selon la config
+5. Rafraîchir périodiquement (pour les widgets dynamiques)
+
+### Règles de contribution
+- Le frame slideshow conserve **toujours** son ratio 16:9
+- Les bandes sont des conteneurs flexbox qui s'adaptent
+- Les widgets sont positionnés en absolu dans leur bande respective
+- La configuration est persistée dans `data/info_bands/config.json`
+- Le slideshow doit fonctionner normalement si les bandes sont désactivées

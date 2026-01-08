@@ -7,6 +7,13 @@ const statusLabel = document.querySelector("#slideshow-status");
 const overlayContainer = document.querySelector("#slideshow-brand");
 const overlayLogo = document.querySelector("#overlay-logo");
 const overlayContent = document.querySelector("#overlay-content");
+
+// Info bands elements
+const slideshowContainer = document.querySelector("#slideshow-container");
+const infoBandHorizontal = document.querySelector("#info-band-horizontal");
+const infoBandVertical = document.querySelector("#info-band-vertical");
+const infoBandWidgetsLayer = document.querySelector("#info-bands-widgets");
+
 if (overlayLogo) {
   overlayLogo.addEventListener("error", () => {
     overlayLogo.removeAttribute("src");
@@ -16,6 +23,7 @@ if (overlayLogo) {
 
 const rootElement = document.documentElement;
 const urlParams = new URLSearchParams(window.location.search);
+const isPreviewMode = urlParams.has("preview");
 const sharedRenderers = window.CardinalSlideRenderers || null;
 const slideshowCache = window.CardinalSlideshowCache || null;
 
@@ -81,6 +89,24 @@ const applyLineBackground = (element, opts) => {
 };
 const BASE_CANVAS_WIDTH = Number(canvas?.dataset.baseWidth) || 1920;
 const BASE_CANVAS_HEIGHT = Number(canvas?.dataset.baseHeight) || 1080;
+
+// Info bands configuration
+let infoBandsConfig = null;
+let lastInfoBandsFetch = 0;
+const INFO_BANDS_REFRESH_MS = 30 * 1000; // 30 seconds
+const DEFAULT_INFO_BANDS_TICKER = DEFAULT_OVERLAY?.ticker_text || "Bienvenue sur Cardinal TV";
+const INFO_BANDS_PROGRESS_STYLES = ["numeric", "dots", "bars", "steps", "bar"];
+const normalizeInfoBandProgressStyle = (value) =>
+  INFO_BANDS_PROGRESS_STYLES.includes(value) ? value : "numeric";
+let infoBandsSignature = "";
+let infoBandWidgetTokenEntries = [];
+let infoBandWidgetProgressNodes = [];
+let infoBandWidgetTimer = null;
+let infoBandWidgetAutoFitEntries = [];
+let infoBandWidgetResizeObserver = null;
+let infoBandWeatherEntries = [];
+let infoBandWeatherTimer = null;
+const INFO_BANDS_WEATHER_REFRESH_MS = 10 * 60 * 1000;
 
 const skipState = new Map();
 let playlist = [];
@@ -321,8 +347,17 @@ const clockTimeFormatter = new Intl.DateTimeFormat("fr-CA", {
   timeZone: TIMEZONE,
   timeStyle: "medium",
 });
+const infoBandTimeFormatter = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: TIMEZONE,
+  timeStyle: "short",
+});
+const infoBandTimeWithSecondsFormatter = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: TIMEZONE,
+  timeStyle: "medium",
+});
 
-const isClockModeActive = () => overlaySettings.enabled && overlaySettings.mode === "clock";
+const isClockModeActive = () =>
+  overlaySettings.enabled && overlaySettings.mode === "clock" && overlayContent && overlayContainer;
 
 const updateClock = () => {
   if (!isClockModeActive()) {
@@ -360,7 +395,8 @@ const applyOverlaySettings = (input = {}) => {
     ...input,
   };
 
-  if (!overlayContainer) {
+  if (!overlayContainer || !overlayContent) {
+    overlaySettings.enabled = false;
     return;
   }
 
@@ -450,6 +486,747 @@ const fetchJSON = async (url, options = {}) => {
     throw new Error(text || `Requête échouée (${response.status})`);
   }
   return response.json();
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Info Bands Layout System
+// ─────────────────────────────────────────────────────────────────────────────
+
+const fetchInfoBandsConfig = async (force = false) => {
+  const now = Date.now();
+  if (!force && infoBandsConfig && now - lastInfoBandsFetch < INFO_BANDS_REFRESH_MS) {
+    return infoBandsConfig;
+  }
+  try {
+    const data = await fetchJSON("api/info-bands");
+    infoBandsConfig = data;
+    lastInfoBandsFetch = Date.now();
+  } catch (error) {
+    console.warn("Failed to load info bands config:", error);
+    infoBandsConfig = { enabled: false };
+    lastInfoBandsFetch = Date.now();
+  }
+  return infoBandsConfig;
+};
+
+const getInfoBandsSignature = (config) => {
+  try {
+    return JSON.stringify(config || {});
+  } catch (error) {
+    return "";
+  }
+};
+
+const applyInfoBandsLayout = (config) => {
+  if (!slideshowContainer || !stage || !infoBandHorizontal || !infoBandVertical) {
+    return;
+  }
+
+  // Reset to default state
+  slideshowContainer.classList.remove("bands-active");
+  infoBandHorizontal.hidden = true;
+  infoBandVertical.hidden = true;
+  stage.style.cssText = "";
+
+  if (!config || !config.enabled || config.frame?.size >= 100) {
+    // Full screen mode - no bands
+    return;
+  }
+
+  const size = Math.min(100, Math.max(50, config.frame?.size || 100));
+  const position = config.frame?.position || "bottom-right";
+  const bandSize = 100 - size;
+  const hBg = config.bands?.horizontal?.background || "#ffffff";
+  const vBg = config.bands?.vertical?.background || "#a3a3a3";
+  const primary = config.bands?.primary === "vertical" ? "vertical" : "horizontal";
+  const isHorizontalPrimary = primary !== "vertical";
+
+  // Activate bands mode
+  slideshowContainer.classList.add("bands-active");
+
+  // Configure bands based on frame position
+  switch (position) {
+    case "top-left": {
+      // Frame in top-left, bands on right and bottom
+      stage.style.width = `${size}%`;
+      stage.style.height = `${size}%`;
+      stage.style.top = "0";
+      stage.style.left = "0";
+      stage.style.right = "auto";
+      stage.style.bottom = "auto";
+
+      const horizontalWidth = isHorizontalPrimary ? "100%" : `${size}%`;
+      const verticalHeight = isHorizontalPrimary ? `${size}%` : "100%";
+
+      infoBandHorizontal.hidden = false;
+      infoBandHorizontal.style.cssText = `
+        bottom: 0; top: auto; left: 0; right: auto;
+        width: ${horizontalWidth}; height: ${bandSize}%;
+        background: ${hBg};
+      `;
+
+      infoBandVertical.hidden = false;
+      infoBandVertical.style.cssText = `
+        right: 0; left: auto; top: 0; bottom: auto;
+        width: ${bandSize}%; height: ${verticalHeight};
+        background: ${vBg};
+      `;
+      break;
+    }
+
+    case "top-right": {
+      // Frame in top-right, bands on left and bottom
+      stage.style.width = `${size}%`;
+      stage.style.height = `${size}%`;
+      stage.style.top = "0";
+      stage.style.right = "0";
+      stage.style.left = "auto";
+      stage.style.bottom = "auto";
+
+      const horizontalWidth = isHorizontalPrimary ? "100%" : `${size}%`;
+      const verticalHeight = isHorizontalPrimary ? `${size}%` : "100%";
+
+      infoBandHorizontal.hidden = false;
+      infoBandHorizontal.style.cssText = `
+        bottom: 0; top: auto; left: ${isHorizontalPrimary ? "0" : "auto"}; right: ${
+          isHorizontalPrimary ? "auto" : "0"
+        };
+        width: ${horizontalWidth}; height: ${bandSize}%;
+        background: ${hBg};
+      `;
+
+      infoBandVertical.hidden = false;
+      infoBandVertical.style.cssText = `
+        left: 0; right: auto; top: 0; bottom: auto;
+        width: ${bandSize}%; height: ${verticalHeight};
+        background: ${vBg};
+      `;
+      break;
+    }
+
+    case "bottom-left": {
+      // Frame in bottom-left, bands on top and right
+      stage.style.width = `${size}%`;
+      stage.style.height = `${size}%`;
+      stage.style.bottom = "0";
+      stage.style.left = "0";
+      stage.style.top = "auto";
+      stage.style.right = "auto";
+
+      const horizontalWidth = isHorizontalPrimary ? "100%" : `${size}%`;
+      const verticalHeight = isHorizontalPrimary ? `${size}%` : "100%";
+
+      infoBandHorizontal.hidden = false;
+      infoBandHorizontal.style.cssText = `
+        top: 0; bottom: auto; left: 0; right: auto;
+        width: ${horizontalWidth}; height: ${bandSize}%;
+        background: ${hBg};
+      `;
+
+      infoBandVertical.hidden = false;
+      infoBandVertical.style.cssText = `
+        right: 0; left: auto; bottom: 0; top: auto;
+        width: ${bandSize}%; height: ${verticalHeight};
+        background: ${vBg};
+      `;
+      break;
+    }
+
+    case "bottom-right": {
+      // Frame in bottom-right, bands on top and left
+      stage.style.width = `${size}%`;
+      stage.style.height = `${size}%`;
+      stage.style.bottom = "0";
+      stage.style.right = "0";
+      stage.style.top = "auto";
+      stage.style.left = "auto";
+
+      const horizontalWidth = isHorizontalPrimary ? "100%" : `${size}%`;
+      const verticalHeight = isHorizontalPrimary ? `${size}%` : "100%";
+
+      infoBandHorizontal.hidden = false;
+      infoBandHorizontal.style.cssText = `
+        top: 0; bottom: auto; left: ${isHorizontalPrimary ? "0" : "auto"}; right: ${
+          isHorizontalPrimary ? "auto" : "0"
+        };
+        width: ${horizontalWidth}; height: ${bandSize}%;
+        background: ${hBg};
+      `;
+
+      infoBandVertical.hidden = false;
+      infoBandVertical.style.cssText = `
+        left: 0; right: auto; bottom: 0; top: auto;
+        width: ${bandSize}%; height: ${verticalHeight};
+        background: ${vBg};
+      `;
+      break;
+    }
+
+    case "center": {
+      // Frame centered, bands around all sides
+      const halfBand = bandSize / 2;
+      stage.style.width = `${size}%`;
+      stage.style.height = `${size}%`;
+      stage.style.top = `${halfBand}%`;
+      stage.style.left = `${halfBand}%`;
+      stage.style.right = "auto";
+      stage.style.bottom = "auto";
+
+      const horizontalWidth = isHorizontalPrimary ? "100%" : `${size}%`;
+      const verticalHeight = isHorizontalPrimary ? `${size}%` : "100%";
+
+      infoBandHorizontal.hidden = false;
+      infoBandHorizontal.style.cssText = `
+        top: 0; bottom: auto; left: ${isHorizontalPrimary ? "0" : `${halfBand}%`}; right: auto;
+        width: ${horizontalWidth}; height: ${halfBand}%;
+        background: ${hBg};
+      `;
+
+      infoBandVertical.hidden = false;
+      infoBandVertical.style.cssText = `
+        left: 0; right: auto; top: ${isHorizontalPrimary ? `${halfBand}%` : "0"}; bottom: auto;
+        width: ${halfBand}%; height: ${verticalHeight};
+        background: ${vBg};
+      `;
+      break;
+    }
+  }
+
+  infoBandHorizontal.style.zIndex = isHorizontalPrimary ? "12" : "11";
+  infoBandVertical.style.zIndex = isHorizontalPrimary ? "11" : "12";
+  if (infoBandWidgetsLayer) {
+    infoBandWidgetsLayer.style.zIndex = "20";
+  }
+};
+
+const updateInfoBandWidgetTime = () => {
+  if (!infoBandWidgetTokenEntries.length) return;
+  const now = new Date();
+  const dayLabel = now.toLocaleDateString("fr-FR", { weekday: "long" });
+  const monthLower = now.toLocaleDateString("fr-FR", { month: "long" });
+  const monthCap = monthLower.charAt(0).toUpperCase() + monthLower.slice(1);
+  const monthDigit = String(now.getMonth() + 1).padStart(2, "0");
+  const seconds = now.getSeconds();
+  const parts = {
+    days: String(now.getDate()).padStart(2, "0"),
+    month: monthLower,
+    Month: monthCap,
+    monthdigit: monthDigit,
+    days_week: dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1),
+    year: String(now.getFullYear()),
+    hour: String(now.getHours()).padStart(2, "0"),
+    minutes: String(now.getMinutes()).padStart(2, "0"),
+    seconds: String(seconds).padStart(2, "0"),
+    secondscomablink: seconds % 2 === 0 ? ":" : " ",
+  };
+  infoBandWidgetTokenEntries.forEach((entry) => {
+    const template = entry.template || "";
+    const replaced = template.replace(/\[([^\]]+)\]/g, (m, p1) => {
+      if (!p1) return m;
+      if (p1 === "Month") return parts.Month;
+      const key = p1.toLowerCase();
+      return parts[key] ?? m;
+    });
+    if (entry.isTicker && entry.track) {
+      setInfoBandTickerText(entry.track, replaced);
+      updateInfoBandTickerGap(entry.track);
+    } else if (entry.el) {
+      entry.el.textContent = replaced;
+    }
+  });
+  applyInfoBandWidgetTextFitAll();
+};
+
+const stopInfoBandWidgetClock = () => {
+  if (infoBandWidgetTimer) {
+    clearInterval(infoBandWidgetTimer);
+    infoBandWidgetTimer = null;
+  }
+};
+
+const startInfoBandWidgetClock = () => {
+  stopInfoBandWidgetClock();
+  if (!infoBandWidgetTokenEntries.length) return;
+  updateInfoBandWidgetTime();
+  infoBandWidgetTimer = setInterval(updateInfoBandWidgetTime, 1000);
+};
+
+const DEFAULT_INFO_BAND_WIDGET_STYLE = {
+  background_color: "#000000",
+  border_color: "#ffffff",
+  text_color: "#111111",
+};
+
+const isValidWidgetHex = (value) =>
+  typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value.trim());
+
+const normalizeWidgetHex = (value, fallback) => (isValidWidgetHex(value) ? value.trim() : fallback);
+
+const normalizeWidgetNumber = (value, fallback, min, max = null) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  const clampedMin = Math.max(min, num);
+  if (max === null || max === undefined) return clampedMin;
+  return Math.min(max, clampedMin);
+};
+
+const widgetHexToRgba = (hex, opacity) => {
+  if (!isValidWidgetHex(hex)) {
+    return `rgba(0, 0, 0, ${opacity})`;
+  }
+  const normalized = hex.replace("#", "");
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+const resolveWidgetImageSrc = (value) => {
+  if (!value) return "";
+  if (value.startsWith("data:")) {
+    return value;
+  }
+  return resolveAssetUrl(value);
+};
+
+const formatInfoBandWeatherLabel = (temp) => {
+  if (!Number.isFinite(temp)) return "Température";
+  return `${Math.round(temp)}°C`;
+};
+
+const fetchInfoBandWeatherForWidget = async (widget) => {
+  if (!widget) return null;
+  let lat = Number.isFinite(Number(widget.weather_lat)) ? Number(widget.weather_lat) : null;
+  let lon = Number.isFinite(Number(widget.weather_lon)) ? Number(widget.weather_lon) : null;
+  const city = typeof widget.weather_city === "string" ? widget.weather_city.trim() : "";
+  if ((!lat || !lon) && city) {
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+      city,
+    )}&count=1&language=fr&format=json`;
+    const data = await fetchJSON(geoUrl);
+    const result = data?.results?.[0];
+    if (result && Number.isFinite(result.latitude) && Number.isFinite(result.longitude)) {
+      lat = result.latitude;
+      lon = result.longitude;
+      widget.weather_lat = lat;
+      widget.weather_lon = lon;
+    }
+  }
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&temperature_unit=celsius`;
+  const weatherData = await fetchJSON(weatherUrl);
+  return weatherData?.current?.temperature_2m ?? null;
+};
+
+const setWidgetVar = (node, name, value) => {
+  if (!node) return;
+  if (value === null || value === undefined || value === "") {
+    node.style.removeProperty(name);
+  } else {
+    node.style.setProperty(name, value);
+  }
+};
+
+const buildInfoBandTickerTrack = (track, text) => {
+  if (!track) return;
+  track.innerHTML = "";
+  for (let i = 0; i < 2; i += 1) {
+    const item = document.createElement("span");
+    item.className = "info-band-widget-ticker-item";
+    item.textContent = text;
+    track.appendChild(item);
+  }
+};
+
+const updateInfoBandTickerGap = (track) => {
+  if (!track) return;
+  const ticker = track.parentElement;
+  if (!ticker) return;
+  const gap = ticker.clientWidth;
+  if (gap > 0) {
+    track.style.setProperty("--ticker-gap", `${gap}px`);
+  } else {
+    track.style.removeProperty("--ticker-gap");
+  }
+};
+
+const setInfoBandTickerText = (track, text) => {
+  if (!track) return;
+  const items = track.querySelectorAll(".info-band-widget-ticker-item");
+  if (!items.length) {
+    track.textContent = text;
+    return;
+  }
+  items.forEach((item) => {
+    item.textContent = text;
+  });
+};
+
+const updateInfoBandTickerGaps = () => {
+  infoBandWidgetAutoFitEntries.forEach((entry) => {
+    if (entry.tickerTrack) {
+      updateInfoBandTickerGap(entry.tickerTrack);
+    }
+  });
+};
+
+const getWidgetContentBox = (node) => {
+  const styles = window.getComputedStyle(node);
+  const paddingX = parseFloat(styles.paddingLeft || "0") + parseFloat(styles.paddingRight || "0");
+  const paddingY = parseFloat(styles.paddingTop || "0") + parseFloat(styles.paddingBottom || "0");
+  const width = Math.max(0, node.clientWidth - paddingX);
+  const height = Math.max(0, node.clientHeight - paddingY);
+  return { width, height };
+};
+
+const fitWidgetStretchToBox = (element, boxWidth, boxHeight, baseFontSize) => {
+  if (!element || boxWidth <= 0 || boxHeight <= 0) return;
+  const initialFont = 200;
+  element.style.fontSize = `${initialFont}px`;
+  element.style.lineHeight = "1";
+  element.style.transform = "none";
+  element.style.whiteSpace = "pre";
+  element.style.width = "max-content";
+  element.style.height = "max-content";
+  const rect = element.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const scaleX = boxWidth / rect.width;
+  const scaleY = boxHeight / rect.height;
+  element.style.transformOrigin = "center";
+  element.style.transform = `scale(${scaleX}, ${scaleY})`;
+};
+
+const applyInfoBandWidgetTextFit = (entry) => {
+  if (!entry || !entry.node || !entry.widget) return;
+  if (entry.widget.font_size && Number(entry.widget.font_size) > 0) return;
+  if ((entry.widget.width || 0) <= 0 && (entry.widget.height || 0) <= 0) return;
+  const { width, height } = getWidgetContentBox(entry.node);
+  if (width <= 0 || height <= 0) return;
+  const widgetScale = normalizeWidgetNumber(entry.widget.scale, 1, 0.1, 10);
+  const scaledWidth = width * widgetScale;
+  const scaledHeight = height * widgetScale;
+  if (entry.type === "clock" && entry.timeEl) {
+    fitWidgetStretchToBox(entry.timeEl, scaledWidth, scaledHeight, height);
+    return;
+  }
+  if (entry.type === "date" && entry.dateEl) {
+    fitWidgetStretchToBox(entry.dateEl, scaledWidth, scaledHeight, height);
+    return;
+  }
+  if (entry.type === "ticker" && entry.tickerTrack) {
+    entry.tickerTrack.style.lineHeight = "1";
+    entry.tickerTrack.style.fontSize = `${Math.max(1, height)}px`;
+    entry.tickerTrack.style.transform = "none";
+    return;
+  }
+  if (entry.type === "progress" && entry.progressTrack) {
+    const style = normalizeInfoBandProgressStyle(entry.widget.progress_style);
+    if (style === "bar") {
+      entry.progressTrack.style.transform = "none";
+      entry.progressTrack.style.fontSize = "";
+      entry.progressTrack.style.lineHeight = "1";
+      entry.progressTrack.style.width = "100%";
+      entry.progressTrack.style.height = "100%";
+      return;
+    }
+    fitWidgetStretchToBox(entry.progressTrack, scaledWidth, scaledHeight, height);
+    return;
+  }
+  if (entry.labelEl) {
+    fitWidgetStretchToBox(entry.labelEl, scaledWidth, scaledHeight, height);
+  }
+};
+
+const renderInfoBandProgressTrack = (track, widget, current, total) => {
+  if (!track || !widget) return;
+  const style = normalizeInfoBandProgressStyle(widget.progress_style);
+  const direction = widget.progress_direction === "vertical" ? "vertical" : "horizontal";
+  track.classList.toggle("is-vertical", direction === "vertical");
+  track.classList.toggle("is-horizontal", direction !== "vertical");
+  track.dataset.style = style;
+  track.style.removeProperty("--progress-ratio");
+  if (style === "bar") {
+    track.textContent = "";
+    const bar = document.createElement("div");
+    bar.className = "info-band-progress-bar";
+    const fill = document.createElement("div");
+    fill.className = "info-band-progress-bar-fill";
+    bar.appendChild(fill);
+    track.appendChild(bar);
+    track.style.setProperty(
+      "--progress-ratio",
+      total > 0 ? Math.min(Math.max(1, current), total) / total : 0,
+    );
+    return;
+  }
+  if (total <= 0) {
+    track.textContent = style === "numeric" ? "0/0" : "";
+    return;
+  }
+  const clampedCurrent = Math.min(Math.max(1, current), total);
+  if (style === "numeric") {
+    track.textContent = `${clampedCurrent}/${total}`;
+    return;
+  }
+  track.textContent = "";
+  const count = Math.max(1, total);
+  for (let i = 1; i <= count; i += 1) {
+    const dot = document.createElement("span");
+    dot.className = `info-band-progress-dot${i === clampedCurrent ? " is-active" : ""}`;
+    dot.setAttribute("aria-hidden", "true");
+    track.appendChild(dot);
+  }
+};
+
+const applyInfoBandWidgetTextFitAll = () => {
+  infoBandWidgetAutoFitEntries.forEach((entry) => applyInfoBandWidgetTextFit(entry));
+};
+
+const updateInfoBandWidgetProgress = () => {
+  if (!infoBandWidgetProgressNodes.length) return;
+  const total = Array.isArray(playlist) ? playlist.length : 0;
+  const current = currentIndex >= 0 ? currentIndex + 1 : 0;
+  infoBandWidgetProgressNodes.forEach(({ track, widget }) => {
+    renderInfoBandProgressTrack(track, widget, current, total);
+  });
+  applyInfoBandWidgetTextFitAll();
+};
+
+const updateInfoBandWeather = () => {
+  if (!infoBandWeatherEntries.length) return;
+  infoBandWeatherEntries.forEach((entry) => {
+    const widget = entry.widget;
+    if (!widget || widget.enabled === false) return;
+    const city = typeof widget.weather_city === "string" ? widget.weather_city.trim() : "";
+    if (!city) {
+      entry.labelEl.textContent = "Température";
+      return;
+    }
+    fetchInfoBandWeatherForWidget(widget)
+      .then((temp) => {
+        entry.labelEl.textContent = formatInfoBandWeatherLabel(temp);
+        applyInfoBandWidgetTextFitAll();
+      })
+      .catch(() => {
+        entry.labelEl.textContent = "Température";
+      });
+  });
+};
+
+const syncInfoBandWeatherTimer = () => {
+  if (infoBandWeatherTimer) {
+    clearInterval(infoBandWeatherTimer);
+    infoBandWeatherTimer = null;
+  }
+  if (!infoBandWeatherEntries.length) return;
+  updateInfoBandWeather();
+  infoBandWeatherTimer = setInterval(updateInfoBandWeather, INFO_BANDS_WEATHER_REFRESH_MS);
+};
+
+const applyInfoBandWidgetStyles = (node, widget) => {
+  if (!node || !widget || typeof widget !== "object") {
+    return;
+  }
+  const scale = normalizeWidgetNumber(widget.scale, 1, 0.1, 10);
+  node.style.setProperty("--widget-scale", scale);
+
+  const width = normalizeWidgetNumber(widget.width, 0, 0);
+  const widthPercent = width > 0 ? (width / BASE_CANVAS_WIDTH) * 100 : 0;
+  setWidgetVar(node, "--widget-width", widthPercent > 0 ? `${widthPercent}%` : null);
+
+  const height = normalizeWidgetNumber(widget.height, 0, 0);
+  const heightPercent = height > 0 ? (height / BASE_CANVAS_HEIGHT) * 100 : 0;
+  setWidgetVar(node, "--widget-height", heightPercent > 0 ? `${heightPercent}%` : null);
+
+  const padding = normalizeWidgetNumber(widget.padding, 0, 0);
+  node.style.setProperty("--widget-padding", `${padding}px`);
+
+  const radius = normalizeWidgetNumber(widget.radius, 0, 0);
+  node.style.setProperty("--widget-radius", `${radius}px`);
+
+  const backgroundColor = normalizeWidgetHex(
+    widget.background_color,
+    DEFAULT_INFO_BAND_WIDGET_STYLE.background_color,
+  );
+  const backgroundOpacity = normalizeWidgetNumber(widget.background_opacity, 0, 0, 1);
+  node.style.setProperty(
+    "--widget-bg",
+    backgroundOpacity > 0 ? widgetHexToRgba(backgroundColor, backgroundOpacity) : "transparent",
+  );
+
+  const borderColor = normalizeWidgetHex(
+    widget.border_color,
+    DEFAULT_INFO_BAND_WIDGET_STYLE.border_color,
+  );
+  const borderWidth = normalizeWidgetNumber(widget.border_width, 0, 0);
+  node.style.setProperty(
+    "--widget-border",
+    borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : "none",
+  );
+
+  const textColor = normalizeWidgetHex(widget.text_color, DEFAULT_INFO_BAND_WIDGET_STYLE.text_color);
+  node.style.setProperty("--widget-text-color", textColor);
+
+  const fontSize = normalizeWidgetNumber(widget.font_size, 0, 0);
+  setWidgetVar(node, "--widget-font-size", fontSize > 0 ? `${fontSize}px` : null);
+};
+
+const renderInfoBandWidgets = (config) => {
+  if (!infoBandWidgetsLayer) {
+    return;
+  }
+  infoBandsSignature = getInfoBandsSignature(config);
+  infoBandWidgetsLayer.innerHTML = "";
+  infoBandWidgetTokenEntries = [];
+  infoBandWidgetProgressNodes = [];
+  infoBandWidgetAutoFitEntries = [];
+  infoBandWeatherEntries = [];
+  const enabled = Boolean(config?.enabled);
+  const frameSize = Number(config?.frame?.size ?? 100);
+  const widgets = Array.isArray(config?.widgets) ? config.widgets : [];
+  const activeWidgets = widgets.filter((widget) => widget && widget.enabled !== false);
+  if (!enabled || frameSize >= 100 || !activeWidgets.length) {
+    infoBandWidgetsLayer.hidden = true;
+    infoBandWidgetsLayer.style.display = "none";
+    stopInfoBandWidgetClock();
+    if (infoBandWeatherTimer) {
+      clearInterval(infoBandWeatherTimer);
+      infoBandWeatherTimer = null;
+    }
+    return;
+  }
+  infoBandWidgetsLayer.hidden = false;
+  infoBandWidgetsLayer.style.display = "block";
+  activeWidgets.forEach((widget) => {
+    if (!widget || typeof widget !== "object") {
+      return;
+    }
+    const rawType = String(widget.type || "").trim().toLowerCase();
+    if (!rawType) return;
+
+    // Legacy support: older configs used `clock` and `date` widget types.
+    // They are now handled as `text` widgets using token templates.
+    let type = rawType === "logo" ? "image" : rawType;
+    let normalizedText = null;
+    if (type === "clock") {
+      type = "text";
+      normalizedText =
+        typeof widget.text === "string" && widget.text.length
+          ? widget.text
+          : "[hour]:[minutes]:[seconds]";
+    } else if (type === "date") {
+      type = "text";
+      normalizedText =
+        typeof widget.text === "string" && widget.text.length
+          ? widget.text
+          : "[days]/[month]/[year]";
+    }
+
+    const node = document.createElement("div");
+    node.className = `info-band-widget info-band-widget--${type || "default"}`;
+    const xRaw = Number(widget.x);
+    const yRaw = Number(widget.y);
+    const x = Number.isFinite(xRaw) ? clampPercent(xRaw) : 50;
+    const y = Number.isFinite(yRaw) ? clampPercent(yRaw) : 50;
+    node.style.left = `${x}%`;
+    node.style.top = `${y}%`;
+    applyInfoBandWidgetStyles(node, widget);
+
+    if (type === "image") {
+      const img = document.createElement("img");
+      img.className = "info-band-widget-logo";
+      const src = resolveWidgetImageSrc(widget.image_src || "");
+      img.alt = "Image";
+      if (src) {
+        img.src = src;
+        node.appendChild(img);
+      }
+    } else if (type === "text") {
+      const label = document.createElement("span");
+      label.className = "info-band-widget-label";
+      const initial =
+        normalizedText ??
+        (typeof widget.text === "string" && widget.text.length ? widget.text : "Votre texte");
+      label.textContent = initial;
+      node.appendChild(label);
+      infoBandWidgetAutoFitEntries.push({ node, widget, type, labelEl: label });
+      if (/\[(days|days_week|month|Month|monthdigit|year|hour|minutes|seconds|secondscomablink)\]/i.test(initial)) {
+        infoBandWidgetTokenEntries.push({ widget, el: label, template: initial, isTicker: false });
+      }
+    } else if (type === "ticker") {
+      const ticker = document.createElement("div");
+      ticker.className = "info-band-widget-ticker";
+      const track = document.createElement("div");
+      track.className = "info-band-widget-ticker-track";
+      const fallbackText = overlaySettings?.ticker_text || DEFAULT_INFO_BANDS_TICKER;
+      const textValue = typeof widget.text === "string" && widget.text.length ? widget.text : fallbackText;
+      buildInfoBandTickerTrack(track, textValue);
+      ticker.appendChild(track);
+      node.appendChild(ticker);
+      updateInfoBandTickerGap(track);
+      infoBandWidgetAutoFitEntries.push({ node, widget, type, tickerTrack: track });
+      if (/\[(days|days_week|month|Month|monthdigit|year|hour|minutes|seconds|secondscomablink)\]/i.test(textValue)) {
+        infoBandWidgetTokenEntries.push({ widget, track, template: textValue, isTicker: true });
+      }
+    } else if (type === "weather") {
+      const label = document.createElement("span");
+      label.className = "info-band-widget-label";
+      label.textContent = "Température";
+      node.appendChild(label);
+      infoBandWidgetAutoFitEntries.push({ node, widget, type, labelEl: label });
+      infoBandWeatherEntries.push({ widget, labelEl: label });
+    } else if (type === "progress") {
+      const progress = document.createElement("div");
+      progress.className = "info-band-widget-progress";
+      const track = document.createElement("div");
+      track.className = "info-band-widget-progress-track";
+      progress.appendChild(track);
+      node.appendChild(progress);
+      infoBandWidgetProgressNodes.push({ track, widget });
+      infoBandWidgetAutoFitEntries.push({ node, widget, type, progressTrack: track });
+    } else {
+      const label = document.createElement("span");
+      label.className = "info-band-widget-label";
+      label.textContent = type;
+      node.appendChild(label);
+      infoBandWidgetAutoFitEntries.push({ node, widget, type: "label", labelEl: label });
+    }
+
+    infoBandWidgetsLayer.appendChild(node);
+  });
+  applyInfoBandWidgetTextFitAll();
+  updateInfoBandTickerGaps();
+  updateInfoBandWidgetProgress();
+  updateInfoBandWeather();
+  if (!infoBandWidgetResizeObserver && "ResizeObserver" in window) {
+    infoBandWidgetResizeObserver = new ResizeObserver(() => {
+      applyInfoBandWidgetTextFitAll();
+      updateInfoBandTickerGaps();
+    });
+    infoBandWidgetResizeObserver.observe(infoBandWidgetsLayer);
+  }
+  startInfoBandWidgetClock();
+  syncInfoBandWeatherTimer();
+};
+
+const refreshInfoBandsLayout = async () => {
+  const config = await fetchInfoBandsConfig(true);
+  applyInfoBandsLayout(config);
+  const signature = getInfoBandsSignature(config);
+  if (signature === infoBandsSignature) {
+    return;
+  }
+  infoBandsSignature = signature;
+  renderInfoBandWidgets(config);
+};
+
+const initInfoBands = async () => {
+  if (isPreviewMode) {
+    applyInfoBandsLayout({ enabled: false, frame: { size: 100 } });
+    renderInfoBandWidgets({ enabled: false, widgets: [] });
+    return;
+  }
+  await refreshInfoBandsLayout();
 };
 
 const preloadBirthdayVariants = async ({ force = false } = {}) => {
@@ -2671,12 +3448,14 @@ const refreshPlaylist = async () => {
   if (!playlist.length) {
     currentIndex = -1;
     currentId = null;
+    updateInfoBandWidgetProgress();
     return { empty: true, restart: false, changed };
   }
 
   if (currentId == null) {
     currentIndex = 0;
     currentId = playlist[0].id;
+    updateInfoBandWidgetProgress();
     return { empty: false, restart: true, changed };
   }
 
@@ -2684,10 +3463,12 @@ const refreshPlaylist = async () => {
   if (newIndex === -1) {
     currentIndex = 0;
     currentId = playlist[0].id;
+    updateInfoBandWidgetProgress();
     return { empty: false, restart: true, changed };
   }
 
   currentIndex = newIndex;
+  updateInfoBandWidgetProgress();
   return { empty: false, restart: false, changed };
 };
 
@@ -2700,6 +3481,8 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   if (index >= 0) {
     currentIndex = index;
   }
+
+  updateInfoBandWidgetProgress();
 
   noteItemDisplayed(item, { maintainSkip });
 
@@ -2844,7 +3627,10 @@ const startPlaylistRefresh = () => {
   }
   playlistRefreshTimer = setInterval(() => {
     void handlePlaylistRefresh().catch((error) => console.warn("Rafraîchissement échoué:", error));
-    void refreshOverlaySettings();
+    if (!isPreviewMode) {
+      void refreshOverlaySettings();
+      void refreshInfoBandsLayout();
+    }
   }, 30000);
 };
 
@@ -2853,8 +3639,18 @@ const startSlideshow = async () => {
     void slideshowCache.ensureServiceWorker();
   }
 
+  // Initialize info bands layout before showing content
+  await initInfoBands();
+
   await loadBirthdayCustomFonts();
-  await refreshOverlaySettings();
+  if (!isPreviewMode) {
+    await refreshOverlaySettings();
+    if (infoBandsConfig) {
+      renderInfoBandWidgets(infoBandsConfig);
+    }
+  } else {
+    applyOverlaySettings({ enabled: false, logo_path: "", ticker_text: "" });
+  }
   await ensureTeamEmployeesData();
   const result = await refreshPlaylist();
   if (result.empty) {

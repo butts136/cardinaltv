@@ -2,6 +2,10 @@
 
 {% block slideshow_content %}
     <div id="slideshow-container">
+      <!-- Info bands (hidden by default, shown via JS if enabled) -->
+      <div id="info-band-horizontal" class="info-band info-band-horizontal" hidden></div>
+      <div id="info-band-vertical" class="info-band info-band-vertical" hidden></div>
+      
       <div id="slideshow-stage">
         <div class="slideshow-frame">
           <div
@@ -13,13 +17,10 @@
             <div id="slideshow-overlay" hidden>
               <span id="slideshow-status"></span>
             </div>
-            <div id="slideshow-brand" hidden>
-              <img id="overlay-logo" alt="Logo Cardinal" />
-              <div id="overlay-content"></div>
-            </div>
           </div>
         </div>
       </div>
+      <div id="info-bands-widgets" class="info-bands-widgets" hidden></div>
     </div>
 {% endblock %}
 
