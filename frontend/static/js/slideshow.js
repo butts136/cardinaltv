@@ -106,6 +106,7 @@ let infoBandWidgetAutoFitEntries = [];
 let infoBandWidgetResizeObserver = null;
 let infoBandWeatherEntries = [];
 let infoBandWeatherTimer = null;
+let infoBandClockEntries = [];
 const INFO_BANDS_WEATHER_REFRESH_MS = 10 * 60 * 1000;
 
 const skipState = new Map();
@@ -700,7 +701,7 @@ const applyInfoBandsLayout = (config) => {
 };
 
 const updateInfoBandWidgetTime = () => {
-  if (!infoBandWidgetTokenEntries.length) return;
+  if (!infoBandWidgetTokenEntries.length && !infoBandClockEntries.length) return;
   const now = new Date();
   const dayLabel = now.toLocaleDateString("fr-FR", { weekday: "long" });
   const monthLower = now.toLocaleDateString("fr-FR", { month: "long" });
@@ -734,6 +735,13 @@ const updateInfoBandWidgetTime = () => {
       entry.el.textContent = replaced;
     }
   });
+  if (infoBandClockEntries.length) {
+    infoBandClockEntries.forEach((entry) => {
+      if (entry.hourEl) entry.hourEl.textContent = parts.hour;
+      if (entry.minuteEl) entry.minuteEl.textContent = parts.minutes;
+      if (entry.secondEl) entry.secondEl.textContent = parts.seconds;
+    });
+  }
   applyInfoBandWidgetTextFitAll();
 };
 
@@ -1081,6 +1089,7 @@ const renderInfoBandWidgets = (config) => {
   infoBandWidgetProgressNodes = [];
   infoBandWidgetAutoFitEntries = [];
   infoBandWeatherEntries = [];
+  infoBandClockEntries = [];
   const enabled = Boolean(config?.enabled);
   const frameSize = Number(config?.frame?.size ?? 100);
   const widgets = Array.isArray(config?.widgets) ? config.widgets : [];
@@ -1104,17 +1113,10 @@ const renderInfoBandWidgets = (config) => {
     const rawType = String(widget.type || "").trim().toLowerCase();
     if (!rawType) return;
 
-    // Legacy support: older configs used `clock` and `date` widget types.
-    // They are now handled as `text` widgets using token templates.
+    // Legacy support: older configs used `date` widget types.
     let type = rawType === "logo" ? "image" : rawType;
     let normalizedText = null;
-    if (type === "clock") {
-      type = "text";
-      normalizedText =
-        typeof widget.text === "string" && widget.text.length
-          ? widget.text
-          : "[hour]:[minutes]:[seconds]";
-    } else if (type === "date") {
+    if (type === "date") {
       type = "text";
       normalizedText =
         typeof widget.text === "string" && widget.text.length
@@ -1141,6 +1143,30 @@ const renderInfoBandWidgets = (config) => {
         img.src = src;
         node.appendChild(img);
       }
+    } else if (type === "clock") {
+      const clock = document.createElement("div");
+      clock.className = "info-band-widget-clock";
+      const hour = document.createElement("span");
+      hour.className = "info-band-clock-hour";
+      const sep1 = document.createElement("span");
+      sep1.className = "info-band-clock-sep";
+      sep1.textContent = " : ";
+      const minute = document.createElement("span");
+      minute.className = "info-band-clock-minute";
+      const sep2 = document.createElement("span");
+      sep2.className = "info-band-clock-sep info-band-clock-sep--blink";
+      sep2.textContent = " : ";
+      const second = document.createElement("span");
+      second.className = "info-band-clock-second";
+      clock.appendChild(hour);
+      clock.appendChild(sep1);
+      clock.appendChild(minute);
+      clock.appendChild(sep2);
+      clock.appendChild(second);
+      node.appendChild(clock);
+      infoBandWidgetAutoFitEntries.push({ node, widget, type, labelEl: clock });
+      node.classList.add("info-band-widget--clock");
+      infoBandClockEntries.push({ widget, hourEl: hour, minuteEl: minute, secondEl: second });
     } else if (type === "text") {
       const label = document.createElement("span");
       label.className = "info-band-widget-label";

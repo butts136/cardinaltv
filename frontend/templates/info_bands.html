@@ -132,6 +132,7 @@
               <button type="button" class="widget-chip" data-widget-type="image">Image</button>
               <button type="button" class="widget-chip" data-widget-type="text">Texte fixe</button>
               <button type="button" class="widget-chip" data-widget-type="ticker">Texte défilant</button>
+              <button type="button" class="widget-chip" data-widget-type="clock">Heure</button>
               <button type="button" class="widget-chip" data-widget-type="weather">Température</button>
               <button type="button" class="widget-chip" data-widget-type="progress">Suivi des diapositives</button>
             </div>
@@ -305,6 +306,20 @@
             </div>
           </div>
 
+          <div class="widget-specific" id="widget-clock-settings">
+            <div class="widget-specific-header">
+              <h3>Heure</h3>
+              <label class="visibility-toggle widget-toggle">
+                <span class="visibility-toggle-label visibility-toggle-label-on">Activé</span>
+                <div class="visibility-toggle-switch">
+                  <input type="checkbox" id="widget-clock-enabled" class="visibility-toggle-checkbox" />
+                  <span class="visibility-toggle-slider"></span>
+                </div>
+                <span class="visibility-toggle-label visibility-toggle-label-off">Désactivé</span>
+              </label>
+            </div>
+          </div>
+
           <div class="widget-specific" id="widget-weather-settings">
             <div class="widget-specific-header">
               <h3>Température</h3>
@@ -415,6 +430,7 @@
       const widgetTextContent = document.getElementById('widget-text-content');
       const widgetTickerSettings = document.getElementById('widget-ticker-settings');
       const widgetTickerContent = document.getElementById('widget-ticker-content');
+      const widgetClockSettings = document.getElementById('widget-clock-settings');
       const widgetWeatherSettings = document.getElementById('widget-weather-settings');
       const widgetWeatherCity = document.getElementById('widget-weather-city');
       const widgetWeatherSuggestions = document.getElementById('widget-weather-suggestions');
@@ -424,6 +440,7 @@
       const widgetTextToggle = document.getElementById('widget-text-enabled');
       const widgetTickerToggle = document.getElementById('widget-ticker-enabled');
       const widgetImageToggle = document.getElementById('widget-image-enabled');
+      const widgetClockToggle = document.getElementById('widget-clock-enabled');
       const widgetWeatherToggle = document.getElementById('widget-weather-enabled');
       const widgetProgressToggle = document.getElementById('widget-progress-enabled');
 
@@ -452,6 +469,7 @@
         image: 'Image',
         text: 'Texte fixe',
         ticker: 'Texte défilant',
+        clock: 'Heure',
         weather: 'Température',
         progress: 'Suivi des diapositives'
       };
@@ -491,6 +509,7 @@
       let widgetProgressNodes = [];
       let widgetAutoFitEntries = [];
       let widgetWeatherEntries = [];
+      let widgetClockEntries = [];
       let tokenUpdateTimer = null;
       let widgetResizeObserver = null;
       let weatherUpdateTimer = null;
@@ -557,7 +576,7 @@
       const normalizeWidgetType = (value) => {
         const raw = String(value || '').trim().toLowerCase();
         if (raw === 'logo') return 'image';
-        if (raw === 'clock' || raw === 'date') return 'text';
+        if (raw === 'date') return 'text';
         return raw;
       };
 
@@ -775,7 +794,7 @@
       };
 
       const updateWidgetTokens = () => {
-        if (!widgetTokenEntries.length) return;
+        if (!widgetTokenEntries.length && !widgetClockEntries.length) return;
         widgetTokenEntries.forEach((entry) => {
           const text = formatTokenString(entry.template);
           if (entry.isTicker && entry.track) {
@@ -785,6 +804,17 @@
             entry.el.textContent = text;
           }
         });
+        if (widgetClockEntries.length) {
+          const now = new Date();
+          const hour = String(now.getHours()).padStart(2, '0');
+          const minutes = String(now.getMinutes()).padStart(2, '0');
+          const seconds = String(now.getSeconds()).padStart(2, '0');
+          widgetClockEntries.forEach((entry) => {
+            if (entry.hourEl) entry.hourEl.textContent = hour;
+            if (entry.minuteEl) entry.minuteEl.textContent = minutes;
+            if (entry.secondEl) entry.secondEl.textContent = seconds;
+          });
+        }
         applyWidgetTextFitAll();
       };
 
@@ -901,7 +931,7 @@
           clearInterval(tokenUpdateTimer);
           tokenUpdateTimer = null;
         }
-        if (!widgetTokenEntries.length) return;
+        if (!widgetTokenEntries.length && !widgetClockEntries.length) return;
         updateWidgetTokens();
         tokenUpdateTimer = setInterval(updateWidgetTokens, 1000);
       };
@@ -1212,11 +1242,13 @@
           setToggleValue(widgetTextToggle, false);
           setToggleValue(widgetTickerToggle, false);
           setToggleValue(widgetImageToggle, false);
+          setToggleValue(widgetClockToggle, false);
           setToggleValue(widgetWeatherToggle, false);
           setToggleValue(widgetProgressToggle, false);
           setWidgetSectionState(widgetTextSettings, false, true);
           setWidgetSectionState(widgetTickerSettings, false, true);
           setWidgetSectionState(widgetImageSettings, false, true);
+          setWidgetSectionState(widgetClockSettings, false, true);
           setWidgetSectionState(widgetWeatherSettings, false, true);
           setWidgetSectionState(widgetProgressSettings, false, true);
           return;
@@ -1290,6 +1322,7 @@
         const textWidget = getWidgetForType('text');
         const tickerWidget = getWidgetForType('ticker');
         const imageWidget = getWidgetForType('image');
+        const clockWidget = getWidgetForType('clock');
         const weatherWidget = getWidgetForType('weather');
         const progressWidget = getWidgetForType('progress');
 
@@ -1320,16 +1353,19 @@
         setToggleValue(widgetTextToggle, textWidget ? textWidget.enabled !== false : false);
         setToggleValue(widgetTickerToggle, tickerWidget ? tickerWidget.enabled !== false : false);
         setToggleValue(widgetImageToggle, imageWidget ? imageWidget.enabled !== false : false);
+        setToggleValue(widgetClockToggle, clockWidget ? clockWidget.enabled !== false : false);
         setToggleValue(widgetWeatherToggle, weatherWidget ? weatherWidget.enabled !== false : false);
         setToggleValue(widgetProgressToggle, progressWidget ? progressWidget.enabled !== false : false);
         setWidgetSectionState(widgetTextSettings, Boolean(textWidget), !textWidget);
         setWidgetSectionState(widgetTickerSettings, Boolean(tickerWidget), !tickerWidget);
         setWidgetSectionState(widgetImageSettings, Boolean(imageWidget), !imageWidget);
+        setWidgetSectionState(widgetClockSettings, Boolean(clockWidget), !clockWidget);
         setWidgetSectionState(widgetWeatherSettings, Boolean(weatherWidget), !weatherWidget);
         setWidgetSectionState(widgetProgressSettings, Boolean(progressWidget), !progressWidget);
         setToggleDisabled(widgetTextToggle, !textWidget);
         setToggleDisabled(widgetTickerToggle, !tickerWidget);
         setToggleDisabled(widgetImageToggle, !imageWidget);
+        setToggleDisabled(widgetClockToggle, !clockWidget);
         setToggleDisabled(widgetWeatherToggle, !weatherWidget);
         setToggleDisabled(widgetProgressToggle, !progressWidget);
       };
@@ -1363,6 +1399,7 @@
         widgetProgressNodes = [];
         widgetAutoFitEntries = [];
         widgetWeatherEntries = [];
+        widgetClockEntries = [];
 
         const size = parseInt(frameSizeInput.value, 10);
         const enabled = enabledCheckbox.checked;
@@ -1377,6 +1414,7 @@
             clearInterval(tokenUpdateTimer);
             tokenUpdateTimer = null;
           }
+          widgetClockEntries = [];
           if (weatherUpdateTimer) {
             clearInterval(weatherUpdateTimer);
             weatherUpdateTimer = null;
@@ -1391,13 +1429,7 @@
 
           let type = rawType === 'logo' ? 'image' : rawType;
           let normalizedText = null;
-          if (type === 'clock') {
-            type = 'text';
-            normalizedText =
-              typeof widget.text === 'string' && widget.text.length
-                ? widget.text
-                : '[hour]:[minutes]:[seconds]';
-          } else if (type === 'date') {
+          if (type === 'date') {
             type = 'text';
             normalizedText =
               typeof widget.text === 'string' && widget.text.length
@@ -1413,6 +1445,9 @@
           }
           if (widget.enabled === false) {
             node.classList.add('is-disabled');
+          }
+          if (type === 'clock') {
+            node.classList.add('info-band-widget--clock');
           }
           node.classList.add('is-draggable');
           node.dataset.widgetId = widget.id;
@@ -1437,6 +1472,29 @@
               node.appendChild(label);
               widgetAutoFitEntries.push({ node, widget, type, labelEl: label });
             }
+          } else if (type === 'clock') {
+            const clock = document.createElement('div');
+            clock.className = 'info-band-widget-clock';
+            const hour = document.createElement('span');
+            hour.className = 'info-band-clock-hour';
+            const sep1 = document.createElement('span');
+            sep1.className = 'info-band-clock-sep';
+            sep1.textContent = ' : ';
+            const minute = document.createElement('span');
+            minute.className = 'info-band-clock-minute';
+            const sep2 = document.createElement('span');
+            sep2.className = 'info-band-clock-sep info-band-clock-sep--blink';
+            sep2.textContent = ' : ';
+            const second = document.createElement('span');
+            second.className = 'info-band-clock-second';
+            clock.appendChild(hour);
+            clock.appendChild(sep1);
+            clock.appendChild(minute);
+            clock.appendChild(sep2);
+            clock.appendChild(second);
+            node.appendChild(clock);
+            widgetAutoFitEntries.push({ node, widget, type, labelEl: clock });
+            widgetClockEntries.push({ widget, hourEl: hour, minuteEl: minute, secondEl: second });
           } else if (type === 'text') {
             const label = document.createElement('span');
             label.className = 'info-band-widget-label';
@@ -2055,6 +2113,7 @@
       bindWidgetEnabledToggle(widgetTextToggle, 'text');
       bindWidgetEnabledToggle(widgetTickerToggle, 'ticker');
       bindWidgetEnabledToggle(widgetImageToggle, 'image');
+      bindWidgetEnabledToggle(widgetClockToggle, 'clock');
       bindWidgetEnabledToggle(widgetWeatherToggle, 'weather');
       bindWidgetEnabledToggle(widgetProgressToggle, 'progress');
 
