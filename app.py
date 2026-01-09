@@ -6072,6 +6072,13 @@ def _migrate_config_file(old_path: Path, new_path: Path) -> None:
         pass
 
 
+def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.replace(path)
+
+
 def _normalize_rss_image_url(url: str) -> str:
     if not url:
         return url
@@ -6172,23 +6179,29 @@ def _load_news_config() -> Dict[str, Any]:
     """Charge la configuration de la diapositive Nouvelles."""
     _migrate_config_file(LEGACY_NEWS_CONFIG_FILE, NEWS_CONFIG_FILE)
     default = copy.deepcopy(DEFAULT_SETTINGS["news_slide"])
-    if not NEWS_CONFIG_FILE.exists():
-        return default
-    try:
-        raw = json.loads(NEWS_CONFIG_FILE.read_text(encoding="utf-8"))
-        if isinstance(raw, dict):
-            for key in default:
-                if key in raw:
-                    default[key] = raw[key]
-        return default
-    except (OSError, json.JSONDecodeError):
-        return default
+    raw = None
+    if NEWS_CONFIG_FILE.exists():
+        try:
+            raw = json.loads(NEWS_CONFIG_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            raw = None
+    if raw is None and LEGACY_NEWS_CONFIG_FILE.exists():
+        try:
+            raw = json.loads(LEGACY_NEWS_CONFIG_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            raw = None
+    if isinstance(raw, dict):
+        for key in default:
+            if key in raw:
+                default[key] = raw[key]
+        if not NEWS_CONFIG_FILE.exists():
+            _write_json_atomic(NEWS_CONFIG_FILE, default)
+    return default
 
 
 def _save_news_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Sauvegarde la configuration de la diapositive Nouvelles."""
-    NEWS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    NEWS_CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_json_atomic(NEWS_CONFIG_FILE, config)
     return config
 
 
