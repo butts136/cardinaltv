@@ -6022,6 +6022,7 @@ def serve_christmas_slide_asset(filename: str) -> Any:
 NEWS_CACHE: Dict[str, Any] = {"items": [], "fetched_at": None}
 NEWS_CACHE_TTL = timedelta(minutes=1)
 NEWS_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".avif"}
+NEWS_FEED_SCHEMES = ("http", "https")
 
 DEFAULT_WEATHER_SECRETS = {
     "api_key": "",
@@ -6099,9 +6100,27 @@ def _normalize_rss_image_url(url: str) -> str:
     return urllib.parse.urlunparse(parsed._replace(query="", fragment=""))
 
 
+def _normalize_feed_url(url: str) -> str:
+    if not url:
+        return url
+    cleaned = url.strip()
+    if not cleaned:
+        return cleaned
+    try:
+        parsed = urllib.parse.urlparse(cleaned)
+    except ValueError:
+        return cleaned
+    if parsed.scheme:
+        return cleaned
+    if cleaned.startswith("//"):
+        return f"https:{cleaned}"
+    return f"https://{cleaned}"
+
+
 def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
     """Parse un flux RSS et retourne les items."""
     items: List[Dict[str, Any]] = []
+    url = _normalize_feed_url(url)
     try:
         with urllib.request.urlopen(url, timeout=15) as response:
             content = response.read().decode("utf-8", errors="ignore")
@@ -6110,14 +6129,25 @@ def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
 
     # Parse simple XML pour RSS
     item_pattern = re.compile(r"<item>(.*?)</item>", re.DOTALL | re.IGNORECASE)
+    entry_pattern = re.compile(r"<entry>(.*?)</entry>", re.DOTALL | re.IGNORECASE)
     title_pattern = re.compile(r"<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>", re.DOTALL | re.IGNORECASE)
     link_pattern = re.compile(r"<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</link>", re.DOTALL | re.IGNORECASE)
+    link_href_pattern = re.compile(r'<link[^>]+href=["\']([^"\']+)["\']', re.IGNORECASE)
     desc_pattern = re.compile(r"<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>", re.DOTALL | re.IGNORECASE)
+    summary_pattern = re.compile(r"<summary>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</summary>", re.DOTALL | re.IGNORECASE)
+    content_pattern = re.compile(r"<content[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</content>", re.DOTALL | re.IGNORECASE)
     pubdate_pattern = re.compile(r"<pubDate>(.*?)</pubDate>", re.DOTALL | re.IGNORECASE)
+    updated_pattern = re.compile(r"<updated>(.*?)</updated>", re.DOTALL | re.IGNORECASE)
     media_pattern = re.compile(r'<(?:media:content|enclosure)[^>]+url=["\']([^"\']+)["\']', re.IGNORECASE)
     image_pattern = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
 
-    for match in item_pattern.finditer(content):
+    matches = list(item_pattern.finditer(content))
+    is_atom = False
+    if not matches:
+        matches = list(entry_pattern.finditer(content))
+        is_atom = True
+
+    for match in matches:
         if len(items) >= max_items:
             break
         item_content = match.group(1)
@@ -6125,14 +6155,30 @@ def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
         title_match = title_pattern.search(item_content)
         title = _strip_html(title_match.group(1)) if title_match else ""
 
-        link_match = link_pattern.search(item_content)
-        link = link_match.group(1).strip() if link_match else ""
+        link = ""
+        link_href_match = link_href_pattern.search(item_content)
+        if link_href_match:
+            link = link_href_match.group(1).strip()
+        if not link:
+            link_match = link_pattern.search(item_content)
+            link = link_match.group(1).strip() if link_match else ""
 
         desc_match = desc_pattern.search(item_content)
         description = _strip_html(desc_match.group(1)) if desc_match else ""
+        if not description and is_atom:
+            summary_match = summary_pattern.search(item_content)
+            if summary_match:
+                description = _strip_html(summary_match.group(1))
+        if not description and is_atom:
+            content_match = content_pattern.search(item_content)
+            if content_match:
+                description = _strip_html(content_match.group(1))
 
         pubdate_match = pubdate_pattern.search(item_content)
         pubdate = pubdate_match.group(1).strip() if pubdate_match else ""
+        if not pubdate and is_atom:
+            updated_match = updated_pattern.search(item_content)
+            pubdate = updated_match.group(1).strip() if updated_match else ""
 
         # Chercher une image
         image_url = ""
@@ -6194,7 +6240,18 @@ def _load_news_config() -> Dict[str, Any]:
         for key in default:
             if key in raw:
                 default[key] = raw[key]
-        if not NEWS_CONFIG_FILE.exists():
+        feeds = default.get("rss_feeds", [])
+        changed = False
+        if isinstance(feeds, list):
+            for feed in feeds:
+                if not isinstance(feed, dict):
+                    continue
+                url = feed.get("url", "")
+                normalized = _normalize_feed_url(url)
+                if normalized and normalized != url:
+                    feed["url"] = normalized
+                    changed = True
+        if changed or not NEWS_CONFIG_FILE.exists():
             _write_json_atomic(NEWS_CONFIG_FILE, default)
     return default
 
@@ -6280,7 +6337,13 @@ def api_news_slide_update() -> Any:
         except (TypeError, ValueError):
             pass
     if "rss_feeds" in payload and isinstance(payload["rss_feeds"], list):
-        config["rss_feeds"] = payload["rss_feeds"]
+        normalized_feeds = []
+        for feed in payload["rss_feeds"]:
+            if not isinstance(feed, dict):
+                continue
+            url = _normalize_feed_url(feed.get("url", ""))
+            normalized_feeds.append({**feed, "url": url})
+        config["rss_feeds"] = normalized_feeds
     if "card_style" in payload and isinstance(payload["card_style"], dict):
         config["card_style"] = {**config.get("card_style", {}), **payload["card_style"]}
     if "layout" in payload and isinstance(payload["layout"], dict):
@@ -6345,6 +6408,7 @@ def api_news_add_feed() -> Any:
     name = payload.get("name", "Nouveau flux").strip()
     if not url:
         abort(400, description="L'URL du flux est requise.")
+    url = _normalize_feed_url(url)
 
     config = _load_news_config()
     feeds = config.get("rss_feeds", [])
