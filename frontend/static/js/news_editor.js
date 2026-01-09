@@ -244,13 +244,13 @@
     `).join('');
   }
 
-  async function saveConfig() {
+  async function saveConfig(options = {}) {
+    const includeFeeds = options.includeFeeds === true;
     const payload = {
       enabled: enabledToggle?.checked || false,
       scroll_delay: parseFloat(scrollDelayInput?.value) || 3,
       scroll_speed: parseInt(scrollSpeedInput?.value) || 50,
       max_items: parseInt(maxItemsInput?.value) || 10,
-      rss_feeds: config.rss_feeds || [],
       card_style: {
         background_color: cardBgColor?.value || '#1a1a2e',
         background_opacity: parseFloat(cardBgOpacity?.value) || 0.9,
@@ -274,6 +274,9 @@
         image_height: parseInt(imageHeight?.value) || 0,
       },
     };
+    if (includeFeeds) {
+      payload.rss_feeds = config.rss_feeds || [];
+    }
 
     try {
       const response = await fetch(API_BASE, {
@@ -304,7 +307,7 @@
     const feed = feeds.find(f => f.id === feedId);
     if (feed) {
       feed.enabled = event.target.checked;
-      await saveConfig();
+      await saveConfig({ includeFeeds: true });
     }
   }
 
