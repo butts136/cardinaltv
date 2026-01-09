@@ -24,6 +24,8 @@ if (overlayLogo) {
 const rootElement = document.documentElement;
 const urlParams = new URLSearchParams(window.location.search);
 const isPreviewMode = urlParams.has("preview");
+const previewSlideType = (urlParams.get("slide") || "").trim().toLowerCase();
+const isSingleSlideMode = previewSlideType === "news" || previewSlideType === "weather";
 const sharedRenderers = window.CardinalSlideRenderers || null;
 const slideshowCache = window.CardinalSlideshowCache || null;
 
@@ -52,10 +54,13 @@ const {
   DEFAULT_CUSTOM_TEXT_POSITION,
   DEFAULT_CUSTOM_TEXT_SIZE,
   DEFAULT_CUSTOM_TEXT_STYLE,
+  DEFAULT_NEWS_SLIDE,
   DEFAULT_OPEN_DAYS,
   DEFAULT_OVERLAY,
   DEFAULT_TEAM_SLIDE,
   DEFAULT_TIME_CHANGE_SLIDE,
+  DEFAULT_WEATHER_SLIDE,
+  NEWS_SLIDE_ID,
   TEAM_CARDS_PER_PAGE,
   TEAM_EMPLOYEES_REFRESH_MS,
   TEAM_SCROLL_OVERRUN_PX,
@@ -64,6 +69,7 @@ const {
   TEAM_TITLE_HOLD_MS,
   TIME_CHANGE_SLIDE_ID,
   TIME_CHANGE_TEXT_OPTIONS_DEFAULT,
+  WEATHER_SLIDE_ID,
   WEEKDAY_KEYS,
   WEEKDAY_LABELS_FR,
 } = defaults;
@@ -123,6 +129,7 @@ let slideshowRunning = false;
 let isStarting = false;
 let clockTimer = null;
 let currentVideo = null;
+let currentItem = null;
 let overlaySettings = { ...DEFAULT_OVERLAY };
 let overlaySignature = "";
 let teamSlideSettings = { ...DEFAULT_TEAM_SLIDE };
@@ -135,6 +142,14 @@ let christmasSlideSettings = { ...DEFAULT_CHRISTMAS_SLIDE };
 let christmasInfo = null;
 let lastChristmasFetch = 0;
 const CHRISTMAS_REFRESH_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+let newsSlideSettings = { ...DEFAULT_NEWS_SLIDE };
+let newsItems = [];
+let lastNewsFetch = 0;
+const NEWS_REFRESH_MS = 60 * 1000; // 1 minute
+let weatherSlideSettings = { ...DEFAULT_WEATHER_SLIDE };
+let weatherData = null;
+let lastWeatherFetch = 0;
+const WEATHER_REFRESH_MS = 60 * 1000; // 1 minute
 let testSlideSettings = { ...DEFAULT_CUSTOM_SLIDE };
 let testSlidePayload = null;
 let lastTestSlideFetch = 0;
@@ -1409,6 +1424,18 @@ const refreshOverlaySettings = async () => {
       };
       testSlidePayload = null;
       lastTestSlideFetch = 0;
+      newsSlideSettings = {
+        ...DEFAULT_NEWS_SLIDE,
+        ...(data && data.news_slide ? data.news_slide : {}),
+      };
+      newsItems = [];
+      lastNewsFetch = 0;
+      weatherSlideSettings = {
+        ...DEFAULT_WEATHER_SLIDE,
+        ...(data && data.weather_slide ? data.weather_slide : {}),
+      };
+      weatherData = null;
+      lastWeatherFetch = 0;
       await fetchTimeChangeInfo(true);
       await fetchChristmasInfo(true);
     }
@@ -1459,6 +1486,12 @@ const detectMediaKind = (item) => {
   if (item.custom_slide) {
     return "custom";
   }
+  if (item.news_slide) {
+    return "news";
+  }
+  if (item.weather_slide) {
+    return "weather";
+  }
   if (Array.isArray(item.page_urls) && item.page_urls.length) {
     return "document";
   }
@@ -1489,6 +1522,28 @@ const detectMediaKind = (item) => {
     return "document";
   }
   return "other";
+};
+
+const buildSingleSlideItem = (type) => {
+  if (type === "news") {
+    return {
+      id: NEWS_SLIDE_ID,
+      news_slide: true,
+      duration: newsSlideSettings.duration || DEFAULT_NEWS_SLIDE.duration,
+      filename: "news_slide",
+      mimetype: "application/x-news-slide",
+    };
+  }
+  if (type === "weather") {
+    return {
+      id: WEATHER_SLIDE_ID,
+      weather_slide: true,
+      duration: weatherSlideSettings.duration || DEFAULT_WEATHER_SLIDE.duration,
+      filename: "weather_slide",
+      mimetype: "application/x-weather-slide",
+    };
+  }
+  return null;
 };
 
 const clampValue = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -2988,6 +3043,404 @@ const renderCustomSlide = (item) => {
   }, durationSeconds * 1000);
 };
 
+// Weather icons map for slideshow display
+const WEATHER_ICONS = {
+  sunny: "☀️",
+  cloudy: "☁️",
+  rainy: "🌧️",
+  snowy: "❄️",
+  stormy: "⛈️",
+  foggy: "🌫️",
+  windy: "💨",
+  default: "🌤️",
+};
+
+const fetchNewsData = async (force = false) => {
+  const now = Date.now();
+  if (!force && newsItems.length && now - lastNewsFetch < NEWS_REFRESH_MS) {
+    return { settings: newsSlideSettings, items: newsItems };
+  }
+  try {
+    const data = await fetchJSON("api/news-slide/items");
+    newsItems = data.items || [];
+    newsSlideSettings = { ...DEFAULT_NEWS_SLIDE, ...data.settings };
+    lastNewsFetch = now;
+    return { settings: newsSlideSettings, items: newsItems };
+  } catch (err) {
+    console.error("Error fetching news data:", err);
+    return { settings: newsSlideSettings, items: newsItems };
+  }
+};
+
+const fetchWeatherData = async (force = false) => {
+  const now = Date.now();
+  if (!force && weatherData && now - lastWeatherFetch < WEATHER_REFRESH_MS) {
+    return { settings: weatherSlideSettings, data: weatherData };
+  }
+  try {
+    const result = await fetchJSON("api/weather-slide/data");
+    weatherData = result.weather || null;
+    weatherSlideSettings = { ...DEFAULT_WEATHER_SLIDE, ...result.settings };
+    lastWeatherFetch = now;
+    return { settings: weatherSlideSettings, data: weatherData };
+  } catch (err) {
+    console.error("Error fetching weather data:", err);
+    return { settings: weatherSlideSettings, data: weatherData };
+  }
+};
+
+const renderNewsSlide = async (item) => {
+  clearPlaybackTimer();
+  mediaWrapper.innerHTML = "";
+  currentVideo = null;
+
+  const { settings, items } = await fetchNewsData();
+  const durationSeconds = Math.max(1, Math.round(Number(item.duration) || settings.duration || 20));
+  const backgroundColor = settings.card_background_color || settings.card_background || "#1a1a2e";
+  const backgroundOpacity = clamp01(settings.card_background_opacity ?? 0.9);
+  const titleColor = settings.card_title_color || settings.card_text_color || "#f8fafc";
+  const timeColor = settings.card_time_color || "#94a3b8";
+  const borderRadius = Number(settings.card_border_radius) || 12;
+  const cardPadding = Number(settings.card_padding) || 20;
+  const cardGap = Number(settings.card_gap) || 20;
+  const cardsPerRow = Math.max(1, Math.min(4, parseInt(settings.cards_per_row, 10) || 1));
+  const cardWidthPercent = Math.max(50, Math.min(100, Number(settings.card_width_percent) || 100));
+  const cardHeightPercent = Math.max(0, Math.min(100, Number(settings.card_height_percent) || 0));
+  const showImage = settings.show_image !== false;
+  const showTime = settings.show_time !== false;
+  const titleSize = Math.max(10, Number(settings.card_title_size) || 28);
+  const timeSize = Math.max(10, Number(settings.card_time_size) || 18);
+  const sourceSize = Math.max(10, Number(settings.card_source_size) || 16);
+  const descriptionSize = Math.max(10, Number(settings.card_description_size) || 16);
+  const imageWidth = Math.max(0, Number(settings.image_width) || 0);
+  const imageHeight = Math.max(0, Number(settings.image_height) || 0);
+  const { r, g, b } = hexToRgb(backgroundColor);
+  const backgroundRgba = `rgba(${r}, ${g}, ${b}, ${backgroundOpacity})`;
+
+  const viewport = document.createElement("div");
+  viewport.className = "news-slide-viewport";
+
+  const frame = document.createElement("div");
+  frame.className = "news-slide-frame";
+  frame.style.setProperty("--card-bg", backgroundRgba);
+  frame.style.setProperty("--card-text", titleColor);
+  frame.style.setProperty("--card-time", timeColor);
+  frame.style.setProperty("--news-card-radius", `${borderRadius}px`);
+  frame.style.setProperty("--news-card-padding", `${cardPadding}px`);
+  frame.style.setProperty("--news-card-gap", `${cardGap}px`);
+  frame.style.setProperty("--news-cards-per-row", `${cardsPerRow}`);
+  frame.style.setProperty("--news-card-width", cardsPerRow > 1 ? "100%" : `${cardWidthPercent}%`);
+  frame.style.setProperty("--news-title-size", `${titleSize}px`);
+  frame.style.setProperty("--news-time-size", `${timeSize}px`);
+  frame.style.setProperty("--news-source-size", `${sourceSize}px`);
+  frame.style.setProperty("--news-description-size", `${descriptionSize}px`);
+  if (imageWidth > 0) {
+    frame.style.setProperty("--news-image-width", `${imageWidth}px`);
+  } else {
+    frame.style.removeProperty("--news-image-width");
+  }
+  if (imageHeight > 0) {
+    frame.style.setProperty("--news-image-height", `${imageHeight}px`);
+  } else {
+    frame.style.removeProperty("--news-image-height");
+  }
+  frame.style.removeProperty("--news-card-min-height");
+
+  const cardsContainer = document.createElement("div");
+  cardsContainer.className = "news-slide-cards";
+
+  if (!items.length) {
+    const noItems = document.createElement("div");
+    noItems.className = "news-slide-empty";
+    noItems.textContent = "Aucune nouvelle disponible";
+    cardsContainer.appendChild(noItems);
+  } else {
+    items.slice(0, settings.max_items || 10).forEach((newsItem) => {
+      const card = document.createElement("div");
+      card.className = "news-slide-card";
+
+      if (showImage && newsItem.image) {
+        const imgWrap = document.createElement("div");
+        imgWrap.className = "news-card-image";
+        const img = document.createElement("img");
+        img.src = newsItem.image;
+        img.alt = "";
+        img.loading = "eager";
+        imgWrap.appendChild(img);
+        card.appendChild(imgWrap);
+      }
+
+      const content = document.createElement("div");
+      content.className = "news-card-content";
+
+      const title = document.createElement("h3");
+      title.className = "news-card-title";
+      title.textContent = newsItem.title || "";
+      content.appendChild(title);
+
+      if (newsItem.description) {
+        const description = document.createElement("p");
+        description.className = "news-card-description";
+        description.textContent = newsItem.description;
+        content.appendChild(description);
+      }
+
+      if (showTime) {
+        const time = document.createElement("span");
+        time.className = "news-card-time";
+        const rawDate = newsItem.pubdate || newsItem.pubDate || "";
+        if (rawDate) {
+          const date = new Date(rawDate);
+          if (!Number.isNaN(date.getTime())) {
+            time.textContent = date.toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" });
+          }
+        }
+        if (!time.textContent && newsItem.time) {
+          time.textContent = newsItem.time;
+        }
+        content.appendChild(time);
+      }
+
+      if (newsItem.source) {
+        const source = document.createElement("span");
+        source.className = "news-card-source";
+        source.textContent = newsItem.source;
+        content.appendChild(source);
+      }
+
+      card.appendChild(content);
+      cardsContainer.appendChild(card);
+    });
+  }
+
+  frame.appendChild(cardsContainer);
+  viewport.appendChild(frame);
+  mediaWrapper.appendChild(viewport);
+
+  if (cardHeightPercent > 0) {
+    requestAnimationFrame(() => {
+      const frameHeight = frame.clientHeight;
+      if (!frameHeight) return;
+      const cardHeightPx = Math.max(60, Math.round((frameHeight * cardHeightPercent) / 100));
+      frame.style.setProperty("--news-card-min-height", `${cardHeightPx}px`);
+    });
+  }
+
+  // Setup scrolling animation
+  const scrollDelay = (settings.scroll_delay || 3) * 1000;
+  const scrollSpeed = settings.scroll_speed || 50;
+  let scrollFrame = null;
+  let scrollY = 0;
+
+  const startScroll = () => {
+    const containerHeight = cardsContainer.scrollHeight;
+    const viewportHeight = frame.clientHeight;
+    if (containerHeight <= viewportHeight) {
+      playbackTimer = setTimeout(() => {
+        void advanceSlide().catch((error) => console.error(error));
+      }, (durationSeconds - scrollDelay / 1000) * 1000);
+      return;
+    }
+
+    const scrollDistance = containerHeight;
+    const scrollDuration = (scrollDistance / scrollSpeed) * 1000;
+
+    const animateScroll = () => {
+      scrollY += scrollSpeed / 60;
+      cardsContainer.style.transform = `translateY(-${scrollY}px)`;
+      if (scrollY >= scrollDistance) {
+        cancelAnimationFrame(scrollFrame);
+        void advanceSlide().catch((error) => console.error(error));
+        return;
+      }
+      scrollFrame = requestAnimationFrame(animateScroll);
+    };
+
+    scrollFrame = requestAnimationFrame(animateScroll);
+  };
+
+  setTimeout(startScroll, scrollDelay);
+};
+
+const renderWeatherSlide = async (item) => {
+  clearPlaybackTimer();
+  mediaWrapper.innerHTML = "";
+  currentVideo = null;
+
+  const { settings, data } = await fetchWeatherData(previewSlideType === "weather");
+  const durationSeconds = Math.max(1, Math.round(Number(item.duration) || settings.duration || 15));
+
+  const viewport = document.createElement("div");
+  viewport.className = "weather-slide-viewport";
+
+  const frame = document.createElement("div");
+  frame.className = "weather-slide-frame";
+
+  // Background based on condition
+  const condition = data?.condition || data?.current?.condition || "default";
+  const bgUrl = settings.backgrounds?.[condition] || settings.backgrounds?.default;
+  const seasonBgUrl = settings.seasonal_backgrounds?.[data?.season];
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "weather-slide-backdrop";
+  
+  if (bgUrl || seasonBgUrl) {
+    const url = bgUrl || seasonBgUrl;
+    const ext = getExtension(url || "");
+    const isVideo = ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
+    if (isVideo) {
+      const video = document.createElement("video");
+      video.className = "weather-slide-media weather-slide-video";
+      video.src = url;
+      video.autoplay = true;
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute("playsinline", "");
+      backdrop.appendChild(video);
+      currentVideo = video;
+    } else {
+      const img = document.createElement("img");
+      img.className = "weather-slide-media weather-slide-image";
+      img.src = url;
+      img.alt = "Arrière-plan météo";
+      backdrop.appendChild(img);
+    }
+  } else {
+    backdrop.classList.add("weather-slide-backdrop--fallback");
+    backdrop.style.background = "linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)";
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "weather-slide-overlay";
+  overlay.style.setProperty("--weather-slide-icon-size", `${Number(settings.icon_size) || 120}px`);
+  overlay.style.setProperty("--weather-slide-temp-size", `${Number(settings.temp_size) || 80}px`);
+  overlay.style.setProperty("--weather-slide-condition-size", `${Number(settings.condition_size) || 32}px`);
+  overlay.style.setProperty("--weather-slide-detail-label-size", `${Number(settings.detail_label_size) || 17}px`);
+  overlay.style.setProperty("--weather-slide-detail-value-size", `${Number(settings.detail_value_size) || 25}px`);
+  overlay.style.setProperty("--weather-slide-forecast-text-size", `${Number(settings.forecast_temp_size) || 17}px`);
+  overlay.style.setProperty("--weather-slide-forecast-icon-size", `${Number(settings.forecast_icon_size) || 35}px`);
+  overlay.style.setProperty("--weather-slide-forecast-min-width", `${Number(settings.forecast_min_width) || 110}px`);
+
+  if (!data) {
+    const noData = document.createElement("div");
+    noData.className = "weather-slide-empty";
+    noData.textContent = "Données météo non disponibles";
+    overlay.appendChild(noData);
+  } else {
+    const current = data?.current || data || {};
+
+    const preview = document.createElement("div");
+    preview.className = "weather-preview";
+
+    const locationLabel = document.createElement("div");
+    locationLabel.className = "weather-location";
+    locationLabel.textContent = data.location || current.location || settings.location || "";
+    preview.appendChild(locationLabel);
+
+    const currentBlock = document.createElement("div");
+    currentBlock.className = "weather-current";
+
+    const icon = document.createElement("div");
+    icon.className = "weather-icon";
+    icon.textContent = current.icon || WEATHER_ICONS[condition] || WEATHER_ICONS.default;
+    currentBlock.appendChild(icon);
+
+    if (settings.show_current && current.temperature !== undefined) {
+      const temp = document.createElement("div");
+      temp.className = "weather-temp";
+      temp.textContent = `${Math.round(current.temperature)}°C`;
+      currentBlock.appendChild(temp);
+    }
+
+    const conditionLabel = document.createElement("div");
+    conditionLabel.className = "weather-condition";
+    conditionLabel.textContent = current.condition_label || data.condition_label || "";
+    currentBlock.appendChild(conditionLabel);
+
+    preview.appendChild(currentBlock);
+
+    const details = document.createElement("div");
+    details.className = "weather-details";
+
+    if (settings.show_feels_like && current.feels_like !== undefined) {
+      const feelsLike = document.createElement("div");
+      feelsLike.className = "weather-detail";
+      feelsLike.innerHTML = `<span class="detail-label">Ressenti</span><span class="detail-value">${Math.round(current.feels_like)}°C</span>`;
+      details.appendChild(feelsLike);
+    }
+
+    if (current.temp_max !== undefined || current.temp_min !== undefined) {
+      const range = document.createElement("div");
+      range.className = "weather-detail";
+      const maxLabel = current.temp_max != null ? Math.round(current.temp_max) : "--";
+      const minLabel = current.temp_min != null ? Math.round(current.temp_min) : "--";
+      range.innerHTML = `<span class="detail-label">Max</span><span class="detail-value">${maxLabel}°C</span>`;
+      details.appendChild(range);
+
+      const min = document.createElement("div");
+      min.className = "weather-detail";
+      min.innerHTML = `<span class="detail-label">Min</span><span class="detail-value">${minLabel}°C</span>`;
+      details.appendChild(min);
+    }
+
+    if (settings.show_humidity && current.humidity !== undefined) {
+      const humidity = document.createElement("div");
+      humidity.className = "weather-detail";
+      humidity.innerHTML = `<span class="detail-label">Humidité</span><span class="detail-value">${current.humidity}%</span>`;
+      details.appendChild(humidity);
+    }
+
+    if (settings.show_wind && current.wind_speed !== undefined) {
+      const wind = document.createElement("div");
+      wind.className = "weather-detail";
+      wind.innerHTML = `<span class="detail-label">Vent</span><span class="detail-value">${Math.round(current.wind_speed)} km/h</span>`;
+      details.appendChild(wind);
+    }
+
+    preview.appendChild(details);
+
+    if (settings.show_forecast && Array.isArray(data.forecast) && data.forecast.length) {
+      const forecastWrap = document.createElement("div");
+      forecastWrap.className = "forecast-grid";
+
+      data.forecast.slice(0, settings.forecast_days || 5).forEach((day) => {
+        const currentTemp = day.temp_avg != null
+          ? Math.round(day.temp_avg)
+          : (day.temp_max != null && day.temp_min != null
+            ? Math.round((day.temp_max + day.temp_min) / 2)
+            : Math.round(day.temp_max || 0));
+        const dayEl = document.createElement("div");
+        dayEl.className = "forecast-day";
+        dayEl.innerHTML = `
+          <span class="forecast-weekday">${day.weekday || "--"}</span>
+          <span class="forecast-icon">${day.icon || WEATHER_ICONS[day.condition] || WEATHER_ICONS.default}</span>
+          <div class="forecast-temps">
+            <span class="temp-current">${currentTemp}°</span>
+            <span class="temp-range">
+              <span class="temp-max">Max ${Math.round(day.temp_max || 0)}°</span>
+              <span class="temp-min">Min ${Math.round(day.temp_min || 0)}°</span>
+            </span>
+          </div>
+        `;
+        forecastWrap.appendChild(dayEl);
+      });
+
+      preview.appendChild(forecastWrap);
+    }
+
+    overlay.appendChild(preview);
+  }
+
+  frame.append(backdrop, overlay);
+  viewport.appendChild(frame);
+  mediaWrapper.appendChild(viewport);
+
+  playbackTimer = setTimeout(() => {
+    void advanceSlide().catch((error) => console.error(error));
+  }, durationSeconds * 1000);
+};
+
 const renderTimeChangeSlide = (item) => {
   clearPlaybackTimer();
   mediaWrapper.innerHTML = "";
@@ -3412,6 +3865,36 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     });
   }
 
+  // News slide injection
+  if (newsSlideSettings.enabled) {
+    const newsItem = {
+      id: NEWS_SLIDE_ID,
+      news_slide: true,
+      duration: newsSlideSettings.duration || DEFAULT_NEWS_SLIDE.duration,
+      filename: "news_slide",
+      mimetype: "application/x-news-slide",
+    };
+    autoEntries.push({
+      ...newsItem,
+      order: normalizedOrderIndex(newsSlideSettings.order_index),
+    });
+  }
+
+  // Weather slide injection
+  if (weatherSlideSettings.enabled) {
+    const weatherItem = {
+      id: WEATHER_SLIDE_ID,
+      weather_slide: true,
+      duration: weatherSlideSettings.duration || DEFAULT_WEATHER_SLIDE.duration,
+      filename: "weather_slide",
+      mimetype: "application/x-weather-slide",
+    };
+    autoEntries.push({
+      ...weatherItem,
+      order: normalizedOrderIndex(weatherSlideSettings.order_index),
+    });
+  }
+
   autoEntries.sort((a, b) => {
     const oa = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
     const ob = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
@@ -3502,6 +3985,7 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   clearPlaybackTimer();
   setStatus("");
 
+  currentItem = item;
   currentId = item.id;
   const index = playlist.findIndex((candidate) => candidate.id === item.id);
   if (index >= 0) {
@@ -3536,6 +4020,14 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   }
   if (kind === "custom") {
     renderCustomSlide(item);
+    return;
+  }
+  if (kind === "news") {
+    await renderNewsSlide(item);
+    return;
+  }
+  if (kind === "weather") {
+    await renderWeatherSlide(item);
     return;
   }
 
@@ -3576,6 +4068,42 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
     }, durationSeconds * 1000);
   }
 };
+
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || typeof data !== "object") return;
+  if (data.type === "news:preview") {
+    if (data.settings && typeof data.settings === "object") {
+      newsSlideSettings = { ...newsSlideSettings, ...data.settings };
+    }
+    if (Array.isArray(data.items)) {
+      newsItems = data.items;
+      lastNewsFetch = Date.now();
+    }
+    if (previewSlideType === "news") {
+      const previewItem = currentItem && detectMediaKind(currentItem) === "news"
+        ? currentItem
+        : {
+            news_slide: true,
+            duration: newsSlideSettings.duration || DEFAULT_NEWS_SLIDE.duration || 20,
+            filename: "news_slide",
+            mimetype: "application/x-news-slide",
+          };
+      void renderNewsSlide(previewItem);
+    }
+    return;
+  }
+  if (data.type === "weather:refresh") {
+    if (previewSlideType === "weather") {
+      void renderWeatherSlide({
+        weather_slide: true,
+        duration: weatherSlideSettings.duration || DEFAULT_WEATHER_SLIDE.duration || 15,
+        filename: "weather_slide",
+        mimetype: "application/x-weather-slide",
+      });
+    }
+  }
+});
 
 const advanceSlide = async () => {
   const result = await refreshPlaylist();
@@ -3669,13 +4197,30 @@ const startSlideshow = async () => {
   await initInfoBands();
 
   await loadBirthdayCustomFonts();
-  if (!isPreviewMode) {
+  if (!isPreviewMode || isSingleSlideMode) {
     await refreshOverlaySettings();
     if (infoBandsConfig) {
       renderInfoBandWidgets(infoBandsConfig);
     }
   } else {
     applyOverlaySettings({ enabled: false, logo_path: "", ticker_text: "" });
+  }
+
+  if (isSingleSlideMode) {
+    const item = buildSingleSlideItem(previewSlideType);
+    if (!item) {
+      handleEmptyPlaylist();
+      return false;
+    }
+    playlist = [item];
+    playlistSignature = computeSignature(playlist);
+    currentIndex = 0;
+    currentId = item.id;
+    if (stage) {
+      stage.hidden = false;
+    }
+    await showMedia(item);
+    return true;
   }
   await ensureTeamEmployeesData();
   const result = await refreshPlaylist();

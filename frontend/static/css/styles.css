@@ -2645,3 +2645,385 @@ input[type="datetime-local"]:focus {
 .save-feedback-error {
   color: #ef4444;
 }
+
+/* ========== NEWS SLIDE STYLES (SLIDESHOW) ========== */
+
+.news-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.news-preview .news-card {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  border-radius: 14px;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.news-preview .news-card-image {
+  flex-shrink: 0;
+  width: var(--news-preview-image-width, 120px);
+  height: var(--news-preview-image-height, 90px);
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.news-preview .news-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.news-preview .news-card-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.news-preview .news-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0;
+  white-space: normal;
+  word-break: break-word;
+  color: #f8fafc;
+}
+
+.news-preview .news-card-description {
+  font-size: 0.9rem;
+  margin: 0;
+  color: rgba(226, 232, 240, 0.9);
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.news-preview .news-card-time,
+.news-preview .news-card-source {
+  font-size: 0.85rem;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.news-preview .news-card-source {
+  font-size: 0.8rem;
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.news-slide-preview-frame {
+  max-width: 100%;
+}
+
+.news-slide-preview-iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  pointer-events: none;
+  display: block;
+}
+
+
+.feed-toggle .visibility-toggle-label {
+  font-size: 0.75rem;
+}
+
+.news-slide-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+.news-slide-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 2rem;
+}
+
+.news-slide-cards {
+  display: grid;
+  grid-template-columns: repeat(var(--news-cards-per-row, 1), minmax(0, 1fr));
+  gap: var(--news-card-gap, 1rem);
+  justify-items: center;
+  will-change: transform;
+}
+
+.news-slide-card {
+  display: flex;
+  gap: 1.5rem;
+  padding: var(--news-card-padding, 1.25rem);
+  background: var(--card-bg, #1a1a2e);
+  border-radius: var(--news-card-radius, 16px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  width: var(--news-card-width, 100%);
+  min-height: var(--news-card-min-height, auto);
+  align-items: center;
+}
+
+.news-slide-card .news-card-image {
+  flex-shrink: 0;
+  width: var(--news-image-width, clamp(140px, 28%, 240px));
+  height: var(--news-image-height, auto);
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.news-slide-card .news-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.news-slide-card .news-card-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.news-slide-card .news-card-title {
+  font-size: var(--news-title-size, 1.5rem);
+  font-weight: 600;
+  color: var(--card-text, #f8fafc);
+  margin: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.news-slide-card .news-card-description {
+  font-size: var(--news-description-size, 1rem);
+  color: rgba(226, 232, 240, 0.9);
+  margin: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.news-slide-card .news-card-time {
+  font-size: var(--news-time-size, 1rem);
+  color: var(--card-time, #94a3b8);
+}
+
+.news-slide-card .news-card-source {
+  font-size: var(--news-source-size, 0.9rem);
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.news-slide-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ========== WEATHER SLIDE STYLES (SLIDESHOW) ========== */
+
+.weather-slide-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.weather-slide-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.weather-slide-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.weather-slide-backdrop--fallback {
+  background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+}
+
+.weather-slide-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.weather-slide-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  padding: 2rem;
+}
+
+.weather-slide-empty {
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.weather-slide-overlay .weather-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 1);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  width: min(90%, 1200px);
+  position: relative;
+}
+
+.weather-slide-overlay .weather-location {
+  position: absolute;
+  top: 0.75rem;
+  left: 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.85);
+}
+
+.weather-slide-overlay .weather-current {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.weather-slide-overlay .weather-icon {
+  font-size: var(--weather-slide-icon-size, 120px);
+  line-height: 1;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+.weather-slide-overlay .weather-temp {
+  font-size: var(--weather-slide-temp-size, 80px);
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.weather-slide-overlay .weather-condition {
+  font-size: var(--weather-slide-condition-size, 32px);
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.weather-slide-overlay .weather-details {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.weather-slide-overlay .weather-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.weather-slide-overlay .detail-label {
+  font-size: var(--weather-slide-detail-label-size, 17px);
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.weather-slide-overlay .detail-value {
+  font-size: var(--weather-slide-detail-value-size, 25px);
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.weather-slide-overlay .forecast-grid {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.weather-slide-overlay .forecast-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  background: rgba(15, 23, 42, 1);
+  border-radius: 8px;
+  min-width: var(--weather-slide-forecast-min-width, 110px);
+}
+
+.weather-slide-overlay .forecast-temps {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.weather-slide-overlay .temp-current {
+  font-size: calc(var(--weather-slide-forecast-text-size, 17px) + 2px);
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.weather-slide-overlay .temp-range {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 4.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-slide-overlay .temp-range .temp-max {
+  font-weight: 600;
+  text-align: right;
+}
+
+.weather-slide-overlay .temp-range .temp-min {
+  color: rgba(148, 163, 184, 0.7);
+  text-align: right;
+}
+
+.weather-slide-overlay .forecast-weekday {
+  font-size: var(--weather-slide-forecast-text-size, 17px);
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.weather-slide-overlay .forecast-icon {
+  font-size: var(--weather-slide-forecast-icon-size, 35px);
+}
+
+.weather-slide-overlay .forecast-temp {
+  display: flex;
+  gap: 0.35rem;
+  font-size: var(--weather-slide-forecast-text-size, 17px);
+}
+
+.weather-slide-overlay .temp-max {
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.weather-slide-overlay .temp-min {
+  color: rgba(148, 163, 184, 0.7);
+}

@@ -1,0 +1,329 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Météo · Cardinal TV{% endblock %}
+
+{% block page_title %}Météo{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Configurez l'affichage des conditions météorologiques et prévisions.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card weather-section" id="weather-section">
+    <div class="section-header">
+      <div>
+        <h2>Diapositive Météo 🌤️</h2>
+        <p class="playlist-subtitle">Affichez les conditions météo actuelles et les prévisions.</p>
+      </div>
+      <div class="custom-toggle-control">
+        <label class="visibility-toggle">
+          <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
+          <div class="visibility-toggle-switch">
+            <input id="weather-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapo" />
+            <span class="visibility-toggle-slider"></span>
+          </div>
+          <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section-content">
+      <div class="form-row dual">
+        <div>
+          <label for="weather-duration">Durée (secondes)</label>
+          <input type="number" id="weather-duration" min="5" max="120" step="1" value="15" />
+          <p class="field-hint">Temps d'affichage de la diapositive.</p>
+        </div>
+        <div>
+          <label for="weather-location-name">Ville</label>
+          <input type="text" id="weather-location-name" value="Québec" />
+          <div id="weather-city-suggestions" class="widget-weather-suggestions" aria-live="polite"></div>
+        </div>
+        <div>
+          <label for="weather-latitude">Latitude</label>
+          <input type="number" id="weather-latitude" step="0.0001" value="46.8139" />
+        </div>
+        <div>
+          <label for="weather-longitude">Longitude</label>
+          <input type="number" id="weather-longitude" step="0.0001" value="-71.2080" />
+        </div>
+      </div>
+      
+      <div class="birthday-preview-actions">
+        <button type="button" class="primary-button" id="weather-save">Enregistrer</button>
+        <span id="weather-status" class="upload-feedback" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card weather-display-section" id="weather-display-section">
+    <div class="section-header">
+      <div>
+        <h2>Éléments à afficher</h2>
+        <p class="playlist-subtitle">Choisissez les informations météo à montrer.</p>
+      </div>
+    </div>
+
+    <div class="section-content">
+      <div class="form-row dual">
+        <div>
+          <label class="live-editor-date-toggle" for="show-current">
+            <input id="show-current" type="checkbox" checked />
+            Température actuelle
+          </label>
+        </div>
+        <div>
+          <label class="live-editor-date-toggle" for="show-feels-like">
+            <input id="show-feels-like" type="checkbox" checked />
+            Température ressentie
+          </label>
+        </div>
+        <div>
+          <label class="live-editor-date-toggle" for="show-humidity">
+            <input id="show-humidity" type="checkbox" checked />
+            Humidité
+          </label>
+        </div>
+        <div>
+          <label class="live-editor-date-toggle" for="show-wind">
+            <input id="show-wind" type="checkbox" checked />
+            Vent
+          </label>
+        </div>
+        <div>
+          <label class="live-editor-date-toggle" for="show-forecast">
+            <input id="show-forecast" type="checkbox" checked />
+            Prévisions
+          </label>
+        </div>
+        <div>
+          <label for="forecast-days">Jours de prévision</label>
+          <input type="number" id="forecast-days" min="1" max="7" step="1" value="5" />
+        </div>
+      </div>
+      <div class="form-row dual">
+        <div>
+          <label for="weather-icon-size">Taille icône (px)</label>
+          <input type="number" id="weather-icon-size" min="40" max="240" step="2" value="120" />
+        </div>
+        <div>
+          <label for="weather-temp-size">Taille température (px)</label>
+          <input type="number" id="weather-temp-size" min="24" max="200" step="2" value="80" />
+        </div>
+        <div>
+          <label for="weather-condition-size">Taille condition (px)</label>
+          <input type="number" id="weather-condition-size" min="14" max="72" step="1" value="32" />
+        </div>
+        <div>
+          <label for="weather-detail-label-size">Taille labels détails (px)</label>
+          <input type="number" id="weather-detail-label-size" min="10" max="36" step="1" value="17" />
+        </div>
+        <div>
+          <label for="weather-detail-value-size">Taille valeurs détails (px)</label>
+          <input type="number" id="weather-detail-value-size" min="12" max="48" step="1" value="25" />
+        </div>
+        <div>
+          <label for="weather-forecast-icon-size">Taille icône prévisions (px)</label>
+          <input type="number" id="weather-forecast-icon-size" min="16" max="72" step="1" value="35" />
+        </div>
+        <div>
+          <label for="weather-forecast-text-size">Taille texte prévisions (px)</label>
+          <input type="number" id="weather-forecast-text-size" min="10" max="36" step="1" value="17" />
+        </div>
+        <div>
+          <label for="weather-forecast-min-width">Largeur mini carte prévision (px)</label>
+          <input type="number" id="weather-forecast-min-width" min="60" max="200" step="5" value="110" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card weather-preview-section" id="weather-preview-section">
+    <div class="section-header">
+      <div>
+        <h2>Aperçu météo actuelle</h2>
+        <p class="playlist-subtitle">Données météo en temps réel.</p>
+      </div>
+      <button type="button" class="secondary-button" id="refresh-weather-btn">Rafraîchir</button>
+    </div>
+
+    <div class="section-content">
+      <div id="weather-preview" class="weather-preview">
+        <div class="weather-location" id="weather-location">Québec</div>
+        <div class="weather-current">
+          <div class="weather-icon" id="weather-icon">🌤️</div>
+          <div class="weather-temp" id="weather-temp">--°C</div>
+          <div class="weather-condition" id="weather-condition">Chargement...</div>
+        </div>
+        <div class="weather-details">
+          <div class="weather-detail">
+            <span class="detail-label">Ressenti</span>
+            <span class="detail-value" id="weather-feels">--°C</span>
+          </div>
+          <div class="weather-detail">
+            <span class="detail-label">Max</span>
+            <span class="detail-value" id="weather-temp-max">--°C</span>
+          </div>
+          <div class="weather-detail">
+            <span class="detail-label">Min</span>
+            <span class="detail-value" id="weather-temp-min">--°C</span>
+          </div>
+          <div class="weather-detail">
+            <span class="detail-label">Humidité</span>
+            <span class="detail-value" id="weather-humidity">--%</span>
+          </div>
+          <div class="weather-detail">
+            <span class="detail-label">Vent</span>
+            <span class="detail-value" id="weather-wind">-- km/h</span>
+          </div>
+        </div>
+        <div class="weather-forecast" id="weather-forecast">
+          <!-- Prévisions chargées dynamiquement -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="card weather-backgrounds-section" id="weather-backgrounds-section">
+    <div class="section-header">
+      <div>
+        <h2>Arrière-plans par condition</h2>
+        <p class="playlist-subtitle">Définissez un arrière-plan différent pour chaque type de temps.</p>
+      </div>
+    </div>
+
+    <div class="section-content">
+      <div class="weather-bg-grid">
+        <div class="weather-bg-item" data-condition="sunny">
+          <div class="weather-bg-preview" id="bg-sunny-preview">
+            <span class="weather-bg-icon">☀️</span>
+            <span class="weather-bg-label">Ensoleillé</span>
+          </div>
+          <input type="file" id="bg-sunny-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-sunny-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="cloudy">
+          <div class="weather-bg-preview" id="bg-cloudy-preview">
+            <span class="weather-bg-icon">☁️</span>
+            <span class="weather-bg-label">Nuageux</span>
+          </div>
+          <input type="file" id="bg-cloudy-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-cloudy-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="rainy">
+          <div class="weather-bg-preview" id="bg-rainy-preview">
+            <span class="weather-bg-icon">🌧️</span>
+            <span class="weather-bg-label">Pluvieux</span>
+          </div>
+          <input type="file" id="bg-rainy-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-rainy-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="snowy">
+          <div class="weather-bg-preview" id="bg-snowy-preview">
+            <span class="weather-bg-icon">❄️</span>
+            <span class="weather-bg-label">Neigeux</span>
+          </div>
+          <input type="file" id="bg-snowy-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-snowy-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="stormy">
+          <div class="weather-bg-preview" id="bg-stormy-preview">
+            <span class="weather-bg-icon">⛈️</span>
+            <span class="weather-bg-label">Orageux</span>
+          </div>
+          <input type="file" id="bg-stormy-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-stormy-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="foggy">
+          <div class="weather-bg-preview" id="bg-foggy-preview">
+            <span class="weather-bg-icon">🌫️</span>
+            <span class="weather-bg-label">Brumeux</span>
+          </div>
+          <input type="file" id="bg-foggy-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-foggy-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="windy">
+          <div class="weather-bg-preview" id="bg-windy-preview">
+            <span class="weather-bg-icon">💨</span>
+            <span class="weather-bg-label">Venteux</span>
+          </div>
+          <input type="file" id="bg-windy-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-windy-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="default">
+          <div class="weather-bg-preview" id="bg-default-preview">
+            <span class="weather-bg-icon">🌤️</span>
+            <span class="weather-bg-label">Par défaut</span>
+          </div>
+          <input type="file" id="bg-default-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-default-input" class="secondary-button">Choisir</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card weather-seasonal-section" id="weather-seasonal-section">
+    <div class="section-header">
+      <div>
+        <h2>Arrière-plans saisonniers</h2>
+        <p class="playlist-subtitle">Optionnellement, utilisez des arrière-plans différents selon la saison.</p>
+      </div>
+      <div class="custom-toggle-control">
+        <label class="visibility-toggle">
+          <span class="visibility-toggle-label visibility-toggle-label-on">Activés</span>
+          <div class="visibility-toggle-switch">
+            <input id="use-seasonal-bg" class="visibility-toggle-checkbox" type="checkbox" />
+            <span class="visibility-toggle-slider"></span>
+          </div>
+          <span class="visibility-toggle-label visibility-toggle-label-off">Désactivés</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section-content">
+      <div class="weather-bg-grid seasonal">
+        <div class="weather-bg-item" data-condition="spring">
+          <div class="weather-bg-preview" id="bg-spring-preview">
+            <span class="weather-bg-icon">🌸</span>
+            <span class="weather-bg-label">Printemps</span>
+          </div>
+          <input type="file" id="bg-spring-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-spring-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="summer">
+          <div class="weather-bg-preview" id="bg-summer-preview">
+            <span class="weather-bg-icon">🌻</span>
+            <span class="weather-bg-label">Été</span>
+          </div>
+          <input type="file" id="bg-summer-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-summer-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="autumn">
+          <div class="weather-bg-preview" id="bg-autumn-preview">
+            <span class="weather-bg-icon">🍂</span>
+            <span class="weather-bg-label">Automne</span>
+          </div>
+          <input type="file" id="bg-autumn-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-autumn-input" class="secondary-button">Choisir</label>
+        </div>
+        <div class="weather-bg-item" data-condition="winter">
+          <div class="weather-bg-preview" id="bg-winter-preview">
+            <span class="weather-bg-icon">⛄</span>
+            <span class="weather-bg-label">Hiver</span>
+          </div>
+          <input type="file" id="bg-winter-input" class="visually-hidden" accept="image/*,video/*" />
+          <label for="bg-winter-input" class="secondary-button">Choisir</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/weather_editor.js') }}"></script>
+{% endblock %}

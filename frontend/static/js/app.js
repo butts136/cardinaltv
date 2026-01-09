@@ -229,6 +229,8 @@ let christmasPreviewResizeObserver = null;
 let christmasPreviewRenderedSource = null;
 let christmasLines = [];
 let christmasSlideSettings = null;
+let newsSlideSettings = null;
+let weatherSlideSettings = null;
 let customSlideSettings = null;
 let customSlides = [];
 let autoSlideDisplayableMap = null;
@@ -459,6 +461,18 @@ const DEFAULT_CHRISTMAS_SETTINGS = {
   ],
 };
 
+const DEFAULT_NEWS_SLIDE_SETTINGS = {
+  enabled: false,
+  order_index: 0,
+  duration: 20,
+};
+
+const DEFAULT_WEATHER_SLIDE_SETTINGS = {
+  enabled: false,
+  order_index: 0,
+  duration: 15,
+};
+
 const CHRISTMAS_TEXT_OPTIONS_DEFAULT = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" };
 const CHRISTMAS_MAX_LINES = BIRTHDAY_MAX_LINES;
 const CHRISTMAS_PREVIEW_BASE_WIDTH = 1920;
@@ -563,6 +577,8 @@ const CUSTOM_SLIDE_CARD_ID = "__custom_slide__";
 const BIRTHDAY_SLIDE_CARD_ID = "__birthday_slide__";
 const TIME_CHANGE_SLIDE_CARD_ID = "__time_change_slide__";
 const CHRISTMAS_SLIDE_CARD_ID = "__christmas_slide__";
+const NEWS_SLIDE_CARD_ID = "__news_slide__";
+const WEATHER_SLIDE_CARD_ID = "__weather_slide__";
 const CUSTOM_AVAILABILITY_PREFIX = "custom:";
 const buildCustomAvailabilityKey = (slideId) => `${CUSTOM_AVAILABILITY_PREFIX}${slideId}`;
 const buildCustomCardId = (slideId) => `${CUSTOM_SLIDE_CARD_ID}-${slideId}`;
@@ -1223,6 +1239,12 @@ const loadOverlayAndSlideSettings = async () => {
   bindPreviewFullscreen(christmasPreviewStage);
   void loadChristmasInfo();
   void loadChristmasBackgroundList();
+
+  const rawNews = data && data.news_slide ? data.news_slide : {};
+  newsSlideSettings = { ...DEFAULT_NEWS_SLIDE_SETTINGS, ...rawNews };
+
+  const rawWeather = data && data.weather_slide ? data.weather_slide : {};
+  weatherSlideSettings = { ...DEFAULT_WEATHER_SLIDE_SETTINGS, ...rawWeather };
 
   const rawCustom = data && data.test_slide ? data.test_slide : {};
   customSlideSettings = normalizeCustomSlideSettings(rawCustom);
@@ -1917,6 +1939,48 @@ const createChristmasSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   return card;
 };
 
+const createNewsSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) => {
+  const card = document.createElement("article");
+  card.className = "media-card news-slide-card auto-slide-card";
+  card.dataset.id = NEWS_SLIDE_CARD_ID;
+
+  const header = createOrderHeader(NEWS_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+
+  const body = document.createElement("div");
+  body.className = "media-card-body";
+  const title = document.createElement("h3");
+  title.textContent = "Diapositive « Nouvelles »";
+  const status = document.createElement("p");
+  status.className = "field-hint";
+  status.textContent =
+    newsSlideSettings && newsSlideSettings.enabled ? "Activée" : "Désactivée";
+  body.append(title, status);
+
+  card.append(header, body);
+  return card;
+};
+
+const createWeatherSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) => {
+  const card = document.createElement("article");
+  card.className = "media-card weather-slide-card auto-slide-card";
+  card.dataset.id = WEATHER_SLIDE_CARD_ID;
+
+  const header = createOrderHeader(WEATHER_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+
+  const body = document.createElement("div");
+  body.className = "media-card-body";
+  const title = document.createElement("h3");
+  title.textContent = "Diapositive « Météo »";
+  const status = document.createElement("p");
+  status.className = "field-hint";
+  status.textContent =
+    weatherSlideSettings && weatherSlideSettings.enabled ? "Activée" : "Désactivée";
+  body.append(title, status);
+
+  card.append(header, body);
+  return card;
+};
+
 const createCustomSlideCard = (slide, entryId, globalIndex, displayNumber, autoCount, totalAuto) => {
   const card = document.createElement("article");
   card.className = "media-card custom-slide-card auto-slide-card";
@@ -1948,7 +2012,7 @@ const createCustomSlideCard = (slide, entryId, globalIndex, displayNumber, autoC
   return card;
 };
 
-const AUTO_ENTRY_PRIORITY = ["team", "birthday", "time-change", "christmas", "custom"];
+const AUTO_ENTRY_PRIORITY = ["team", "birthday", "time-change", "christmas", "news", "weather", "custom"];
 
 const getAutoEntries = () => {
   const sources = [
@@ -1956,6 +2020,8 @@ const getAutoEntries = () => {
     { type: "birthday", id: BIRTHDAY_SLIDE_CARD_ID, settings: birthdaySlideSettings },
     { type: "time-change", id: TIME_CHANGE_SLIDE_CARD_ID, settings: timeChangeSlideSettings },
     { type: "christmas", id: CHRISTMAS_SLIDE_CARD_ID, settings: christmasSlideSettings },
+    { type: "news", id: NEWS_SLIDE_CARD_ID, settings: newsSlideSettings },
+    { type: "weather", id: WEATHER_SLIDE_CARD_ID, settings: weatherSlideSettings },
   ];
 
   const customSources = buildArray(customSlides).map((slide) => ({
@@ -2034,6 +2100,16 @@ const renderMedia = () => {
       autoDisplay += 1;
       autoContainer.appendChild(
         createChristmasSlideCard(index, autoDisplay, autoCount, autoCount),
+      );
+    } else if (entry.type === "news") {
+      autoDisplay += 1;
+      autoContainer.appendChild(
+        createNewsSlideCard(index, autoDisplay, autoCount, autoCount),
+      );
+    } else if (entry.type === "weather") {
+      autoDisplay += 1;
+      autoContainer.appendChild(
+        createWeatherSlideCard(index, autoDisplay, autoCount, autoCount),
       );
     } else if (entry.type === "custom") {
       autoDisplay += 1;
@@ -2350,6 +2426,26 @@ const persistChristmasOrderIndex = async (orderIndex) => {
   );
 };
 
+const persistNewsOrderIndex = async (orderIndex) => {
+  const data = await fetchJSON("api/news-slide", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order_index: orderIndex }),
+  });
+  const config = data?.config || {};
+  newsSlideSettings = { ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS), ...config };
+};
+
+const persistWeatherOrderIndex = async (orderIndex) => {
+  const data = await fetchJSON("api/weather-slide", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order_index: orderIndex }),
+  });
+  const config = data?.config || {};
+  weatherSlideSettings = { ...(weatherSlideSettings || DEFAULT_WEATHER_SLIDE_SETTINGS), ...config };
+};
+
 const persistCustomSlideOrderIndex = async (slideId, orderIndex) => {
   if (!slideId) return;
   const data = await fetchJSON(
@@ -2404,6 +2500,12 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
       if (entry.type === "christmas" && christmasSlideSettings) {
         christmasSlideSettings = { ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS), order_index: position };
       }
+      if (entry.type === "news" && newsSlideSettings) {
+        newsSlideSettings = { ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS), order_index: position };
+      }
+      if (entry.type === "weather" && weatherSlideSettings) {
+        weatherSlideSettings = { ...(weatherSlideSettings || DEFAULT_WEATHER_SLIDE_SETTINGS), order_index: position };
+      }
       if (entry.type === "custom") {
         const slideId = entry.slideId;
         if (slideId && Array.isArray(customSlides)) {
@@ -2424,6 +2526,8 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
       if (birthdaySlideSettings) tasks.push(persistBirthdayOrderIndex(birthdaySlideSettings.order_index));
       if (timeChangeSlideSettings) tasks.push(persistTimeChangeOrderIndex(timeChangeSlideSettings.order_index));
       if (christmasSlideSettings) tasks.push(persistChristmasOrderIndex(christmasSlideSettings.order_index));
+      if (newsSlideSettings) tasks.push(persistNewsOrderIndex(newsSlideSettings.order_index));
+      if (weatherSlideSettings) tasks.push(persistWeatherOrderIndex(weatherSlideSettings.order_index));
       if (tasks.length) {
         await Promise.all(tasks);
       }

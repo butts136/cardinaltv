@@ -192,6 +192,35 @@
   const TIME_CHANGE_SLIDE_ID = "__time_change_slide_auto__";
   const CHRISTMAS_SLIDE_ID = "__christmas_slide_auto__";
   const CUSTOM_SLIDE_ID = "__custom_slide_auto__";
+  const NEWS_SLIDE_ID = "__news_slide_auto__";
+  const WEATHER_SLIDE_ID = "__weather_slide_auto__";
+
+  const DEFAULT_NEWS_SLIDE = {
+    enabled: false,
+    order_index: 0,
+    duration: 20,
+    scroll_delay: 3,
+    scroll_speed: 50,
+    max_items: 10,
+    card_background: "#1a1a2e",
+    card_text_color: "#f8fafc",
+    card_time_color: "#94a3b8",
+  };
+
+  const DEFAULT_WEATHER_SLIDE = {
+    enabled: false,
+    order_index: 0,
+    duration: 15,
+    location: "Québec",
+    latitude: 46.8139,
+    longitude: -71.2080,
+    show_temperature: true,
+    show_feels_like: true,
+    show_humidity: true,
+    show_wind: true,
+    show_forecast: true,
+    forecast_days: 5,
+  };
 
   const TEAM_SCROLL_OVERRUN_PX = 48;
   const BIRTHDAY_VARIANTS = ["before", "day", "weekend"];
@@ -230,10 +259,13 @@
     DEFAULT_CUSTOM_TEXT_POSITION,
     DEFAULT_CUSTOM_TEXT_SIZE,
     DEFAULT_CUSTOM_TEXT_STYLE,
+    DEFAULT_NEWS_SLIDE,
     DEFAULT_OPEN_DAYS,
     DEFAULT_OVERLAY,
     DEFAULT_TEAM_SLIDE,
     DEFAULT_TIME_CHANGE_SLIDE,
+    DEFAULT_WEATHER_SLIDE,
+    NEWS_SLIDE_ID,
     TEAM_CARDS_PER_PAGE,
     TEAM_EMPLOYEES_REFRESH_MS,
     TEAM_SCROLL_OVERRUN_PX,
@@ -242,6 +274,7 @@
     TEAM_TITLE_HOLD_MS,
     TIME_CHANGE_SLIDE_ID,
     TIME_CHANGE_TEXT_OPTIONS_DEFAULT,
+    WEATHER_SLIDE_ID,
     WEEKDAY_KEYS,
     WEEKDAY_LABELS_FR,
   };

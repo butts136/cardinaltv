@@ -1,0 +1,225 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Nouvelles RSS · Cardinal TV{% endblock %}
+
+{% block page_title %}Nouvelles{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Configurez l'affichage des dernières nouvelles depuis des flux RSS.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card news-section" id="news-section">
+    <div class="section-header">
+      <div>
+        <h2>Diapositive Nouvelles 📰</h2>
+        <p class="playlist-subtitle">Affichez les dernières nouvelles en défilement automatique.</p>
+      </div>
+      <div class="custom-toggle-control">
+        <label class="visibility-toggle">
+          <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
+          <div class="visibility-toggle-switch">
+            <input id="news-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapo" />
+            <span class="visibility-toggle-slider"></span>
+          </div>
+          <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section-content">
+      <div class="form-row dual">
+        <div>
+          <label for="news-scroll-delay">Délai avant défilement (sec)</label>
+          <input type="number" id="news-scroll-delay" min="0.5" max="30" step="0.5" value="3" />
+          <p class="field-hint">Temps d'attente avant que le défilement commence.</p>
+        </div>
+        <div>
+          <label for="news-scroll-speed">Vitesse de défilement</label>
+          <input type="range" id="news-scroll-speed" min="10" max="200" step="10" value="50" />
+          <span id="news-scroll-speed-value" class="range-value">50</span>
+          <p class="field-hint">Plus la valeur est élevée, plus le défilement est rapide.</p>
+        </div>
+        <div>
+          <label for="news-max-items">Nombre max de nouvelles</label>
+          <input type="number" id="news-max-items" min="1" max="50" step="1" value="10" />
+          <p class="field-hint">Nombre maximum de nouvelles à afficher.</p>
+        </div>
+      </div>
+      
+      <div class="birthday-preview-actions">
+        <button type="button" class="primary-button" id="news-save">Enregistrer</button>
+        <span id="news-status" class="upload-feedback" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card rss-feeds-section" id="rss-feeds-section">
+    <div class="section-header">
+      <div>
+        <h2>Flux RSS</h2>
+        <p class="playlist-subtitle">Gérez les sources de nouvelles.</p>
+      </div>
+      <button type="button" class="secondary-button" id="add-feed-btn">Ajouter un flux</button>
+    </div>
+
+    <div class="section-content">
+      <div id="feeds-list" class="feeds-list">
+        <!-- Les flux seront chargés dynamiquement -->
+      </div>
+    </div>
+  </section>
+
+  <section class="card news-preview-section" id="news-preview-section">
+    <div class="section-header">
+      <div>
+        <h2>Aperçu des nouvelles</h2>
+        <p class="playlist-subtitle">Prévisualisez les nouvelles qui seront affichées.</p>
+      </div>
+      <button type="button" class="secondary-button" id="refresh-news-btn">Rafraîchir</button>
+    </div>
+
+    <div class="section-content">
+      <div id="news-preview" class="news-preview">
+        <!-- Les cartes de nouvelles seront chargées dynamiquement -->
+      </div>
+    </div>
+  </section>
+
+  <section class="card news-slide-preview-section" id="news-slide-preview-section">
+    <div class="section-header">
+      <div>
+        <h2>Aperçu de la diapositive</h2>
+        <p class="playlist-subtitle">Visualisez la diapositive Nouvelles telle qu'elle sera affichée.</p>
+      </div>
+    </div>
+
+    <div class="section-content">
+      <div class="slideshow-frame news-slide-preview-frame">
+        <iframe
+          class="news-slide-preview-iframe"
+          title="Aperçu diapositive nouvelles"
+          loading="lazy"
+          src="{{ url_for('main.slideshow') }}?slide=news"
+        ></iframe>
+      </div>
+    </div>
+  </section>
+
+  <section class="card news-style-section" id="news-style-section">
+    <div class="section-header">
+      <div>
+        <h2>Style des cartes</h2>
+        <p class="playlist-subtitle">Personnalisez l'apparence des cartes de nouvelles.</p>
+      </div>
+    </div>
+
+    <div class="section-content">
+      <div class="form-row dual">
+        <div>
+          <label for="card-bg-color">Couleur de fond</label>
+          <input type="color" id="card-bg-color" value="#1a1a2e" />
+        </div>
+        <div>
+          <label for="card-bg-opacity">Opacité du fond</label>
+          <input type="range" id="card-bg-opacity" min="0" max="1" step="0.1" value="0.9" />
+          <span id="card-bg-opacity-value" class="range-value">90%</span>
+        </div>
+        <div>
+          <label for="card-title-color">Couleur du titre</label>
+          <input type="color" id="card-title-color" value="#ffffff" />
+        </div>
+        <div>
+          <label for="card-time-color">Couleur de l'heure</label>
+          <input type="color" id="card-time-color" value="#a3a3a3" />
+        </div>
+      </div>
+      <div class="form-row dual">
+        <div>
+          <label for="card-title-size">Taille du titre (px)</label>
+          <input type="number" id="card-title-size" min="12" max="72" step="1" value="28" />
+        </div>
+        <div>
+          <label for="card-time-size">Taille de l'heure (px)</label>
+          <input type="number" id="card-time-size" min="10" max="48" step="1" value="18" />
+        </div>
+        <div>
+          <label for="card-source-size">Taille de la source (px)</label>
+          <input type="number" id="card-source-size" min="10" max="48" step="1" value="16" />
+        </div>
+        <div>
+          <label for="card-description-size">Taille de la description (px)</label>
+          <input type="number" id="card-description-size" min="10" max="36" step="1" value="16" />
+        </div>
+      </div>
+      <div class="form-row dual">
+        <div>
+          <label for="card-width">Largeur des cartes (%)</label>
+          <input type="number" id="card-width" min="50" max="100" step="5" value="90" />
+        </div>
+        <div>
+          <label for="card-height">Hauteur des cartes (%)</label>
+          <input type="number" id="card-height" min="15" max="50" step="5" value="25" />
+        </div>
+        <div>
+          <label for="cards-per-row">Cartes par ligne</label>
+          <input type="number" id="cards-per-row" min="1" max="4" step="1" value="1" />
+        </div>
+        <div>
+          <label class="live-editor-date-toggle" for="show-image">
+            <input id="show-image" type="checkbox" checked />
+            Afficher les images
+          </label>
+        </div>
+        <div>
+          <label for="news-image-width">Largeur image (px)</label>
+          <input type="number" id="news-image-width" min="0" max="500" step="5" value="0" />
+          <p class="field-hint">0 pour automatique.</p>
+        </div>
+        <div>
+          <label for="news-image-height">Hauteur image (px)</label>
+          <input type="number" id="news-image-height" min="0" max="500" step="5" value="0" />
+          <p class="field-hint">0 pour automatique.</p>
+        </div>
+        <div>
+          <label class="live-editor-date-toggle" for="show-time">
+            <input id="show-time" type="checkbox" checked />
+            Afficher l'heure
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal d'ajout de flux -->
+  <div id="add-feed-modal" class="modal" hidden>
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Ajouter un flux RSS</h3>
+        <button type="button" class="modal-close" aria-label="Fermer">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label for="new-feed-name">Nom du flux</label>
+          <input type="text" id="new-feed-name" placeholder="ex: Radio-Canada" />
+        </div>
+        <div class="form-row">
+          <label for="new-feed-url">URL du flux RSS</label>
+          <input type="url" id="new-feed-url" placeholder="https://example.com/rss" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="secondary-button" id="cancel-feed-btn">Annuler</button>
+        <button type="button" class="primary-button" id="confirm-feed-btn">Ajouter</button>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/news_editor.js') }}"></script>
+{% endblock %}

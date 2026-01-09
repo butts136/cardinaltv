@@ -13,6 +13,7 @@ import subprocess
 import sys
 import uuid
 import base64
+import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -53,6 +54,16 @@ TIME_CHANGE_SLIDE_ASSETS_DIR = DATA_DIR / "time_change" / "background"
 TIME_CHANGE_CONFIG_FILE = DATA_DIR / "time_change" / "config.json"
 CHRISTMAS_SLIDE_ASSETS_DIR = DATA_DIR / "christmas" / "background"
 CHRISTMAS_CONFIG_FILE = DATA_DIR / "christmas" / "config.json"
+NEWS_SLIDE_DIR = DATA_DIR / "news"
+NEWS_CONFIG_FILE = NEWS_SLIDE_DIR / "news.json"
+LEGACY_NEWS_CONFIG_FILE = NEWS_SLIDE_DIR / "config.json"
+WEATHER_SLIDE_DIR = DATA_DIR / "weather"
+WEATHER_BACKGROUNDS_DIR = WEATHER_SLIDE_DIR / "backgrounds"
+WEATHER_ICONS_DIR = WEATHER_SLIDE_DIR / "icons"
+WEATHER_CONFIG_FILE = WEATHER_SLIDE_DIR / "weather.json"
+LEGACY_WEATHER_CONFIG_FILE = WEATHER_SLIDE_DIR / "config.json"
+WEATHER_SECRETS_FILE = WEATHER_SLIDE_DIR / "weather_secrets.json"
+LEGACY_SECRETS_FILE = DATA_DIR / "secrets.json"
 INFO_BANDS_DIR = DATA_DIR / "info_bands"
 INFO_BANDS_CONFIG_FILE = INFO_BANDS_DIR / "config.json"
 INFO_BANDS_DIR.mkdir(parents=True, exist_ok=True)
@@ -300,6 +311,99 @@ DEFAULT_SETTINGS = {
             },
         ],
     },
+    "news_slide": {
+        "enabled": False,
+        "order_index": 0,
+        "rss_feeds": [
+            {
+                "id": "default",
+                "name": "Radio-Canada",
+                "url": "https://ici.radio-canada.ca/rss/4159",
+                "enabled": True,
+            }
+        ],
+        "scroll_delay": 3.0,
+        "scroll_speed": 50,
+        "max_items": 10,
+        "card_style": {
+            "background_color": "#1a1a2e",
+            "background_opacity": 0.9,
+            "title_color": "#ffffff",
+            "time_color": "#a3a3a3",
+            "title_size": 28,
+            "time_size": 18,
+            "source_size": 16,
+            "description_size": 16,
+            "border_radius": 12,
+            "padding": 20,
+        },
+        "layout": {
+            "card_width_percent": 90,
+            "card_height_percent": 25,
+            "card_gap": 20,
+            "cards_per_row": 1,
+            "show_image": True,
+            "show_time": True,
+            "image_width": 0,
+            "image_height": 0,
+        },
+        "background_path": None,
+        "background_mimetype": None,
+    },
+    "weather_slide": {
+        "enabled": False,
+        "order_index": 0,
+        "duration": 15.0,
+        "api_provider": "open-meteo",
+        "api_key": "",
+        "location": {
+            "name": "Québec",
+            "latitude": 46.8139,
+            "longitude": -71.2080,
+        },
+        "units": {
+            "temperature": "celsius",
+            "wind_speed": "km/h",
+            "precipitation": "mm",
+        },
+        "display": {
+            "show_current": True,
+            "show_feels_like": True,
+            "show_humidity": True,
+            "show_wind": True,
+            "show_forecast": True,
+            "forecast_days": 5,
+            "icon_size": 120,
+            "temp_size": 80,
+            "condition_size": 32,
+            "detail_label_size": 17,
+            "detail_value_size": 25,
+            "forecast_weekday_size": 17,
+            "forecast_icon_size": 35,
+            "forecast_temp_size": 17,
+            "forecast_min_width": 110,
+        },
+        "backgrounds": {
+            "sunny": None,
+            "cloudy": None,
+            "rainy": None,
+            "snowy": None,
+            "stormy": None,
+            "foggy": None,
+            "windy": None,
+            "default": None,
+        },
+        "seasonal_backgrounds": {
+            "spring": None,
+            "summer": None,
+            "autumn": None,
+            "winter": None,
+        },
+        "use_seasonal_backgrounds": False,
+        "widgets": [],
+        "background_path": None,
+        "background_mimetype": None,
+    },
 }
 
 def _detect_libreoffice_command() -> Optional[str]:
@@ -365,6 +469,10 @@ TIME_CHANGE_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 TIME_CHANGE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 CHRISTMAS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+NEWS_SLIDE_DIR.mkdir(parents=True, exist_ok=True)
+WEATHER_SLIDE_DIR.mkdir(parents=True, exist_ok=True)
+WEATHER_BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
+WEATHER_ICONS_DIR.mkdir(parents=True, exist_ok=True)
 CUSTOM_SLIDES_DIR.mkdir(parents=True, exist_ok=True)
 
 if not CUSTOM_SLIDES_INDEX_FILE.exists():
@@ -3726,6 +3834,16 @@ def christmas() -> Any:
     return render_template("christmas.html")
 
 
+@bp.route("/diaporama/nouvelles", endpoint="news")
+def news_page() -> Any:
+    return render_template("news.html")
+
+
+@bp.route("/diaporama/meteo", endpoint="weather")
+def weather_page() -> Any:
+    return render_template("weather.html")
+
+
 @bp.route("/diaporama/bandes-informatives", endpoint="info_bands")
 def info_bands_page() -> Any:
     return render_template("info_bands.html")
@@ -4780,6 +4898,22 @@ def get_settings() -> Any:
             christmas_slide["background_path"] = None
         christmas_slide["background_url"] = christmas_background_url
         settings["christmas_slide"] = christmas_slide
+
+        # Include news slide settings
+        news_config = _load_news_config()
+        settings["news_slide"] = {
+            "enabled": news_config.get("enabled", False),
+            "order_index": news_config.get("order_index", 0),
+            "duration": news_config.get("duration", 20),
+        }
+
+        # Include weather slide settings
+        weather_config = _load_weather_config()
+        settings["weather_slide"] = {
+            "enabled": weather_config.get("enabled", False),
+            "order_index": weather_config.get("order_index", 0),
+            "duration": weather_config.get("duration", 15),
+        }
     except Exception:
         # In case anything goes wrong, return the original settings unchanged.
         pass
@@ -5879,6 +6013,758 @@ def serve_christmas_slide_asset(filename: str) -> Any:
     if not target.exists() or not target.is_file():
         abort(404, description="Fichier introuvable.")
     return send_from_directory(CHRISTMAS_SLIDE_ASSETS_DIR, filename)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# News (RSS) slide API endpoints
+# ───────────────────────────────────────────────────────────────────────────────
+
+NEWS_CACHE: Dict[str, Any] = {"items": [], "fetched_at": None}
+NEWS_CACHE_TTL = timedelta(minutes=1)
+NEWS_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".avif"}
+
+DEFAULT_WEATHER_SECRETS = {
+    "api_key": "",
+}
+
+
+def _read_secrets_file(path: Path, defaults: Dict[str, Any]) -> Dict[str, Any]:
+    secrets = copy.deepcopy(defaults)
+    if not path.exists():
+        return secrets
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            for key in secrets:
+                if key in raw:
+                    secrets[key] = raw[key]
+        return secrets
+    except (OSError, json.JSONDecodeError):
+        return secrets
+
+
+def _load_weather_secrets() -> Dict[str, Any]:
+    secrets = _read_secrets_file(WEATHER_SECRETS_FILE, DEFAULT_WEATHER_SECRETS)
+    if WEATHER_SECRETS_FILE.exists():
+        return secrets
+    legacy = _read_secrets_file(LEGACY_SECRETS_FILE, DEFAULT_WEATHER_SECRETS)
+    if legacy.get("api_key"):
+        _save_weather_secrets(legacy)
+        return legacy
+    return secrets
+
+
+def _save_weather_secrets(secrets: Dict[str, Any]) -> Dict[str, Any]:
+    WEATHER_SECRETS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    payload = {**DEFAULT_WEATHER_SECRETS, **(secrets or {})}
+    WEATHER_SECRETS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return payload
+
+
+def _migrate_config_file(old_path: Path, new_path: Path) -> None:
+    if new_path.exists() or not old_path.exists():
+        return
+    try:
+        raw = old_path.read_text(encoding="utf-8")
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        new_path.write_text(raw, encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _normalize_rss_image_url(url: str) -> str:
+    if not url:
+        return url
+    cleaned = html.unescape(url.strip())
+    try:
+        parsed = urllib.parse.urlparse(cleaned)
+    except ValueError:
+        return cleaned
+    if not parsed.query:
+        return cleaned
+    if os.path.splitext(parsed.path.lower())[1] not in NEWS_IMAGE_EXTS:
+        return cleaned
+    query_lower = parsed.query.lower()
+    if not any(marker in query_lower for marker in ("impolicy", "crop", "resize")):
+        return cleaned
+    if any(marker in query_lower for marker in ("token", "signature", "sig", "expires", "exp", "apikey", "access_token", "x-amz-")):
+        return cleaned
+    return urllib.parse.urlunparse(parsed._replace(query="", fragment=""))
+
+
+def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
+    """Parse un flux RSS et retourne les items."""
+    items: List[Dict[str, Any]] = []
+    try:
+        with urllib.request.urlopen(url, timeout=15) as response:
+            content = response.read().decode("utf-8", errors="ignore")
+    except OSError:
+        return items
+
+    # Parse simple XML pour RSS
+    item_pattern = re.compile(r"<item>(.*?)</item>", re.DOTALL | re.IGNORECASE)
+    title_pattern = re.compile(r"<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>", re.DOTALL | re.IGNORECASE)
+    link_pattern = re.compile(r"<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</link>", re.DOTALL | re.IGNORECASE)
+    desc_pattern = re.compile(r"<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>", re.DOTALL | re.IGNORECASE)
+    pubdate_pattern = re.compile(r"<pubDate>(.*?)</pubDate>", re.DOTALL | re.IGNORECASE)
+    media_pattern = re.compile(r'<(?:media:content|enclosure)[^>]+url=["\']([^"\']+)["\']', re.IGNORECASE)
+    image_pattern = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
+
+    for match in item_pattern.finditer(content):
+        if len(items) >= max_items:
+            break
+        item_content = match.group(1)
+
+        title_match = title_pattern.search(item_content)
+        title = _strip_html(title_match.group(1)) if title_match else ""
+
+        link_match = link_pattern.search(item_content)
+        link = link_match.group(1).strip() if link_match else ""
+
+        desc_match = desc_pattern.search(item_content)
+        description = _strip_html(desc_match.group(1)) if desc_match else ""
+
+        pubdate_match = pubdate_pattern.search(item_content)
+        pubdate = pubdate_match.group(1).strip() if pubdate_match else ""
+
+        # Chercher une image
+        image_url = ""
+        media_match = media_pattern.search(item_content)
+        if media_match:
+            image_url = media_match.group(1)
+        if not image_url:
+            img_match = image_pattern.search(item_content)
+            if img_match:
+                image_url = img_match.group(1)
+        if not image_url and desc_match:
+            img_in_desc = image_pattern.search(desc_match.group(1))
+            if img_in_desc:
+                image_url = img_in_desc.group(1)
+        if image_url:
+            image_url = _normalize_rss_image_url(image_url)
+
+        # Parser la date
+        parsed_time = ""
+        parsed_ts = 0.0
+        if pubdate:
+            try:
+                from email.utils import parsedate_to_datetime
+                dt = parsedate_to_datetime(pubdate)
+                parsed_ts = dt.timestamp()
+                parsed_time = dt.astimezone(QUEBEC_TZ).strftime("%H:%M")
+            except Exception:
+                parsed_time = pubdate[:16] if len(pubdate) > 16 else pubdate
+
+        items.append({
+            "title": title,
+            "link": link,
+            "description": description[:200] if description else "",
+            "image": image_url,
+            "time": parsed_time,
+            "pubdate": pubdate,
+            "pubdate_ts": parsed_ts,
+        })
+
+    return items
+
+
+def _load_news_config() -> Dict[str, Any]:
+    """Charge la configuration de la diapositive Nouvelles."""
+    _migrate_config_file(LEGACY_NEWS_CONFIG_FILE, NEWS_CONFIG_FILE)
+    default = copy.deepcopy(DEFAULT_SETTINGS["news_slide"])
+    if not NEWS_CONFIG_FILE.exists():
+        return default
+    try:
+        raw = json.loads(NEWS_CONFIG_FILE.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            for key in default:
+                if key in raw:
+                    default[key] = raw[key]
+        return default
+    except (OSError, json.JSONDecodeError):
+        return default
+
+
+def _save_news_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Sauvegarde la configuration de la diapositive Nouvelles."""
+    NEWS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    NEWS_CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    return config
+
+
+def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
+    """Récupère les nouvelles depuis les flux RSS configurés."""
+    now = _now()
+    cached_at = NEWS_CACHE.get("fetched_at")
+    if not force and cached_at and (now - cached_at) < NEWS_CACHE_TTL:
+        return NEWS_CACHE.get("items", [])
+
+    config = _load_news_config()
+    feeds = config.get("rss_feeds", [])
+    max_items = config.get("max_items", 10)
+    all_items: List[Dict[str, Any]] = []
+
+    for feed in feeds:
+        if not feed.get("enabled", True):
+            continue
+        url = feed.get("url", "")
+        if not url:
+            continue
+        items = _parse_rss_feed(url, max_items)
+        for item in items:
+            item["source"] = feed.get("name", "RSS")
+        all_items.extend(items)
+
+    # Trier par date de publication (plus récent en premier)
+    all_items.sort(key=lambda x: (x.get("pubdate_ts", 0), x.get("pubdate", "")), reverse=True)
+    all_items = all_items[:max_items]
+
+    NEWS_CACHE["items"] = all_items
+    NEWS_CACHE["fetched_at"] = now
+    return all_items
+
+
+@bp.get("/api/news-slide")
+def api_news_slide() -> Any:
+    """Retourne la configuration et les items de la diapositive Nouvelles."""
+    config = _load_news_config()
+    items = _fetch_news_items()
+    return jsonify({
+        "config": config,
+        "items": items,
+    })
+
+
+@bp.post("/api/news-slide")
+def api_news_slide_update() -> Any:
+    """Met à jour la configuration de la diapositive Nouvelles."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Requête invalide.")
+
+    config = _load_news_config()
+
+    if "enabled" in payload:
+        config["enabled"] = bool(payload["enabled"])
+    if "order_index" in payload:
+        try:
+            config["order_index"] = max(0, int(payload["order_index"]))
+        except (TypeError, ValueError):
+            pass
+    if "scroll_delay" in payload:
+        try:
+            config["scroll_delay"] = max(0.5, min(30.0, float(payload["scroll_delay"])))
+        except (TypeError, ValueError):
+            pass
+    if "scroll_speed" in payload:
+        try:
+            config["scroll_speed"] = max(10, min(200, int(payload["scroll_speed"])))
+        except (TypeError, ValueError):
+            pass
+    if "max_items" in payload:
+        try:
+            config["max_items"] = max(1, min(50, int(payload["max_items"])))
+        except (TypeError, ValueError):
+            pass
+    if "rss_feeds" in payload and isinstance(payload["rss_feeds"], list):
+        config["rss_feeds"] = payload["rss_feeds"]
+    if "card_style" in payload and isinstance(payload["card_style"], dict):
+        config["card_style"] = {**config.get("card_style", {}), **payload["card_style"]}
+    if "layout" in payload and isinstance(payload["layout"], dict):
+        config["layout"] = {**config.get("layout", {}), **payload["layout"]}
+
+    _save_news_config(config)
+
+    # Also update main settings store for playlist integration
+    try:
+        store.update_settings({"news_slide": {"enabled": config["enabled"], "order_index": config["order_index"]}})
+    except Exception:
+        pass
+
+    return jsonify({"config": config})
+
+
+@bp.get("/api/news-slide/items")
+def api_news_items() -> Any:
+    """Récupère les nouvelles depuis les flux RSS avec les settings."""
+    force = request.args.get("force", "").lower() in ("1", "true", "yes")
+    items = _fetch_news_items(force=force)
+    config = _load_news_config()
+    return jsonify({
+        "items": items,
+        "settings": {
+            "enabled": config.get("enabled", False),
+            "order_index": config.get("order_index", 0),
+            "duration": config.get("duration", 20),
+            "scroll_delay": config.get("scroll_delay", 3),
+            "scroll_speed": config.get("scroll_speed", 50),
+            "max_items": config.get("max_items", 10),
+            "card_background_color": config.get("card_style", {}).get("background_color", "#1a1a2e"),
+            "card_background_opacity": config.get("card_style", {}).get("background_opacity", 0.9),
+            "card_title_color": config.get("card_style", {}).get("title_color", "#f8fafc"),
+            "card_time_color": config.get("card_style", {}).get("time_color", "#94a3b8"),
+            "card_title_size": config.get("card_style", {}).get("title_size", 28),
+            "card_time_size": config.get("card_style", {}).get("time_size", 18),
+            "card_source_size": config.get("card_style", {}).get("source_size", 16),
+            "card_description_size": config.get("card_style", {}).get("description_size", 16),
+            "card_border_radius": config.get("card_style", {}).get("border_radius", 12),
+            "card_padding": config.get("card_style", {}).get("padding", 20),
+            "card_width_percent": config.get("layout", {}).get("card_width_percent", 90),
+            "card_height_percent": config.get("layout", {}).get("card_height_percent", 25),
+            "card_gap": config.get("layout", {}).get("card_gap", 20),
+            "cards_per_row": config.get("layout", {}).get("cards_per_row", 1),
+            "show_image": config.get("layout", {}).get("show_image", True),
+            "show_time": config.get("layout", {}).get("show_time", True),
+            "image_width": config.get("layout", {}).get("image_width", 0),
+            "image_height": config.get("layout", {}).get("image_height", 0),
+        },
+    })
+
+
+@bp.post("/api/news-slide/feeds")
+def api_news_add_feed() -> Any:
+    """Ajoute un nouveau flux RSS."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Requête invalide.")
+
+    url = payload.get("url", "").strip()
+    name = payload.get("name", "Nouveau flux").strip()
+    if not url:
+        abort(400, description="L'URL du flux est requise.")
+
+    config = _load_news_config()
+    feeds = config.get("rss_feeds", [])
+    new_feed = {
+        "id": uuid.uuid4().hex[:8],
+        "name": name,
+        "url": url,
+        "enabled": True,
+    }
+    feeds.append(new_feed)
+    config["rss_feeds"] = feeds
+    _save_news_config(config)
+
+    return jsonify({"feed": new_feed, "config": config})
+
+
+@bp.delete("/api/news-slide/feeds/<feed_id>")
+def api_news_delete_feed(feed_id: str) -> Any:
+    """Supprime un flux RSS."""
+    config = _load_news_config()
+    feeds = config.get("rss_feeds", [])
+    config["rss_feeds"] = [f for f in feeds if f.get("id") != feed_id]
+    _save_news_config(config)
+    return jsonify({"removed": feed_id, "config": config})
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Weather slide API endpoints
+# ───────────────────────────────────────────────────────────────────────────────
+
+WEATHER_CACHE: Dict[str, Any] = {"data": None, "fetched_at": None}
+WEATHER_CACHE_TTL = timedelta(minutes=15)
+
+# Codes météo Open-Meteo vers conditions
+WEATHER_CODE_MAP = {
+    0: "sunny",
+    1: "sunny",
+    2: "cloudy",
+    3: "cloudy",
+    45: "foggy",
+    48: "foggy",
+    51: "rainy",
+    53: "rainy",
+    55: "rainy",
+    56: "rainy",
+    57: "rainy",
+    61: "rainy",
+    63: "rainy",
+    65: "rainy",
+    66: "rainy",
+    67: "rainy",
+    71: "snowy",
+    73: "snowy",
+    75: "snowy",
+    77: "snowy",
+    80: "rainy",
+    81: "rainy",
+    82: "rainy",
+    85: "snowy",
+    86: "snowy",
+    95: "stormy",
+    96: "stormy",
+    99: "stormy",
+}
+
+WEATHER_CONDITION_LABELS = {
+    "sunny": "Ensoleillé",
+    "cloudy": "Nuageux",
+    "rainy": "Pluvieux",
+    "snowy": "Neigeux",
+    "stormy": "Orageux",
+    "foggy": "Brumeux",
+    "windy": "Venteux",
+    "default": "Variable",
+}
+
+WEATHER_CONDITION_ICONS = {
+    "sunny": "☀️",
+    "cloudy": "☁️",
+    "rainy": "🌧️",
+    "snowy": "❄️",
+    "stormy": "⛈️",
+    "foggy": "🌫️",
+    "windy": "💨",
+    "default": "🌤️",
+}
+
+
+def _get_current_season() -> str:
+    """Retourne la saison actuelle."""
+    now = _now()
+    month = now.month
+    if month in (3, 4, 5):
+        return "spring"
+    elif month in (6, 7, 8):
+        return "summer"
+    elif month in (9, 10, 11):
+        return "autumn"
+    else:
+        return "winter"
+
+
+def _load_weather_config() -> Dict[str, Any]:
+    """Charge la configuration de la diapositive Météo."""
+    _migrate_config_file(LEGACY_WEATHER_CONFIG_FILE, WEATHER_CONFIG_FILE)
+    default = copy.deepcopy(DEFAULT_SETTINGS["weather_slide"])
+    secrets = _load_weather_secrets()
+    default["api_key"] = secrets.get("api_key", "")
+    if not WEATHER_CONFIG_FILE.exists():
+        return default
+    try:
+        raw = json.loads(WEATHER_CONFIG_FILE.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            if not default["api_key"] and raw.get("api_key"):
+                secrets["api_key"] = raw.get("api_key") or ""
+                _save_weather_secrets(secrets)
+            for key in default:
+                if key in raw:
+                    if isinstance(default[key], dict) and isinstance(raw[key], dict):
+                        default[key] = {**default[key], **raw[key]}
+                    else:
+                        default[key] = raw[key]
+        return default
+    except (OSError, json.JSONDecodeError):
+        return default
+
+
+def _save_weather_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Sauvegarde la configuration de la diapositive Météo."""
+    secrets = _load_weather_secrets()
+    api_key = config.get("api_key", "")
+    if api_key is not None:
+        secrets["api_key"] = api_key
+        _save_weather_secrets(secrets)
+    WEATHER_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    config_to_save = {**config}
+    config_to_save.pop("api_key", None)
+    WEATHER_CONFIG_FILE.write_text(json.dumps(config_to_save, ensure_ascii=False, indent=2), encoding="utf-8")
+    return config
+
+
+def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
+    """Récupère les données météo depuis Open-Meteo."""
+    now = _now()
+    cached_at = WEATHER_CACHE.get("fetched_at")
+    if not force and cached_at and (now - cached_at) < WEATHER_CACHE_TTL:
+        return WEATHER_CACHE.get("data")
+
+    config = _load_weather_config()
+    location = config.get("location", {})
+    lat = location.get("latitude", 46.8139)
+    lon = location.get("longitude", -71.2080)
+    location_name = location.get("name", "Québec")
+
+    # Open-Meteo API (gratuit, pas de clé requise)
+    url = (
+        f"https://api.open-meteo.com/v1/forecast?"
+        f"latitude={lat}&longitude={lon}"
+        f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m"
+        f"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum"
+        f"&timezone=America/Toronto"
+        f"&forecast_days=7"
+    )
+
+    try:
+        with urllib.request.urlopen(url, timeout=15) as response:
+            raw_data = json.loads(response.read().decode("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return WEATHER_CACHE.get("data")
+
+    current = raw_data.get("current", {})
+    daily = raw_data.get("daily", {})
+
+    weather_code = current.get("weather_code", 0)
+    condition = WEATHER_CODE_MAP.get(weather_code, "default")
+
+    # Vérifier si venteux (vent > 30 km/h)
+    wind_speed = current.get("wind_speed_10m", 0)
+    if wind_speed > 30 and condition in ("sunny", "cloudy"):
+        condition = "windy"
+
+    daily_maxs = daily.get("temperature_2m_max", [])
+    daily_mins = daily.get("temperature_2m_min", [])
+    today_max = daily_maxs[0] if daily_maxs else None
+    today_min = daily_mins[0] if daily_mins else None
+
+    weather_data = {
+        "location": location_name,
+        "current": {
+            "temperature": current.get("temperature_2m"),
+            "feels_like": current.get("apparent_temperature"),
+            "humidity": current.get("relative_humidity_2m"),
+            "precipitation": current.get("precipitation"),
+            "wind_speed": wind_speed,
+            "wind_direction": current.get("wind_direction_10m"),
+            "weather_code": weather_code,
+            "condition": condition,
+            "condition_label": WEATHER_CONDITION_LABELS.get(condition, "Variable"),
+            "icon": WEATHER_CONDITION_ICONS.get(condition, "🌤️"),
+            "temp_max": today_max,
+            "temp_min": today_min,
+        },
+        "temperature": current.get("temperature_2m"),
+        "feels_like": current.get("apparent_temperature"),
+        "humidity": current.get("relative_humidity_2m"),
+        "precipitation": current.get("precipitation"),
+        "wind_speed": wind_speed,
+        "wind_direction": current.get("wind_direction_10m"),
+        "weather_code": weather_code,
+        "condition": condition,
+        "condition_label": WEATHER_CONDITION_LABELS.get(condition, "Variable"),
+        "icon": WEATHER_CONDITION_ICONS.get(condition, "🌤️"),
+        "temp_max": today_max,
+        "temp_min": today_min,
+        "forecast": [],
+        "season": _get_current_season(),
+        "fetched_at": now.isoformat(),
+    }
+
+    # Parser les prévisions
+    dates = daily.get("time", [])
+    codes = daily.get("weather_code", [])
+    maxs = daily_maxs
+    mins = daily_mins
+    precips = daily.get("precipitation_sum", [])
+
+    for i in range(len(dates)):
+        day_code = codes[i] if i < len(codes) else 0
+        day_condition = WEATHER_CODE_MAP.get(day_code, "default")
+        day_data = {
+            "date": dates[i],
+            "weekday": "",
+            "temp_max": maxs[i] if i < len(maxs) else None,
+            "temp_min": mins[i] if i < len(mins) else None,
+            "precipitation": precips[i] if i < len(precips) else 0,
+            "condition": day_condition,
+            "icon": WEATHER_CONDITION_ICONS.get(day_condition, "🌤️"),
+        }
+        # Ajouter le jour de la semaine
+        try:
+            dt = datetime.strptime(dates[i], "%Y-%m-%d")
+            day_data["weekday"] = TIME_CHANGE_WEEKDAYS_FR[dt.weekday()][:3].capitalize()
+        except Exception:
+            pass
+        weather_data["forecast"].append(day_data)
+
+    WEATHER_CACHE["data"] = weather_data
+    WEATHER_CACHE["fetched_at"] = now
+    return weather_data
+
+
+@bp.get("/api/weather-slide")
+def api_weather_slide() -> Any:
+    """Retourne la configuration et les données de la diapositive Météo."""
+    config = _load_weather_config()
+    weather = _fetch_weather_data()
+    return jsonify({
+        "config": config,
+        "weather": weather,
+    })
+
+
+@bp.post("/api/weather-slide")
+def api_weather_slide_update() -> Any:
+    """Met à jour la configuration de la diapositive Météo."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Requête invalide.")
+
+    config = _load_weather_config()
+
+    if "enabled" in payload:
+        config["enabled"] = bool(payload["enabled"])
+    if "order_index" in payload:
+        try:
+            config["order_index"] = max(0, int(payload["order_index"]))
+        except (TypeError, ValueError):
+            pass
+    if "duration" in payload:
+        try:
+            config["duration"] = max(5.0, min(120.0, float(payload["duration"])))
+        except (TypeError, ValueError):
+            pass
+    if "location" in payload and isinstance(payload["location"], dict):
+        loc = payload["location"]
+        config["location"] = {
+            "name": str(loc.get("name", config["location"]["name"])),
+            "latitude": float(loc.get("latitude", config["location"]["latitude"])),
+            "longitude": float(loc.get("longitude", config["location"]["longitude"])),
+        }
+    if "display" in payload and isinstance(payload["display"], dict):
+        config["display"] = {**config.get("display", {}), **payload["display"]}
+    if "widgets" in payload and isinstance(payload["widgets"], list):
+        config["widgets"] = payload["widgets"]
+    if "use_seasonal_backgrounds" in payload:
+        config["use_seasonal_backgrounds"] = bool(payload["use_seasonal_backgrounds"])
+
+    _save_weather_config(config)
+    WEATHER_CACHE["fetched_at"] = None
+    WEATHER_CACHE["data"] = None
+
+    # Also update main settings store
+    try:
+        store.update_settings({"weather_slide": {"enabled": config["enabled"], "order_index": config["order_index"], "duration": config["duration"]}})
+    except Exception:
+        pass
+
+    return jsonify({"config": config})
+
+
+@bp.get("/api/weather-slide/data")
+def api_weather_data() -> Any:
+    """Récupère les données météo actuelles avec les settings."""
+    force = request.args.get("force", "").lower() in ("1", "true", "yes")
+    weather = _fetch_weather_data(force=force)
+    config = _load_weather_config()
+    
+    # Build background URLs
+    backgrounds = {}
+    for condition, filename in config.get("backgrounds", {}).items():
+        if filename:
+            backgrounds[condition] = url_for("main.serve_weather_asset", filename=filename, _external=False)
+    
+    seasonal_backgrounds = {}
+    for season, filename in config.get("seasonal_backgrounds", {}).items():
+        if filename:
+            seasonal_backgrounds[season] = url_for("main.serve_weather_asset", filename=filename, _external=False)
+    
+    return jsonify({
+        "weather": weather,
+        "settings": {
+            "enabled": config.get("enabled", False),
+            "order_index": config.get("order_index", 0),
+            "duration": config.get("duration", 15),
+            "location": config.get("location", {}).get("name", "Québec"),
+            "latitude": config.get("location", {}).get("latitude", 46.8139),
+            "longitude": config.get("location", {}).get("longitude", -71.2080),
+            "show_current": config.get("display", {}).get("show_current", True),
+            "show_feels_like": config.get("display", {}).get("show_feels_like", True),
+            "show_humidity": config.get("display", {}).get("show_humidity", True),
+            "show_wind": config.get("display", {}).get("show_wind", True),
+            "show_forecast": config.get("display", {}).get("show_forecast", True),
+            "forecast_days": config.get("display", {}).get("forecast_days", 5),
+            "icon_size": config.get("display", {}).get("icon_size", 120),
+            "temp_size": config.get("display", {}).get("temp_size", 80),
+            "condition_size": config.get("display", {}).get("condition_size", 32),
+            "detail_label_size": config.get("display", {}).get("detail_label_size", 17),
+            "detail_value_size": config.get("display", {}).get("detail_value_size", 25),
+            "forecast_weekday_size": config.get("display", {}).get("forecast_weekday_size", 17),
+            "forecast_icon_size": config.get("display", {}).get("forecast_icon_size", 35),
+            "forecast_temp_size": config.get("display", {}).get("forecast_temp_size", 17),
+            "forecast_min_width": config.get("display", {}).get("forecast_min_width", 110),
+            "backgrounds": backgrounds,
+            "seasonal_backgrounds": seasonal_backgrounds,
+        },
+    })
+
+
+@bp.post("/api/weather-slide/background/<condition>")
+def upload_weather_background(condition: str) -> Any:
+    """Téléverse un arrière-plan pour une condition météo spécifique."""
+    valid_conditions = list(WEATHER_CODE_MAP.values()) + ["default"] + list(DEFAULT_SETTINGS["weather_slide"]["seasonal_backgrounds"].keys())
+    if condition not in valid_conditions:
+        abort(400, description=f"Condition invalide. Valeurs acceptées: {', '.join(set(valid_conditions))}")
+
+    uploaded = request.files.get("file") or request.files.get("background")
+    if not uploaded or not uploaded.filename:
+        abort(400, description="Aucun fichier reçu.")
+
+    original_name = uploaded.filename
+    safe_name = secure_filename(original_name) or f"weather-bg-{condition}"
+    ext = Path(original_name).suffix or Path(safe_name).suffix
+    ext_lower = (ext or "").lower()
+
+    mimetype = uploaded.mimetype or _guess_mimetype(original_name, safe_name) or ""
+    if not (mimetype.startswith("image/") or mimetype.startswith("video/") or ext_lower in IMAGE_EXTENSIONS | VIDEO_EXTENSIONS):
+        abort(400, description="Veuillez fournir une image ou une vidéo.")
+
+    WEATHER_BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
+    media_id = uuid.uuid4().hex
+    storage_name = f"{condition}_{media_id}{ext_lower}"
+    target = WEATHER_BACKGROUNDS_DIR / storage_name
+    uploaded.save(target)
+
+    config = _load_weather_config()
+    is_seasonal = condition in ("spring", "summer", "autumn", "winter")
+    if is_seasonal:
+        config["seasonal_backgrounds"][condition] = storage_name
+    else:
+        config["backgrounds"][condition] = storage_name
+    _save_weather_config(config)
+
+    return jsonify({
+        "condition": condition,
+        "filename": storage_name,
+        "url": url_for("main.serve_weather_asset", filename=storage_name, _external=False),
+    })
+
+
+@bp.get("/api/weather-slide/backgrounds")
+def list_weather_backgrounds() -> Any:
+    """Liste les arrière-plans météo téléversés."""
+    WEATHER_BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
+    items: List[Dict[str, Any]] = []
+    for entry in sorted(WEATHER_BACKGROUNDS_DIR.iterdir()):
+        if not entry.is_file():
+            continue
+        filename = entry.name
+        mimetype = _guess_mimetype(filename) or "application/octet-stream"
+        url = url_for("main.serve_weather_asset", filename=filename, _external=False)
+        items.append({"filename": filename, "url": url, "mimetype": mimetype})
+
+    config = _load_weather_config()
+    return jsonify({
+        "items": items,
+        "backgrounds": config.get("backgrounds", {}),
+        "seasonal_backgrounds": config.get("seasonal_backgrounds", {}),
+    })
+
+
+@bp.get("/weather-slide/asset/<path:filename>")
+def serve_weather_asset(filename: str) -> Any:
+    """Sert un fichier d'arrière-plan météo."""
+    WEATHER_BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
+    target = (WEATHER_BACKGROUNDS_DIR / filename).resolve()
+    base_dir = WEATHER_BACKGROUNDS_DIR.resolve()
+    try:
+        target.relative_to(base_dir)
+    except ValueError:
+        abort(403, description="Chemin de fichier non autorisé.")
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+    return send_from_directory(WEATHER_BACKGROUNDS_DIR, filename)
 
 
 @bp.post('/api/powerpoint/upload')
