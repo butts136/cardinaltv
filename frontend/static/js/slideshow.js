@@ -3355,6 +3355,7 @@ const renderWeatherSlide = async (item) => {
   overlay.style.setProperty("--weather-slide-forecast-text-size", `${Number(settings.forecast_temp_size) || 17}px`);
   overlay.style.setProperty("--weather-slide-forecast-icon-size", `${Number(settings.forecast_icon_size) || 35}px`);
   overlay.style.setProperty("--weather-slide-forecast-min-width", `${Number(settings.forecast_min_width) || 110}px`);
+  overlay.style.setProperty("--weather-card-opacity", `${Number(settings.card_opacity) || 1}`);
 
   if (!data) {
     const noData = document.createElement("div");

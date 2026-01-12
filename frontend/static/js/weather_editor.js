@@ -53,6 +53,8 @@
   const forecastIconSizeInput = document.getElementById('weather-forecast-icon-size');
   const forecastTextSizeInput = document.getElementById('weather-forecast-text-size');
   const forecastMinWidthInput = document.getElementById('weather-forecast-min-width');
+  const cardOpacityInput = document.getElementById('weather-card-opacity');
+  const cardOpacityValue = document.getElementById('weather-card-opacity-value');
 
   // Preview elements
   const weatherIcon = document.getElementById('weather-icon');
@@ -120,6 +122,14 @@
     if (forecastIconSizeInput) forecastIconSizeInput.value = display.forecast_icon_size || 70;
     if (forecastTextSizeInput) forecastTextSizeInput.value = display.forecast_temp_size || 34;
     if (forecastMinWidthInput) forecastMinWidthInput.value = display.forecast_min_width || 200;
+    if (cardOpacityInput) {
+      const opacity = Number.isFinite(Number(display.card_opacity))
+        ? Number(display.card_opacity)
+        : 1;
+      const percent = Math.round(opacity * 100);
+      cardOpacityInput.value = String(percent);
+      if (cardOpacityValue) cardOpacityValue.textContent = `${percent}%`;
+    }
 
     if (useSeasonalBg) useSeasonalBg.checked = config.use_seasonal_backgrounds || false;
   }
@@ -176,6 +186,12 @@
       weatherPreview.style.setProperty('--weather-preview-forecast-icon-size', `${parseInt(forecastIconSizeInput?.value, 10) || 70}px`);
       weatherPreview.style.setProperty('--weather-preview-forecast-text-size', `${parseInt(forecastTextSizeInput?.value, 10) || 34}px`);
       weatherPreview.style.setProperty('--weather-preview-forecast-min-width', `${parseInt(forecastMinWidthInput?.value, 10) || 200}px`);
+      const percent = Number.parseFloat(cardOpacityInput?.value);
+      if (Number.isFinite(percent)) {
+        const opacity = Math.min(100, Math.max(20, percent)) / 100;
+        weatherPreview.style.setProperty('--weather-card-opacity', String(opacity));
+        if (cardOpacityValue) cardOpacityValue.textContent = `${Math.round(percent)}%`;
+      }
     }
 
     if (weatherTemp) weatherTemp.style.display = showCurrentValue ? '' : 'none';
@@ -318,6 +334,7 @@
         forecast_icon_size: parseInt(forecastIconSizeInput?.value) || 70,
         forecast_temp_size: parseInt(forecastTextSizeInput?.value) || 34,
         forecast_min_width: parseInt(forecastMinWidthInput?.value) || 200,
+        card_opacity: Math.min(100, Math.max(20, Number.parseFloat(cardOpacityInput?.value) || 100)) / 100,
       },
       use_seasonal_backgrounds: useSeasonalBg?.checked || false,
     };
@@ -520,6 +537,7 @@
   forecastIconSizeInput?.addEventListener('input', updateWeatherPreview);
   forecastTextSizeInput?.addEventListener('input', updateWeatherPreview);
   forecastMinWidthInput?.addEventListener('input', updateWeatherPreview);
+  cardOpacityInput?.addEventListener('input', updateWeatherPreview);
   locationName?.addEventListener('input', scheduleCitySearch);
   locationName?.addEventListener('focus', scheduleCitySearch);
   document.addEventListener('click', (event) => {
