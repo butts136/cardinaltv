@@ -364,6 +364,7 @@
       const data = await response.json();
       weatherData = data.weather || null;
       updateWeatherPreview();
+      await loadBackgrounds();
       showStatus('Météo actualisée');
     } catch (error) {
       console.error('Erreur lors du rafraîchissement:', error);

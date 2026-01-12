@@ -6871,9 +6871,13 @@ def api_weather_data() -> Any:
 @bp.post("/api/weather-slide/background/<condition>")
 def upload_weather_background(condition: str) -> Any:
     """Téléverse un arrière-plan pour une condition météo spécifique."""
-    valid_conditions = list(WEATHER_CODE_MAP.values()) + ["default"] + list(DEFAULT_SETTINGS["weather_slide"]["seasonal_backgrounds"].keys())
+    valid_conditions = (
+        set(WEATHER_CODE_MAP.values())
+        | {"default", "windy"}
+        | set(DEFAULT_SETTINGS["weather_slide"]["seasonal_backgrounds"].keys())
+    )
     if condition not in valid_conditions:
-        abort(400, description=f"Condition invalide. Valeurs acceptées: {', '.join(set(valid_conditions))}")
+        abort(400, description=f"Condition invalide. Valeurs acceptées: {', '.join(sorted(valid_conditions))}")
 
     uploaded = request.files.get("file") or request.files.get("background")
     if not uploaded or not uploaded.filename:
