@@ -28,6 +28,7 @@ const previewSlideType = (urlParams.get("slide") || "").trim().toLowerCase();
 const isSingleSlideMode = previewSlideType === "news" || previewSlideType === "weather";
 const sharedRenderers = window.CardinalSlideRenderers || null;
 const slideshowCache = window.CardinalSlideshowCache || null;
+let weatherBackgroundUrls = [];
 
 const defaults = window.CardinalSlideshowDefaults || {};
 const birthdayConfig = window.CardinalBirthdayConfig || null;
@@ -1439,6 +1440,7 @@ const refreshOverlaySettings = async () => {
       await fetchTimeChangeInfo(true);
       await fetchChristmasInfo(true);
     }
+    void refreshWeatherBackgroundUrls();
     await preloadBirthdayVariants({ force: settingsChanged });
   } catch (error) {
     console.warn("Impossible de charger les paramètres:", error);
@@ -3089,6 +3091,38 @@ const fetchWeatherData = async (force = false) => {
   }
 };
 
+const refreshWeatherBackgroundUrls = async () => {
+  if (!weatherSlideSettings?.enabled) {
+    weatherBackgroundUrls = [];
+    return;
+  }
+  try {
+    const data = await fetchJSON("api/weather-slide/backgrounds");
+    const backgrounds = data?.backgrounds || {};
+    const seasonal = data?.seasonal_backgrounds || {};
+    const filenames = new Set(
+      [...Object.values(backgrounds), ...Object.values(seasonal)].filter((name) => typeof name === "string" && name)
+    );
+    if (!filenames.size) {
+      weatherBackgroundUrls = [];
+      return;
+    }
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const urls = items
+      .filter((entry) => entry && filenames.has(entry.filename) && entry.url)
+      .map((entry) => entry.url);
+    if (!urls.length) {
+      weatherBackgroundUrls = Array.from(filenames).map((name) =>
+        buildApiUrl(`weather-slide/asset/${encodeURIComponent(name)}`)
+      );
+      return;
+    }
+    weatherBackgroundUrls = urls;
+  } catch (error) {
+    weatherBackgroundUrls = [];
+  }
+};
+
 const renderNewsSlide = async (item) => {
   clearPlaybackTimer();
   mediaWrapper.innerHTML = "";
@@ -3331,12 +3365,15 @@ const renderWeatherSlide = async (item) => {
     const current = data?.current || data || {};
 
     const preview = document.createElement("div");
-    preview.className = "weather-preview";
+    preview.className = "weather-layout";
+
+    const currentCard = document.createElement("div");
+    currentCard.className = "weather-card weather-card-combined";
 
     const locationLabel = document.createElement("div");
     locationLabel.className = "weather-location";
     locationLabel.textContent = data.location || current.location || settings.location || "";
-    preview.appendChild(locationLabel);
+    currentCard.appendChild(locationLabel);
 
     const currentBlock = document.createElement("div");
     currentBlock.className = "weather-current";
@@ -3358,16 +3395,42 @@ const renderWeatherSlide = async (item) => {
     conditionLabel.textContent = current.condition_label || data.condition_label || "";
     currentBlock.appendChild(conditionLabel);
 
-    preview.appendChild(currentBlock);
+    currentCard.appendChild(currentBlock);
 
     const details = document.createElement("div");
     details.className = "weather-details";
+    const todayForecast = Array.isArray(data.forecast) ? data.forecast[0] : null;
 
-    if (settings.show_feels_like && current.feels_like !== undefined) {
-      const feelsLike = document.createElement("div");
-      feelsLike.className = "weather-detail";
-      feelsLike.innerHTML = `<span class="detail-label">Ressenti</span><span class="detail-value">${Math.round(current.feels_like)}°C</span>`;
-      details.appendChild(feelsLike);
+    const formatTemp = (value, feels) => {
+      const tempLabel = value != null ? Math.round(value) : "--";
+      const feelsLabel = feels != null ? Math.round(feels) : "--";
+      return `
+        <span class="temp-split">
+          <span class="temp-value">${tempLabel}°C</span>
+          <span class="temp-feels">(${feelsLabel})</span>
+        </span>
+      `;
+    };
+
+    if (todayForecast?.temp_day !== undefined) {
+      const tempDay = document.createElement("div");
+      tempDay.className = "weather-detail";
+      tempDay.innerHTML = `<span class="detail-label">Jour</span><span class="detail-value">${formatTemp(todayForecast.temp_day, todayForecast.feels_day)}</span>`;
+      details.appendChild(tempDay);
+    }
+
+    if (todayForecast?.temp_evening !== undefined) {
+      const tempEvening = document.createElement("div");
+      tempEvening.className = "weather-detail";
+      tempEvening.innerHTML = `<span class="detail-label">Soir</span><span class="detail-value">${formatTemp(todayForecast.temp_evening, todayForecast.feels_evening)}</span>`;
+      details.appendChild(tempEvening);
+    }
+
+    if (todayForecast?.temp_night !== undefined) {
+      const tempNight = document.createElement("div");
+      tempNight.className = "weather-detail";
+      tempNight.innerHTML = `<span class="detail-label">Nuit</span><span class="detail-value">${formatTemp(todayForecast.temp_night, todayForecast.feels_night)}</span>`;
+      details.appendChild(tempNight);
     }
 
     if (current.temp_max !== undefined || current.temp_min !== undefined) {
@@ -3398,37 +3461,62 @@ const renderWeatherSlide = async (item) => {
       details.appendChild(wind);
     }
 
-    preview.appendChild(details);
+    currentCard.appendChild(details);
 
     if (settings.show_forecast && Array.isArray(data.forecast) && data.forecast.length) {
       const forecastWrap = document.createElement("div");
-      forecastWrap.className = "forecast-grid";
+      forecastWrap.className = "weather-forecast-row";
 
-      data.forecast.slice(0, settings.forecast_days || 5).forEach((day) => {
-        const currentTemp = day.temp_avg != null
-          ? Math.round(day.temp_avg)
-          : (day.temp_max != null && day.temp_min != null
-            ? Math.round((day.temp_max + day.temp_min) / 2)
-            : Math.round(day.temp_max || 0));
-        const dayEl = document.createElement("div");
-        dayEl.className = "forecast-day";
-        dayEl.innerHTML = `
-          <span class="forecast-weekday">${day.weekday || "--"}</span>
-          <span class="forecast-icon">${day.icon || WEATHER_ICONS[day.condition] || WEATHER_ICONS.default}</span>
-          <div class="forecast-temps">
-            <span class="temp-current">${currentTemp}°</span>
-            <span class="temp-range">
-              <span class="temp-max">Max ${Math.round(day.temp_max || 0)}°</span>
-              <span class="temp-min">Min ${Math.round(day.temp_min || 0)}°</span>
-            </span>
-          </div>
-        `;
-        forecastWrap.appendChild(dayEl);
-      });
+      const rows = data.forecast.slice(1, (settings.forecast_days || 5) + 1).map((day) => `
+        <tr>
+          <td class="forecast-cell weekday">${day.weekday || "--"}</td>
+          <td class="forecast-cell icon">${day.icon || WEATHER_ICONS[day.condition] || WEATHER_ICONS.default}</td>
+          <td class="forecast-cell number">${formatTemp(day.temp_day, day.feels_day)}</td>
+          <td class="forecast-cell number">${formatTemp(day.temp_evening, day.feels_evening)}</td>
+          <td class="forecast-cell number">${formatTemp(day.temp_night, day.feels_night)}</td>
+          <td class="forecast-cell number">${day.temp_max != null ? Math.round(day.temp_max) : "--"}°</td>
+          <td class="forecast-cell number">${day.temp_min != null ? Math.round(day.temp_min) : "--"}°</td>
+          <td class="forecast-cell number">${day.wind_max != null ? `${Math.round(day.wind_max)} km/h${day.wind_peak ? ` (${day.wind_peak})` : ""}` : "-- km/h"}</td>
+        </tr>
+      `).join("");
 
-      preview.appendChild(forecastWrap);
+      const forecastCard = document.createElement("div");
+      forecastCard.className = "forecast-day forecast-day-table";
+      forecastCard.innerHTML = `
+        <div class="forecast-legend">Ressenti entre ()</div>
+        <table class="forecast-table">
+          <colgroup>
+            <col class="col-day" />
+            <col class="col-icon" />
+            <col class="col-temp" />
+            <col class="col-temp" />
+            <col class="col-temp" />
+            <col class="col-max" />
+            <col class="col-min" />
+            <col class="col-wind" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Jour</th>
+              <th></th>
+              <th>Jour</th>
+              <th>Soir</th>
+              <th>Nuit</th>
+              <th>Max</th>
+              <th>Min</th>
+              <th>Vent</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
+      forecastWrap.appendChild(forecastCard);
+      currentCard.appendChild(forecastWrap);
     }
 
+    preview.appendChild(currentCard);
     overlay.appendChild(preview);
   }
 
@@ -3557,6 +3645,8 @@ const buildTeamSlideItem = () => ({
   skip_rounds: 0,
   mimetype: "application/x-team-slide",
   display_mimetype: "application/x-team-slide",
+  background_url: teamSlideSettings.background_url || null,
+  background_mimetype: teamSlideSettings.background_mimetype || null,
   page_urls: [],
   text_pages: [],
   order: Number(teamSlideSettings.order_index) || 0,
@@ -3933,7 +4023,7 @@ const refreshPlaylist = async () => {
   playlist = enhanced;
 
   if (slideshowCache?.updateCacheForPlaylist) {
-    void slideshowCache.updateCacheForPlaylist(playlist);
+    void slideshowCache.updateCacheForPlaylist(playlist, weatherBackgroundUrls);
   }
 
   const idSet = new Set(playlist.map((item) => item.id));
@@ -4199,6 +4289,7 @@ const startSlideshow = async () => {
   await loadBirthdayCustomFonts();
   if (!isPreviewMode || isSingleSlideMode) {
     await refreshOverlaySettings();
+    await refreshWeatherBackgroundUrls();
     if (infoBandsConfig) {
       renderInfoBandWidgets(infoBandsConfig);
     }

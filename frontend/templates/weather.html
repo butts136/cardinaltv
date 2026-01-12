@@ -106,35 +106,35 @@
       <div class="form-row dual">
         <div>
           <label for="weather-icon-size">Taille icône (px)</label>
-          <input type="number" id="weather-icon-size" min="40" max="240" step="2" value="120" />
+          <input type="number" id="weather-icon-size" min="40" max="240" step="2" value="210" />
         </div>
         <div>
           <label for="weather-temp-size">Taille température (px)</label>
-          <input type="number" id="weather-temp-size" min="24" max="200" step="2" value="80" />
+          <input type="number" id="weather-temp-size" min="24" max="200" step="2" value="150" />
         </div>
         <div>
           <label for="weather-condition-size">Taille condition (px)</label>
-          <input type="number" id="weather-condition-size" min="14" max="72" step="1" value="32" />
+          <input type="number" id="weather-condition-size" min="14" max="72" step="1" value="58" />
         </div>
         <div>
           <label for="weather-detail-label-size">Taille labels détails (px)</label>
-          <input type="number" id="weather-detail-label-size" min="10" max="36" step="1" value="17" />
+          <input type="number" id="weather-detail-label-size" min="10" max="36" step="1" value="30" />
         </div>
         <div>
           <label for="weather-detail-value-size">Taille valeurs détails (px)</label>
-          <input type="number" id="weather-detail-value-size" min="12" max="48" step="1" value="25" />
+          <input type="number" id="weather-detail-value-size" min="12" max="48" step="1" value="44" />
         </div>
         <div>
           <label for="weather-forecast-icon-size">Taille icône prévisions (px)</label>
-          <input type="number" id="weather-forecast-icon-size" min="16" max="72" step="1" value="35" />
+          <input type="number" id="weather-forecast-icon-size" min="16" max="72" step="1" value="70" />
         </div>
         <div>
           <label for="weather-forecast-text-size">Taille texte prévisions (px)</label>
-          <input type="number" id="weather-forecast-text-size" min="10" max="36" step="1" value="17" />
+          <input type="number" id="weather-forecast-text-size" min="10" max="36" step="1" value="34" />
         </div>
         <div>
           <label for="weather-forecast-min-width">Largeur mini carte prévision (px)</label>
-          <input type="number" id="weather-forecast-min-width" min="60" max="200" step="5" value="110" />
+          <input type="number" id="weather-forecast-min-width" min="60" max="200" step="5" value="200" />
         </div>
       </div>
     </div>
@@ -150,37 +150,47 @@
     </div>
 
     <div class="section-content">
-      <div id="weather-preview" class="weather-preview">
-        <div class="weather-location" id="weather-location">Québec</div>
-        <div class="weather-current">
-          <div class="weather-icon" id="weather-icon">🌤️</div>
-          <div class="weather-temp" id="weather-temp">--°C</div>
-          <div class="weather-condition" id="weather-condition">Chargement...</div>
-        </div>
-        <div class="weather-details">
-          <div class="weather-detail">
-            <span class="detail-label">Ressenti</span>
-            <span class="detail-value" id="weather-feels">--°C</span>
+      <div id="weather-preview" class="weather-layout">
+        <div class="weather-card weather-card-combined">
+          <div class="weather-location" id="weather-location">Québec</div>
+          <div class="weather-current">
+            <div class="weather-icon" id="weather-icon">🌤️</div>
+            <div class="weather-temp" id="weather-temp">--°C</div>
+            <div class="weather-condition" id="weather-condition">Chargement...</div>
           </div>
-          <div class="weather-detail">
-            <span class="detail-label">Max</span>
-            <span class="detail-value" id="weather-temp-max">--°C</span>
+          <div class="weather-details">
+            <div class="weather-detail">
+              <span class="detail-label">Jour</span>
+              <span class="detail-value" id="weather-temp-day">--°C</span>
+            </div>
+            <div class="weather-detail">
+              <span class="detail-label">Soir</span>
+              <span class="detail-value" id="weather-temp-evening">--°C</span>
+            </div>
+            <div class="weather-detail">
+              <span class="detail-label">Nuit</span>
+              <span class="detail-value" id="weather-temp-night">--°C</span>
+            </div>
+            <div class="weather-detail">
+              <span class="detail-label">Max</span>
+              <span class="detail-value" id="weather-temp-max">--°C</span>
+            </div>
+            <div class="weather-detail">
+              <span class="detail-label">Min</span>
+              <span class="detail-value" id="weather-temp-min">--°C</span>
+            </div>
+            <div class="weather-detail">
+              <span class="detail-label">Humidité</span>
+              <span class="detail-value" id="weather-humidity">--%</span>
+            </div>
+            <div class="weather-detail">
+              <span class="detail-label">Vent</span>
+              <span class="detail-value" id="weather-wind">-- km/h</span>
+            </div>
           </div>
-          <div class="weather-detail">
-            <span class="detail-label">Min</span>
-            <span class="detail-value" id="weather-temp-min">--°C</span>
+          <div class="weather-forecast-row" id="weather-forecast">
+            <!-- Prévisions chargées dynamiquement -->
           </div>
-          <div class="weather-detail">
-            <span class="detail-label">Humidité</span>
-            <span class="detail-value" id="weather-humidity">--%</span>
-          </div>
-          <div class="weather-detail">
-            <span class="detail-label">Vent</span>
-            <span class="detail-value" id="weather-wind">-- km/h</span>
-          </div>
-        </div>
-        <div class="weather-forecast" id="weather-forecast">
-          <!-- Prévisions chargées dynamiquement -->
         </div>
       </div>
     </div>

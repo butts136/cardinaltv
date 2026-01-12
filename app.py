@@ -373,15 +373,15 @@ DEFAULT_SETTINGS = {
             "show_wind": True,
             "show_forecast": True,
             "forecast_days": 5,
-            "icon_size": 120,
-            "temp_size": 80,
-            "condition_size": 32,
-            "detail_label_size": 17,
-            "detail_value_size": 25,
-            "forecast_weekday_size": 17,
-            "forecast_icon_size": 35,
-            "forecast_temp_size": 17,
-            "forecast_min_width": 110,
+            "icon_size": 210,
+            "temp_size": 150,
+            "condition_size": 58,
+            "detail_label_size": 30,
+            "detail_value_size": 44,
+            "forecast_weekday_size": 34,
+            "forecast_icon_size": 70,
+            "forecast_temp_size": 34,
+            "forecast_min_width": 200,
         },
         "backgrounds": {
             "sunny": None,
@@ -6568,9 +6568,10 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}"
         f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m"
-        f"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum"
+        f"&hourly=temperature_2m,apparent_temperature,wind_speed_10m"
+        f"&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum"
         f"&timezone=America/Toronto"
-        f"&forecast_days=7"
+        f"&forecast_days=8"
     )
 
     try:
@@ -6581,6 +6582,7 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
 
     current = raw_data.get("current", {})
     daily = raw_data.get("daily", {})
+    hourly = raw_data.get("hourly", {})
 
     weather_code = current.get("weather_code", 0)
     condition = WEATHER_CODE_MAP.get(weather_code, "default")
@@ -6628,21 +6630,118 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
         "fetched_at": now.isoformat(),
     }
 
+    hourly_times = hourly.get("time", [])
+    hourly_temps = hourly.get("temperature_2m", [])
+    hourly_feels = hourly.get("apparent_temperature", [])
+    hourly_winds = hourly.get("wind_speed_10m", [])
+    hourly_buckets: Dict[str, Dict[str, List[float]]] = {}
+    wind_peaks: Dict[str, Tuple[float, int]] = {}
+
+    for i, timestamp in enumerate(hourly_times):
+        if i >= len(hourly_temps):
+            continue
+        temp = hourly_temps[i]
+        feels = hourly_feels[i] if i < len(hourly_feels) else None
+        wind = hourly_winds[i] if i < len(hourly_winds) else None
+        if temp is None:
+            continue
+        if isinstance(timestamp, str) and "T" in timestamp:
+            date_part, time_part = timestamp.split("T", 1)
+            hour_str = time_part.split(":", 1)[0]
+            try:
+                hour = int(hour_str)
+            except ValueError:
+                continue
+        else:
+            continue
+
+        if hour < 6:
+            bucket = "night"
+        elif hour < 18:
+            bucket = "day"
+        else:
+            bucket = "evening"
+
+        day_bucket = hourly_buckets.setdefault(date_part, {
+            "day": [],
+            "evening": [],
+            "night": [],
+            "day_feels": [],
+            "evening_feels": [],
+            "night_feels": [],
+            "winds": [],
+        })
+        day_bucket[bucket].append(temp)
+        if feels is not None:
+            day_bucket[f"{bucket}_feels"].append(feels)
+        if wind is not None:
+            day_bucket["winds"].append(wind)
+            peak = wind_peaks.get(date_part)
+            if peak is None or wind > peak[0] or (wind == peak[0] and hour > peak[1]):
+                wind_peaks[date_part] = (wind, hour)
+
     # Parser les prévisions
     dates = daily.get("time", [])
     codes = daily.get("weather_code", [])
     maxs = daily_maxs
     mins = daily_mins
+    apparent_maxs = daily.get("apparent_temperature_max", [])
+    apparent_mins = daily.get("apparent_temperature_min", [])
     precips = daily.get("precipitation_sum", [])
 
     for i in range(len(dates)):
         day_code = codes[i] if i < len(codes) else 0
         day_condition = WEATHER_CODE_MAP.get(day_code, "default")
+        temp_avg = None
+        feels_like = None
+        if i < len(maxs) and i < len(mins):
+            if maxs[i] is not None and mins[i] is not None:
+                temp_avg = (maxs[i] + mins[i]) / 2
+        if i < len(apparent_maxs) and i < len(apparent_mins):
+            if apparent_maxs[i] is not None and apparent_mins[i] is not None:
+                feels_like = (apparent_maxs[i] + apparent_mins[i]) / 2
+        bucket = hourly_buckets.get(dates[i], {})
+        day_temps = bucket.get("day", [])
+        evening_temps = bucket.get("evening", [])
+        night_temps = bucket.get("night", [])
+        day_feels = bucket.get("day_feels", [])
+        evening_feels = bucket.get("evening_feels", [])
+        night_feels = bucket.get("night_feels", [])
+        wind_values = bucket.get("winds", [])
+
+        temp_day = sum(day_temps) / len(day_temps) if day_temps else None
+        temp_evening = sum(evening_temps) / len(evening_temps) if evening_temps else None
+        temp_night = sum(night_temps) / len(night_temps) if night_temps else None
+        feels_day = sum(day_feels) / len(day_feels) if day_feels else None
+        feels_evening = sum(evening_feels) / len(evening_feels) if evening_feels else None
+        feels_night = sum(night_feels) / len(night_feels) if night_feels else None
+        wind_max = max(wind_values) if wind_values else None
+        wind_peak = None
+        peak_info = wind_peaks.get(dates[i])
+        if peak_info is not None:
+            peak_hour = peak_info[1]
+            if peak_hour < 6:
+                wind_peak = "nuit"
+            elif peak_hour < 18:
+                wind_peak = "jour"
+            else:
+                wind_peak = "soir"
+
         day_data = {
             "date": dates[i],
             "weekday": "",
             "temp_max": maxs[i] if i < len(maxs) else None,
             "temp_min": mins[i] if i < len(mins) else None,
+            "temp_avg": temp_avg,
+            "feels_like": feels_like,
+            "temp_day": temp_day,
+            "temp_evening": temp_evening,
+            "temp_night": temp_night,
+            "feels_day": feels_day,
+            "feels_evening": feels_evening,
+            "feels_night": feels_night,
+            "wind_max": wind_max,
+            "wind_peak": wind_peak,
             "precipitation": precips[i] if i < len(precips) else 0,
             "condition": day_condition,
             "icon": WEATHER_CONDITION_ICONS.get(day_condition, "🌤️"),
@@ -6650,7 +6749,7 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
         # Ajouter le jour de la semaine
         try:
             dt = datetime.strptime(dates[i], "%Y-%m-%d")
-            day_data["weekday"] = TIME_CHANGE_WEEKDAYS_FR[dt.weekday()][:3].capitalize()
+            day_data["weekday"] = TIME_CHANGE_WEEKDAYS_FR[dt.weekday()].capitalize()
         except Exception:
             pass
         weather_data["forecast"].append(day_data)

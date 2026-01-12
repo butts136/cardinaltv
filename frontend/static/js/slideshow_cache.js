@@ -67,7 +67,7 @@
     return registration;
   };
 
-  const updateCacheForPlaylist = async (items) => {
+  const updateCacheForPlaylist = async (items, extraUrls = []) => {
     const reg = await ensureServiceWorker();
     const worker = getActiveWorker(reg);
     if (!worker) return;
@@ -76,6 +76,7 @@
     (Array.isArray(items) ? items : []).forEach((entry) => {
       collectMediaFromItem(entry).forEach((url) => nextUrls.add(url));
     });
+    (Array.isArray(extraUrls) ? extraUrls : []).forEach((url) => pushUrl(nextUrls, url));
 
     const toAdd = Array.from(nextUrls).filter((url) => !cachedUrls.has(url));
     const toRemove = Array.from(cachedUrls).filter((url) => !nextUrls.has(url));

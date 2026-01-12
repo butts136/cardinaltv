@@ -58,7 +58,9 @@
   const weatherIcon = document.getElementById('weather-icon');
   const weatherTemp = document.getElementById('weather-temp');
   const weatherCondition = document.getElementById('weather-condition');
-  const weatherFeels = document.getElementById('weather-feels');
+  const weatherTempDay = document.getElementById('weather-temp-day');
+  const weatherTempEvening = document.getElementById('weather-temp-evening');
+  const weatherTempNight = document.getElementById('weather-temp-night');
   const weatherTempMax = document.getElementById('weather-temp-max');
   const weatherTempMin = document.getElementById('weather-temp-min');
   const weatherHumidity = document.getElementById('weather-humidity');
@@ -110,14 +112,14 @@
     if (showWind) showWind.checked = display.show_wind !== false;
     if (showForecast) showForecast.checked = display.show_forecast !== false;
     if (forecastDays) forecastDays.value = display.forecast_days || 5;
-    if (iconSizeInput) iconSizeInput.value = display.icon_size || 120;
-    if (tempSizeInput) tempSizeInput.value = display.temp_size || 80;
-    if (conditionSizeInput) conditionSizeInput.value = display.condition_size || 32;
-    if (detailLabelSizeInput) detailLabelSizeInput.value = display.detail_label_size || 17;
-    if (detailValueSizeInput) detailValueSizeInput.value = display.detail_value_size || 25;
-    if (forecastIconSizeInput) forecastIconSizeInput.value = display.forecast_icon_size || 35;
-    if (forecastTextSizeInput) forecastTextSizeInput.value = display.forecast_temp_size || 17;
-    if (forecastMinWidthInput) forecastMinWidthInput.value = display.forecast_min_width || 110;
+    if (iconSizeInput) iconSizeInput.value = display.icon_size || 210;
+    if (tempSizeInput) tempSizeInput.value = display.temp_size || 150;
+    if (conditionSizeInput) conditionSizeInput.value = display.condition_size || 58;
+    if (detailLabelSizeInput) detailLabelSizeInput.value = display.detail_label_size || 30;
+    if (detailValueSizeInput) detailValueSizeInput.value = display.detail_value_size || 44;
+    if (forecastIconSizeInput) forecastIconSizeInput.value = display.forecast_icon_size || 70;
+    if (forecastTextSizeInput) forecastTextSizeInput.value = display.forecast_temp_size || 34;
+    if (forecastMinWidthInput) forecastMinWidthInput.value = display.forecast_min_width || 200;
 
     if (useSeasonalBg) useSeasonalBg.checked = config.use_seasonal_backgrounds || false;
   }
@@ -130,7 +132,6 @@
 
     const current = weatherData.current;
     const showCurrentValue = showCurrent?.checked !== false;
-    const showFeelsValue = showFeelsLike?.checked !== false;
     const showHumidityValue = showHumidity?.checked !== false;
     const showWindValue = showWind?.checked !== false;
     const showForecastValue = showForecast?.checked !== false;
@@ -139,25 +140,45 @@
     if (weatherTemp) weatherTemp.textContent = current.temperature != null ? `${Math.round(current.temperature)}°C` : '--°C';
     if (weatherCondition) weatherCondition.textContent = current.condition_label || 'Variable';
     if (weatherLocationLabel) weatherLocationLabel.textContent = weatherData.location || locationName?.value || '—';
-    if (weatherFeels) weatherFeels.textContent = current.feels_like != null ? `${Math.round(current.feels_like)}°C` : '--°C';
+    const todayForecast = Array.isArray(weatherData.forecast) ? weatherData.forecast[0] : null;
+
+    const formatTemp = (value, feels) => {
+      const tempLabel = value != null ? Math.round(value) : '--';
+      const feelsLabel = feels != null ? Math.round(feels) : '--';
+      return `
+        <span class="temp-split">
+          <span class="temp-value">${tempLabel}°C</span>
+          <span class="temp-feels">(${feelsLabel})</span>
+        </span>
+      `;
+    };
+
+    if (weatherTempDay) {
+      weatherTempDay.innerHTML = todayForecast ? formatTemp(todayForecast.temp_day, todayForecast.feels_day) : '--°C';
+    }
+    if (weatherTempEvening) {
+      weatherTempEvening.innerHTML = todayForecast ? formatTemp(todayForecast.temp_evening, todayForecast.feels_evening) : '--°C';
+    }
+    if (weatherTempNight) {
+      weatherTempNight.innerHTML = todayForecast ? formatTemp(todayForecast.temp_night, todayForecast.feels_night) : '--°C';
+    }
     if (weatherTempMax) weatherTempMax.textContent = current.temp_max != null ? `${Math.round(current.temp_max)}°C` : '--°C';
     if (weatherTempMin) weatherTempMin.textContent = current.temp_min != null ? `${Math.round(current.temp_min)}°C` : '--°C';
     if (weatherHumidity) weatherHumidity.textContent = current.humidity != null ? `${current.humidity}%` : '--%';
     if (weatherWind) weatherWind.textContent = current.wind_speed != null ? `${Math.round(current.wind_speed)} km/h` : '-- km/h';
 
     if (weatherPreview) {
-      weatherPreview.style.setProperty('--weather-preview-icon-size', `${parseInt(iconSizeInput?.value, 10) || 120}px`);
-      weatherPreview.style.setProperty('--weather-preview-temp-size', `${parseInt(tempSizeInput?.value, 10) || 80}px`);
-      weatherPreview.style.setProperty('--weather-preview-condition-size', `${parseInt(conditionSizeInput?.value, 10) || 32}px`);
-      weatherPreview.style.setProperty('--weather-preview-detail-label-size', `${parseInt(detailLabelSizeInput?.value, 10) || 17}px`);
-      weatherPreview.style.setProperty('--weather-preview-detail-value-size', `${parseInt(detailValueSizeInput?.value, 10) || 25}px`);
-      weatherPreview.style.setProperty('--weather-preview-forecast-icon-size', `${parseInt(forecastIconSizeInput?.value, 10) || 35}px`);
-      weatherPreview.style.setProperty('--weather-preview-forecast-text-size', `${parseInt(forecastTextSizeInput?.value, 10) || 17}px`);
-      weatherPreview.style.setProperty('--weather-preview-forecast-min-width', `${parseInt(forecastMinWidthInput?.value, 10) || 110}px`);
+      weatherPreview.style.setProperty('--weather-preview-icon-size', `${parseInt(iconSizeInput?.value, 10) || 210}px`);
+      weatherPreview.style.setProperty('--weather-preview-temp-size', `${parseInt(tempSizeInput?.value, 10) || 150}px`);
+      weatherPreview.style.setProperty('--weather-preview-condition-size', `${parseInt(conditionSizeInput?.value, 10) || 58}px`);
+      weatherPreview.style.setProperty('--weather-preview-detail-label-size', `${parseInt(detailLabelSizeInput?.value, 10) || 30}px`);
+      weatherPreview.style.setProperty('--weather-preview-detail-value-size', `${parseInt(detailValueSizeInput?.value, 10) || 44}px`);
+      weatherPreview.style.setProperty('--weather-preview-forecast-icon-size', `${parseInt(forecastIconSizeInput?.value, 10) || 70}px`);
+      weatherPreview.style.setProperty('--weather-preview-forecast-text-size', `${parseInt(forecastTextSizeInput?.value, 10) || 34}px`);
+      weatherPreview.style.setProperty('--weather-preview-forecast-min-width', `${parseInt(forecastMinWidthInput?.value, 10) || 200}px`);
     }
 
     if (weatherTemp) weatherTemp.style.display = showCurrentValue ? '' : 'none';
-    if (weatherFeels?.parentElement) weatherFeels.parentElement.style.display = showFeelsValue ? '' : 'none';
     if (weatherHumidity?.parentElement) weatherHumidity.parentElement.style.display = showHumidityValue ? '' : 'none';
     if (weatherWind?.parentElement) weatherWind.parentElement.style.display = showWindValue ? '' : 'none';
     if (weatherForecast) weatherForecast.style.display = showForecastValue ? '' : 'none';
@@ -172,28 +193,62 @@
     if (!weatherForecast || !weatherData?.forecast) return;
 
     const days = parseInt(forecastDays?.value) || 5;
-    const forecast = weatherData.forecast.slice(0, days);
+    const forecast = weatherData.forecast.slice(1, days + 1);
 
     if (forecast.length === 0) {
       weatherForecast.innerHTML = '<p class="playlist-subtitle">Aucune prévision disponible.</p>';
       return;
     }
 
+    const formatTemp = (value, feels) => {
+      const tempLabel = value != null ? Math.round(value) : '--';
+      const feelsLabel = feels != null ? Math.round(feels) : '--';
+      return `${tempLabel} <span class="temp-feels">(${feelsLabel})</span>`;
+    };
+
+    const rows = forecast.map(day => `
+      <tr>
+        <td class="forecast-cell weekday">${day.weekday || '--'}</td>
+        <td class="forecast-cell icon">${day.icon || '🌤️'}</td>
+        <td class="forecast-cell number">${formatTemp(day.temp_day, day.feels_day)}</td>
+        <td class="forecast-cell number">${formatTemp(day.temp_evening, day.feels_evening)}</td>
+        <td class="forecast-cell number">${formatTemp(day.temp_night, day.feels_night)}</td>
+        <td class="forecast-cell number">${day.temp_max != null ? Math.round(day.temp_max) : '--'}°</td>
+        <td class="forecast-cell number">${day.temp_min != null ? Math.round(day.temp_min) : '--'}°</td>
+        <td class="forecast-cell number">${day.wind_max != null ? `${Math.round(day.wind_max)} km/h${day.wind_peak ? ` (${day.wind_peak})` : ''}` : '-- km/h'}</td>
+      </tr>
+    `).join('');
+
     weatherForecast.innerHTML = `
-      <div class="forecast-grid">
-        ${forecast.map(day => `
-          <div class="forecast-day">
-            <span class="forecast-weekday">${day.weekday || '--'}</span>
-            <span class="forecast-icon">${day.icon || '🌤️'}</span>
-            <div class="forecast-temps">
-              <span class="temp-current">${day.temp_avg != null ? Math.round(day.temp_avg) : (day.temp_max != null && day.temp_min != null ? Math.round((day.temp_max + day.temp_min) / 2) : Math.round(day.temp_max || 0))}°</span>
-              <span class="temp-range">
-              <span class="temp-max">Max ${day.temp_max != null ? Math.round(day.temp_max) : '--'}°</span>
-              <span class="temp-min">Min ${day.temp_min != null ? Math.round(day.temp_min) : '--'}°</span>
-            </span>
-            </div>
-          </div>
-        `).join('')}
+      <div class="forecast-day forecast-day-table">
+        <div class="forecast-legend">Ressenti entre ()</div>
+        <table class="forecast-table">
+          <colgroup>
+            <col class="col-day" />
+            <col class="col-icon" />
+            <col class="col-temp" />
+            <col class="col-temp" />
+            <col class="col-temp" />
+            <col class="col-max" />
+            <col class="col-min" />
+            <col class="col-wind" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Jour</th>
+              <th></th>
+              <th>Jour</th>
+              <th>Soir</th>
+              <th>Nuit</th>
+              <th>Max</th>
+              <th>Min</th>
+              <th>Vent</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
       </div>
     `;
 
@@ -254,15 +309,15 @@
         show_wind: showWind?.checked !== false,
         show_forecast: showForecast?.checked !== false,
         forecast_days: parseInt(forecastDays?.value) || 5,
-        icon_size: parseInt(iconSizeInput?.value) || 120,
-        temp_size: parseInt(tempSizeInput?.value) || 80,
-        condition_size: parseInt(conditionSizeInput?.value) || 32,
-        detail_label_size: parseInt(detailLabelSizeInput?.value) || 17,
-        detail_value_size: parseInt(detailValueSizeInput?.value) || 25,
-        forecast_weekday_size: parseInt(forecastTextSizeInput?.value) || 17,
-        forecast_icon_size: parseInt(forecastIconSizeInput?.value) || 35,
-        forecast_temp_size: parseInt(forecastTextSizeInput?.value) || 17,
-        forecast_min_width: parseInt(forecastMinWidthInput?.value) || 110,
+        icon_size: parseInt(iconSizeInput?.value) || 210,
+        temp_size: parseInt(tempSizeInput?.value) || 150,
+        condition_size: parseInt(conditionSizeInput?.value) || 58,
+        detail_label_size: parseInt(detailLabelSizeInput?.value) || 30,
+        detail_value_size: parseInt(detailValueSizeInput?.value) || 44,
+        forecast_weekday_size: parseInt(forecastTextSizeInput?.value) || 34,
+        forecast_icon_size: parseInt(forecastIconSizeInput?.value) || 70,
+        forecast_temp_size: parseInt(forecastTextSizeInput?.value) || 34,
+        forecast_min_width: parseInt(forecastMinWidthInput?.value) || 200,
       },
       use_seasonal_backgrounds: useSeasonalBg?.checked || false,
     };
