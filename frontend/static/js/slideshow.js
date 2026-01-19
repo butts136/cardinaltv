@@ -1524,14 +1524,13 @@ const ensurePreloadLink = () => {
   }
   preloadLink = document.createElement("link");
   preloadLink.rel = "preload";
-  preloadLink.as = "image";
   preloadLink.fetchPriority = "low";
   document.head.appendChild(preloadLink);
   return preloadLink;
 };
 
 const preloadNextBackground = () => {
-  if (playlist.length <= 1 || currentIndex < 0) {
+  if (!playlist.length || currentIndex < 0) {
     if (preloadLink) {
       preloadLink.removeAttribute("href");
     }
