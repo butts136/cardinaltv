@@ -1514,6 +1514,7 @@ const resolveItemBackground = (item) => {
 };
 
 let preloadLink = null;
+let lastPreloadedBackground = "";
 const ensurePreloadLink = () => {
   if (preloadLink) {
     return preloadLink;
@@ -1534,6 +1535,7 @@ const preloadNextBackground = () => {
     if (preloadLink) {
       preloadLink.removeAttribute("href");
     }
+    lastPreloadedBackground = "";
     return;
   }
   const nextIndex = (currentIndex + 1) % playlist.length;
@@ -1543,14 +1545,19 @@ const preloadNextBackground = () => {
     if (preloadLink) {
       preloadLink.removeAttribute("href");
     }
+    lastPreloadedBackground = "";
     return;
   }
   const link = ensurePreloadLink();
   if (!link) {
     return;
   }
-  link.as = isVideoBackground(background.url, background.mimetype) ? "video" : "image";
+  if (background.url === lastPreloadedBackground) {
+    return;
+  }
+  lastPreloadedBackground = background.url;
   link.href = background.url;
+  link.as = isVideoBackground(background.url, background.mimetype) ? "video" : "image";
 };
 
 const detectMediaKind = (item) => {
