@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import base64
 import calendar
 import copy
 import html
 import json
+import logging
 import math
 import mimetypes
 import os
@@ -11,11 +13,11 @@ import re
 import shutil
 import subprocess
 import sys
-import uuid
-import base64
 import urllib.parse
 import urllib.request
+import uuid
 from datetime import date, datetime, timedelta
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, List, Optional
@@ -123,6 +125,8 @@ DEFAULT_TEST_SLIDE_META = {
     "name": "Diapo personnalisée",
     "event_date": "",
 }
+LOGS_DIR = DATA_DIR / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 FRENCH_WEEKDAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 FRENCH_MONTHS = [
     "janvier",
@@ -478,6 +482,22 @@ CUSTOM_SLIDES_DIR.mkdir(parents=True, exist_ok=True)
 
 if not CUSTOM_SLIDES_INDEX_FILE.exists():
     CUSTOM_SLIDES_INDEX_FILE.write_text(json.dumps({"slides": []}, indent=2), encoding="utf-8")
+
+app_logger = logging.getLogger("cardinaltv")
+app_logger.setLevel(logging.INFO)
+if not app_logger.handlers:
+    log_handler = TimedRotatingFileHandler(
+        LOGS_DIR / "app.log",
+        when="midnight",
+        interval=1,
+        backupCount=7,
+        encoding="utf-8",
+    )
+    log_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    )
+    app_logger.addHandler(log_handler)
+    app_logger.propagate = False
 
 STATIC_ROUTE_PREFIX = "static"
 
@@ -3170,7 +3190,7 @@ class EmployeeStore:
             with self._json_path.open("w", encoding="utf-8") as handle:
                 json.dump(self._employees, handle, ensure_ascii=False, indent=2)
         except Exception as exc:  # pragma: no cover
-            print(f"[employees] Impossible d'écrire {self._json_path}: {exc}", file=sys.stderr)
+            app_logger.error("[employees] Impossible d'écrire %s: %s", self._json_path, exc)
 
     def _maybe_reload_from_disk(self) -> None:
         # Recharge systématiquement pour refléter le JSON actuel.
@@ -3617,6 +3637,9 @@ app = Flask(
     template_folder=str(FRONTEND_TEMPLATES_DIR),
     static_url_path="/cardinaltv/static",
 )
+app.logger.handlers = app_logger.handlers[:]
+app.logger.setLevel(app_logger.level)
+app.logger.propagate = False
 app.config["APPLICATION_ROOT"] = "/cardinaltv"
 STATIC_ROUTE_PREFIX = (app.static_url_path or "/static").lstrip("/")
 store = MediaStore(STATE_FILE)
@@ -4493,7 +4516,12 @@ def get_powerpoint_pdf(powerpoint_id: str) -> Any:
                 stderr_output = (exc.stderr or b"").decode("utf-8", errors="ignore").strip()
             except Exception:
                 stderr_output = ""
-        print(f"Failed to convert {ppt_filename} to PDF: {exc}\n{stderr_output}")
+        app_logger.exception(
+            "Failed to convert %s to PDF: %s\n%s",
+            ppt_filename,
+            exc,
+            stderr_output,
+        )
         abort(500, description="Échec de la conversion en PDF.")
     
     # Update the item with pdf_filename
@@ -4940,8 +4968,7 @@ def log_key_event() -> Any:
     if not isinstance(payload, dict):
         abort(400, description="Requête invalide.")
     
-    log_file = DATA_DIR / "logs" / "key-events.json"
-    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file = LOGS_DIR / "key-events.json"
     
     # Read existing logs
     logs = []
@@ -4966,7 +4993,7 @@ def log_key_event() -> Any:
         with log_file.open("w", encoding="utf-8") as f:
             json.dump(logs, f, indent=2, ensure_ascii=False)
     except OSError as exc:
-        print(f"Failed to write key event log: {exc}")
+        app_logger.error("Failed to write key event log: %s", exc)
     
     return jsonify({"status": "logged"})
 
@@ -5206,8 +5233,7 @@ def log_useragent() -> Any:
             abort(400, description="Requête invalide.")
         
         # Create logs directory if it doesn't exist
-        logs_dir = DATA_DIR / "logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
+        logs_dir = LOGS_DIR
         
         # Log file path
         log_file = logs_dir / "user-agents.txt"
@@ -5237,7 +5263,7 @@ User-Agent: {user_agent}
         return jsonify({"success": True, "message": "User-agent logged successfully"})
     
     except Exception as e:
-        print(f"Error logging user-agent: {e}")
+        app_logger.exception("Error logging user-agent: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -6989,7 +7015,9 @@ def upload_powerpoint() -> Any:
                 shutil.rmtree(bundle_dir, ignore_errors=True)
             bundle_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            print(f"Failed to prepare bundle directory for {original_filename}: {exc}")
+            app_logger.error(
+                "Failed to prepare bundle directory for %s: %s", original_filename, exc
+            )
             errors.append(f"Impossible de préparer le dossier de conversion pour «{original_filename}» : {exc}.")
             continue
 
@@ -7000,7 +7028,9 @@ def upload_powerpoint() -> Any:
         try:
             uploaded.save(source_path)
         except Exception as exc:
-            print(f"Failed to save uploaded powerpoint {uploaded.filename}: {exc}")
+            app_logger.error(
+                "Failed to save uploaded powerpoint %s: %s", uploaded.filename, exc
+            )
             shutil.rmtree(bundle_dir, ignore_errors=True)
             errors.append(f"Impossible d'enregistrer le fichier «{original_filename}» : {exc}.")
             continue
@@ -7014,7 +7044,9 @@ def upload_powerpoint() -> Any:
                 shutil.rmtree(slides_dir, ignore_errors=True)
             slides_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            print(f"Failed to prepare slides directory for {uploaded.filename}: {exc}")
+            app_logger.error(
+                "Failed to prepare slides directory for %s: %s", uploaded.filename, exc
+            )
             errors.append(f"Impossible de créer le dossier des diapositives pour «{original_filename}» : {exc}.")
             shutil.rmtree(bundle_dir, ignore_errors=True)
             continue
@@ -7049,7 +7081,13 @@ def upload_powerpoint() -> Any:
                         stderr_output = ""
                 detail = stderr_output or str(exc)
                 conversion_errors.append(detail)
-                print(f"Failed to convert {uploaded.filename} using {filter_arg}: {exc}\n{stderr_output}")
+                app_logger.exception(
+                    "Failed to convert %s using %s: %s\n%s",
+                    uploaded.filename,
+                    filter_arg,
+                    exc,
+                    stderr_output,
+                )
                 return False
 
         if not run_png_conversion("png:impress_png_Export"):
@@ -7080,7 +7118,9 @@ def upload_powerpoint() -> Any:
                         continue
                     converted.append(rel_path.as_posix())
             except Exception as exc:
-                print(f"Failed to transcode PNG {candidate} to JPEG: {exc}")
+                app_logger.error(
+                    "Failed to transcode PNG %s to JPEG: %s", candidate, exc
+                )
                 errors.append(
                     f"Impossible de convertir une diapositive en JPEG pour «{original_filename}» : {exc}"
                 )
@@ -7094,7 +7134,9 @@ def upload_powerpoint() -> Any:
         slide_relpaths = converted
 
         if not slide_relpaths:
-            print(f"No slide assets extracted for {uploaded.filename}. Skipping upload.")
+            app_logger.warning(
+                "No slide assets extracted for %s. Skipping upload.", uploaded.filename
+            )
             shutil.rmtree(bundle_dir, ignore_errors=True)
             errors.append(
                 f"La conversion JPEG de «{original_filename}» n'a produit aucune diapositive. Vérifiez le fichier et réessayez."
@@ -7314,9 +7356,13 @@ def run() -> None:
                 integer=True,
             )
         )
-        print(
+        app_logger.info(
             "Starting CardinalTV with Waitress on 0.0.0.0:39010 "
-            f"(threads={threads}, connection_limit={connection_limit}, channel_timeout={channel_timeout}, backlog={backlog})"
+            "(threads=%s, connection_limit=%s, channel_timeout=%s, backlog=%s)",
+            threads,
+            connection_limit,
+            channel_timeout,
+            backlog,
         )
         waitress_serve(
             app,
@@ -7330,7 +7376,7 @@ def run() -> None:
         return
 
     if not debug_mode:
-        print(
+        app_logger.warning(
             "Warning: Waitress is not installed. Falling back to the single-threaded Flask server; "
             "install the 'waitress' package for improved stability."
         )

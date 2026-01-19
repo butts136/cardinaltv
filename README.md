@@ -460,6 +460,10 @@ curl -s http://localhost:39010/api/media | python -c "import sys,json; json.load
 
 L'application utilise automatiquement **Waitress** (serveur WSGI) en mode production pour de meilleures performances et stabilité.
 
+### Logs applicatifs
+
+Les logs applicatifs sont écrits dans `data/logs/app.log` avec une rotation quotidienne et une rétention de 7 jours (les fichiers plus anciens sont supprimés automatiquement).
+
 ### Configuration recommandée
 
 ```bash
