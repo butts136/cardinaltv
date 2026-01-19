@@ -1460,6 +1460,7 @@ const setStatus = (message) => {
   }
 };
 
+const BACKGROUND_VIDEO_EXTENSIONS = ["mp4", "m4v", "mov", "webm", "mkv"];
 const getExtension = (name) => {
   if (!name) {
     return "";
@@ -1470,6 +1471,64 @@ const getExtension = (name) => {
     return "";
   }
   return lower.slice(index + 1);
+};
+
+const isVideoBackground = (url, mimetype = "") => {
+  const ext = getExtension(url || "");
+  const mime = String(mimetype || "").toLowerCase();
+  return mime.startsWith("video/") || BACKGROUND_VIDEO_EXTENSIONS.includes(ext);
+};
+
+const resolveItemBackground = (item) => {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  if (item.background_url) {
+    return { url: item.background_url, mimetype: item.background_mimetype || "" };
+  }
+  const background = item.background || item?.custom_payload?.background || item?.custom_payload?.meta?.background;
+  if (background && typeof background === "object") {
+    const url = background.url || background.path;
+    if (url) {
+      return { url, mimetype: background.mimetype || "" };
+    }
+  }
+  return null;
+};
+
+let preloadLink = null;
+const ensurePreloadLink = () => {
+  if (preloadLink || !document?.head) {
+    return preloadLink;
+  }
+  preloadLink = document.createElement("link");
+  preloadLink.rel = "preload";
+  preloadLink.as = "image";
+  preloadLink.setAttribute("fetchpriority", "low");
+  document.head.appendChild(preloadLink);
+  return preloadLink;
+};
+
+const preloadNextBackground = () => {
+  if (!playlist.length || playlist.length === 1 || currentIndex < 0) {
+    if (preloadLink) {
+      preloadLink.removeAttribute("href");
+    }
+    return;
+  }
+  const nextIndex = (currentIndex + 1) % playlist.length;
+  const nextItem = playlist[nextIndex];
+  const background = resolveItemBackground(nextItem);
+  if (!background?.url) {
+    if (preloadLink) {
+      preloadLink.removeAttribute("href");
+    }
+    return;
+  }
+  const link = ensurePreloadLink();
+  if (!link) return;
+  link.as = isVideoBackground(background.url, background.mimetype) ? "video" : "image";
+  link.href = background.url;
 };
 
 const detectMediaKind = (item) => {
@@ -2469,8 +2528,7 @@ const renderTeamSlide = (item, employeesList = []) => {
   const backgroundUrl = teamSlideSettings.background_url;
   const backgroundMime = (teamSlideSettings.background_mimetype || "").toLowerCase();
   if (backgroundUrl) {
-    const ext = getExtension(backgroundUrl);
-    const isVideo = backgroundMime.startsWith("video/") || ["mp4", "mov", "m4v", "webm"].includes(ext);
+    const isVideo = isVideoBackground(backgroundUrl, backgroundMime);
     if (isVideo) {
       const video = document.createElement("video");
       video.className = "team-slide-video";
@@ -2478,6 +2536,7 @@ const renderTeamSlide = (item, employeesList = []) => {
       video.autoplay = true;
       video.loop = true;
       video.muted = true;
+      video.preload = "auto";
       video.playsInline = true;
       video.setAttribute("playsinline", "");
       root.appendChild(video);
@@ -2689,9 +2748,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     settings.background_mimetype ||
     ""
   ).toLowerCase();
-  const bgExt = getExtension(bgUrl || "");
-  const isVideo =
-    bgMime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(bgExt);
+  const isVideo = isVideoBackground(bgUrl, bgMime);
   if (bgUrl && isVideo) {
     const video = document.createElement("video");
     video.className = "birthday-slide-media birthday-slide-video";
@@ -2699,6 +2756,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
+    video.preload = "auto";
     video.setAttribute("muted", "");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
@@ -2886,8 +2944,7 @@ const renderChristmasSlide = (item) => {
   backdrop.className = "christmas-slide-backdrop";
   const bgUrl = item.background_url || settings.background_url;
   const mime = (item.background_mimetype || settings.background_mimetype || "").toLowerCase();
-  const ext = getExtension(bgUrl || "");
-  const isVideo = mime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
+  const isVideo = isVideoBackground(bgUrl, mime);
   if (bgUrl && isVideo) {
     const video = document.createElement("video");
     video.className = "christmas-slide-media christmas-slide-video";
@@ -2895,6 +2952,7 @@ const renderChristmasSlide = (item) => {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
+    video.preload = "auto";
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     backdrop.appendChild(video);
@@ -2994,13 +3052,14 @@ const renderCustomSlide = (item) => {
   backgroundLayer.className = "custom-slide-background";
   if (background && background.url) {
     const mime = (background.mimetype || "").toLowerCase();
-    const isVideo = Boolean(background.is_video) || mime.startsWith("video/");
+    const isVideo = Boolean(background.is_video) || isVideoBackground(background.url, mime);
     if (isVideo) {
       const video = document.createElement("video");
       video.src = background.url;
       video.muted = true;
       video.loop = true;
       video.autoplay = true;
+      video.preload = "auto";
       video.playsInline = true;
       video.setAttribute("playsinline", "");
       video.className = "custom-slide-media custom-slide-video";
@@ -3320,8 +3379,7 @@ const renderWeatherSlide = async (item) => {
   
   if (bgUrl || seasonBgUrl) {
     const url = bgUrl || seasonBgUrl;
-    const ext = getExtension(url || "");
-    const isVideo = ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
+    const isVideo = isVideoBackground(url, "");
     if (isVideo) {
       const video = document.createElement("video");
       video.className = "weather-slide-media weather-slide-video";
@@ -3329,6 +3387,7 @@ const renderWeatherSlide = async (item) => {
       video.autoplay = true;
       video.loop = true;
       video.muted = true;
+      video.preload = "auto";
       video.playsInline = true;
       video.setAttribute("playsinline", "");
       backdrop.appendChild(video);
@@ -3550,8 +3609,7 @@ const renderTimeChangeSlide = (item) => {
   backdrop.className = "time-change-slide-backdrop";
   const bgUrl = item.background_url || settings.background_url;
   const mime = (item.background_mimetype || settings.background_mimetype || "").toLowerCase();
-  const ext = getExtension(bgUrl || "");
-  const isVideo = mime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
+  const isVideo = isVideoBackground(bgUrl, mime);
   if (bgUrl && isVideo) {
     const video = document.createElement("video");
     video.className = "time-change-slide-media time-change-slide-video";
@@ -3559,6 +3617,7 @@ const renderTimeChangeSlide = (item) => {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
+    video.preload = "auto";
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     backdrop.appendChild(video);
@@ -4207,6 +4266,7 @@ const advanceSlide = async () => {
     const item = playlist[currentIndex] || playlist[0];
     if (item) {
       await showMedia(item);
+      preloadNextBackground();
     }
     return;
   }
@@ -4228,6 +4288,7 @@ const advanceSlide = async () => {
     if (!shouldSkipItem(candidate)) {
       currentIndex = nextIndex;
       await showMedia(candidate);
+      preloadNextBackground();
       return;
     }
     tries += 1;
@@ -4242,6 +4303,7 @@ const advanceSlide = async () => {
   if (fallback) {
     currentIndex = playlist.findIndex((entry) => entry.id === fallback.id);
     await showMedia(fallback);
+    preloadNextBackground();
   }
 };
 
@@ -4262,6 +4324,7 @@ const handlePlaylistRefresh = async () => {
     const current = playlist[currentIndex];
     if (current && detectMediaKind(current) !== "video") {
       await showMedia(current, { maintainSkip: true });
+      preloadNextBackground();
     }
   }
 };
@@ -4312,6 +4375,7 @@ const startSlideshow = async () => {
       stage.hidden = false;
     }
     await showMedia(item);
+    preloadNextBackground();
     return true;
   }
   await ensureTeamEmployeesData();
@@ -4331,6 +4395,7 @@ const startSlideshow = async () => {
   const current = playlist[currentIndex] || playlist[0];
   if (current) {
     await showMedia(current);
+    preloadNextBackground();
   }
 
   startPlaylistRefresh();
