@@ -698,16 +698,14 @@ def _get_time_change_schedule(year: int) -> Optional[Dict[str, Any]]:
             and (now - fetched_at) < TIME_CHANGE_CACHE_TTL
         ):
             return copy.deepcopy(cached)
-
-    schedule = _fetch_time_change_schedule_from_web(year)
-    if not schedule:
-        schedule = _compute_time_change_from_zoneinfo(year)
-    if schedule:
-        with TIME_CHANGE_CACHE_LOCK:
+        schedule = _fetch_time_change_schedule_from_web(year)
+        if not schedule:
+            schedule = _compute_time_change_from_zoneinfo(year)
+        if schedule:
             TIME_CHANGE_CACHE["year"] = year
             TIME_CHANGE_CACHE["data"] = schedule
             TIME_CHANGE_CACHE["fetched_at"] = now
-    return schedule
+        return copy.deepcopy(schedule) if schedule else None
 
 
 def _format_offset(delta: Optional[timedelta]) -> str:
@@ -6588,7 +6586,8 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
             raw_data = json.loads(response.read().decode("utf-8"))
     except (OSError, json.JSONDecodeError):
         with WEATHER_CACHE_LOCK:
-            return copy.deepcopy(WEATHER_CACHE.get("data"))
+            cached_weather = WEATHER_CACHE.get("data")
+        return copy.deepcopy(cached_weather) if cached_weather is not None else None
 
     current = raw_data.get("current", {})
     daily = raw_data.get("daily", {})
