@@ -1519,7 +1519,7 @@ const ensurePreloadLink = () => {
   if (preloadLink) {
     return preloadLink;
   }
-  if (!document?.head) {
+  if (!document.head) {
     console.warn("Preload unavailable: document.head missing.");
     return null;
   }
@@ -1530,11 +1530,17 @@ const ensurePreloadLink = () => {
   return preloadLink;
 };
 
+const clearPreloadLink = () => {
+  if (!preloadLink) {
+    return;
+  }
+  preloadLink.href = "";
+  preloadLink.removeAttribute("href");
+};
+
 const preloadNextBackground = () => {
   if (!playlist.length || currentIndex < 0) {
-    if (preloadLink) {
-      preloadLink.removeAttribute("href");
-    }
+    clearPreloadLink();
     lastPreloadedBackground = "";
     return;
   }
@@ -1542,9 +1548,7 @@ const preloadNextBackground = () => {
   const nextItem = playlist[nextIndex];
   const background = resolveItemBackground(nextItem);
   if (!background?.url) {
-    if (preloadLink) {
-      preloadLink.removeAttribute("href");
-    }
+    clearPreloadLink();
     lastPreloadedBackground = "";
     return;
   }
