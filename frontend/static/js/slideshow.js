@@ -1531,7 +1531,7 @@ const ensurePreloadLink = () => {
 };
 
 const preloadNextBackground = () => {
-  if (!playlist.length || playlist.length === 1 || currentIndex < 0) {
+  if (playlist.length <= 1 || currentIndex < 0) {
     if (preloadLink) {
       preloadLink.removeAttribute("href");
     }
