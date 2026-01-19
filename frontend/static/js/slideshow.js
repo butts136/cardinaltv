@@ -1519,7 +1519,7 @@ const ensurePreloadLink = () => {
     return preloadLink;
   }
   if (!document?.head) {
-    console.warn("Préchargement indisponible: document.head manquant.");
+    console.warn("Preload unavailable: document.head missing.");
     return null;
   }
   preloadLink = document.createElement("link");
