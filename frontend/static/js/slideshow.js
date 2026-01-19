@@ -1486,11 +1486,28 @@ const resolveItemBackground = (item) => {
   if (item.background_url) {
     return { url: item.background_url, mimetype: item.background_mimetype || "" };
   }
-  const background = item.background || item?.custom_payload?.background || item?.custom_payload?.meta?.background;
+  const background = item.background;
   if (background && typeof background === "object") {
     const url = background.url || background.path;
     if (url) {
       return { url, mimetype: background.mimetype || "" };
+    }
+  }
+  const customPayload = item.custom_payload;
+  if (customPayload && typeof customPayload === "object") {
+    const customBackground = customPayload.background;
+    if (customBackground && typeof customBackground === "object") {
+      const url = customBackground.url || customBackground.path;
+      if (url) {
+        return { url, mimetype: customBackground.mimetype || "" };
+      }
+    }
+    const metaBackground = customPayload.meta?.background;
+    if (metaBackground && typeof metaBackground === "object") {
+      const url = metaBackground.url || metaBackground.path;
+      if (url) {
+        return { url, mimetype: metaBackground.mimetype || "" };
+      }
     }
   }
   return null;
@@ -1498,13 +1515,17 @@ const resolveItemBackground = (item) => {
 
 let preloadLink = null;
 const ensurePreloadLink = () => {
-  if (preloadLink || !document?.head) {
+  if (preloadLink) {
     return preloadLink;
+  }
+  if (!document?.head) {
+    console.warn("Préchargement indisponible: document.head manquant.");
+    return null;
   }
   preloadLink = document.createElement("link");
   preloadLink.rel = "preload";
   preloadLink.as = "image";
-  preloadLink.setAttribute("fetchpriority", "low");
+  preloadLink.fetchPriority = "low";
   document.head.appendChild(preloadLink);
   return preloadLink;
 };
@@ -1526,7 +1547,9 @@ const preloadNextBackground = () => {
     return;
   }
   const link = ensurePreloadLink();
-  if (!link) return;
+  if (!link) {
+    return;
+  }
   link.as = isVideoBackground(background.url, background.mimetype) ? "video" : "image";
   link.href = background.url;
 };
