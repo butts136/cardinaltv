@@ -28,6 +28,10 @@
     pushUrl(urls, item.url || item.display_url || item.preview_url);
     pushUrl(urls, item.background_url);
     pushUrl(urls, item.background_path);
+    const birthdayVariant = item.birthday_variant_config;
+    if (birthdayVariant && typeof birthdayVariant === "object") {
+      pushUrl(urls, birthdayVariant.background_url);
+    }
 
     if (Array.isArray(item.page_urls)) {
       item.page_urls.forEach((url) => pushUrl(urls, url));

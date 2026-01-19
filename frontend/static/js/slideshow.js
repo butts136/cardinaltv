@@ -1483,6 +1483,13 @@ const resolveItemBackground = (item) => {
   if (!item || typeof item !== "object") {
     return null;
   }
+  const birthdayVariantConfig = item.birthday_variant_config;
+  if (birthdayVariantConfig && typeof birthdayVariantConfig === "object") {
+    const url = birthdayVariantConfig.background_url;
+    if (url) {
+      return { url, mimetype: birthdayVariantConfig.background_mimetype || "" };
+    }
+  }
   if (item.background_url) {
     return { url: item.background_url, mimetype: item.background_mimetype || "" };
   }
@@ -3750,6 +3757,10 @@ const buildBirthdaySlideItem = (birthdayData) => {
     birthdaySlideSettings.background_mimetype || "application/x-birthday-slide";
   const duration =
     Math.max(1, Number(birthdaySlideSettings.duration) || DEFAULT_BIRTHDAY_SLIDE.duration);
+  const variantBackgroundUrl =
+    birthdayData?.config?.background_url || birthdaySlideSettings.background_url;
+  const variantBackgroundMime =
+    birthdayData?.config?.background_mimetype || birthdaySlideSettings.background_mimetype;
   const itemId =
     birthdayData && birthdayData.idSuffix != null
       ? `${BIRTHDAY_SLIDE_ID}_${birthdayData.idSuffix}`
@@ -3764,8 +3775,8 @@ const buildBirthdaySlideItem = (birthdayData) => {
     skip_rounds: 0,
     mimetype,
     display_mimetype: mimetype,
-    background_url: birthdaySlideSettings.background_url,
-    background_mimetype: birthdaySlideSettings.background_mimetype,
+    background_url: variantBackgroundUrl,
+    background_mimetype: variantBackgroundMime,
     background_label: birthdaySlideSettings.background_label,
     order: Number(birthdaySlideSettings.order_index) || 0,
     birthday_variant: birthdayData?.variant || "before",
