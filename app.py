@@ -548,6 +548,7 @@ TIME_CHANGE_MONTHS_FR = [
 
 TIME_CHANGE_CACHE_TTL = timedelta(hours=6)
 TIME_CHANGE_CACHE: Dict[str, Any] = {"year": None, "data": None, "fetched_at": None}
+TIME_CHANGE_CACHE_LOCK = RLock()
 TIME_CHANGE_SOURCE_URL = "https://www.timeanddate.com/time/change/canada/montreal?year={year}"
 TIME_CHANGE_TEXT_OPTIONS_DEFAULT = {
     "font_size_auto": True,
@@ -686,25 +687,25 @@ def _compute_time_change_from_zoneinfo(year: int) -> Optional[Dict[str, Any]]:
 
 def _get_time_change_schedule(year: int) -> Optional[Dict[str, Any]]:
     now = _now()
-    cache_year = TIME_CHANGE_CACHE.get("year")
-    fetched_at = TIME_CHANGE_CACHE.get("fetched_at")
-    cached = TIME_CHANGE_CACHE.get("data")
-    if (
-        cache_year == year
-        and isinstance(fetched_at, datetime)
-        and cached
-        and (now - fetched_at) < TIME_CHANGE_CACHE_TTL
-    ):
-        return cached
-
-    schedule = _fetch_time_change_schedule_from_web(year)
-    if not schedule:
-        schedule = _compute_time_change_from_zoneinfo(year)
-    if schedule:
-        TIME_CHANGE_CACHE["year"] = year
-        TIME_CHANGE_CACHE["data"] = schedule
-        TIME_CHANGE_CACHE["fetched_at"] = now
-    return schedule
+    with TIME_CHANGE_CACHE_LOCK:
+        cache_year = TIME_CHANGE_CACHE.get("year")
+        fetched_at = TIME_CHANGE_CACHE.get("fetched_at")
+        cached = TIME_CHANGE_CACHE.get("data")
+        if (
+            cache_year == year
+            and isinstance(fetched_at, datetime)
+            and cached
+            and (now - fetched_at) < TIME_CHANGE_CACHE_TTL
+        ):
+            return copy.deepcopy(cached)
+        schedule = _fetch_time_change_schedule_from_web(year)
+        if not schedule:
+            schedule = _compute_time_change_from_zoneinfo(year)
+        if schedule:
+            TIME_CHANGE_CACHE["year"] = year
+            TIME_CHANGE_CACHE["data"] = schedule
+            TIME_CHANGE_CACHE["fetched_at"] = now
+        return copy.deepcopy(schedule) if schedule else None
 
 
 def _format_offset(delta: Optional[timedelta]) -> str:
@@ -6021,6 +6022,7 @@ def serve_christmas_slide_asset(filename: str) -> Any:
 # ───────────────────────────────────────────────────────────────────────────────
 
 NEWS_CACHE: Dict[str, Any] = {"items": [], "fetched_at": None}
+NEWS_CACHE_LOCK = RLock()
 NEWS_CACHE_TTL = timedelta(minutes=1)
 NEWS_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".avif"}
 NEWS_FEED_SCHEMES = ("http", "https")
@@ -6266,9 +6268,10 @@ def _save_news_config(config: Dict[str, Any]) -> Dict[str, Any]:
 def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
     """Récupère les nouvelles depuis les flux RSS configurés."""
     now = _now()
-    cached_at = NEWS_CACHE.get("fetched_at")
-    if not force and cached_at and (now - cached_at) < NEWS_CACHE_TTL:
-        return NEWS_CACHE.get("items", [])
+    with NEWS_CACHE_LOCK:
+        cached_at = NEWS_CACHE.get("fetched_at")
+        if not force and cached_at and (now - cached_at) < NEWS_CACHE_TTL:
+            return copy.deepcopy(NEWS_CACHE.get("items", []))
 
     config = _load_news_config()
     feeds = config.get("rss_feeds", [])
@@ -6290,8 +6293,9 @@ def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
     all_items.sort(key=lambda x: (x.get("pubdate_ts", 0), x.get("pubdate", "")), reverse=True)
     all_items = all_items[:max_items]
 
-    NEWS_CACHE["items"] = all_items
-    NEWS_CACHE["fetched_at"] = now
+    with NEWS_CACHE_LOCK:
+        NEWS_CACHE["items"] = all_items
+        NEWS_CACHE["fetched_at"] = now
     return all_items
 
 
@@ -6442,6 +6446,7 @@ def api_news_delete_feed(feed_id: str) -> Any:
 
 WEATHER_CACHE: Dict[str, Any] = {"data": None, "fetched_at": None}
 WEATHER_CACHE_TTL = timedelta(minutes=15)
+WEATHER_CACHE_LOCK = RLock()
 
 # Codes météo Open-Meteo vers conditions
 WEATHER_CODE_MAP = {
@@ -6554,9 +6559,10 @@ def _save_weather_config(config: Dict[str, Any]) -> Dict[str, Any]:
 def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
     """Récupère les données météo depuis Open-Meteo."""
     now = _now()
-    cached_at = WEATHER_CACHE.get("fetched_at")
-    if not force and cached_at and (now - cached_at) < WEATHER_CACHE_TTL:
-        return WEATHER_CACHE.get("data")
+    with WEATHER_CACHE_LOCK:
+        cached_at = WEATHER_CACHE.get("fetched_at")
+        if not force and cached_at and (now - cached_at) < WEATHER_CACHE_TTL:
+            return copy.deepcopy(WEATHER_CACHE.get("data"))
 
     config = _load_weather_config()
     location = config.get("location", {})
@@ -6579,7 +6585,9 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
         with urllib.request.urlopen(url, timeout=15) as response:
             raw_data = json.loads(response.read().decode("utf-8"))
     except (OSError, json.JSONDecodeError):
-        return WEATHER_CACHE.get("data")
+        with WEATHER_CACHE_LOCK:
+            cached_weather = WEATHER_CACHE.get("data")
+        return copy.deepcopy(cached_weather) if cached_weather is not None else None
 
     current = raw_data.get("current", {})
     daily = raw_data.get("daily", {})
@@ -6755,8 +6763,9 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
             pass
         weather_data["forecast"].append(day_data)
 
-    WEATHER_CACHE["data"] = weather_data
-    WEATHER_CACHE["fetched_at"] = now
+    with WEATHER_CACHE_LOCK:
+        WEATHER_CACHE["data"] = weather_data
+        WEATHER_CACHE["fetched_at"] = now
     return weather_data
 
 
@@ -6807,8 +6816,9 @@ def api_weather_slide_update() -> Any:
         config["use_seasonal_backgrounds"] = bool(payload["use_seasonal_backgrounds"])
 
     _save_weather_config(config)
-    WEATHER_CACHE["fetched_at"] = None
-    WEATHER_CACHE["data"] = None
+    with WEATHER_CACHE_LOCK:
+        WEATHER_CACHE["fetched_at"] = None
+        WEATHER_CACHE["data"] = None
 
     # Also update main settings store
     try:
