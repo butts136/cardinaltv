@@ -1530,17 +1530,16 @@ const ensurePreloadLink = () => {
   return preloadLink;
 };
 
-const clearPreloadLink = () => {
+const clearPreloadLinkHref = () => {
   if (!preloadLink) {
     return;
   }
   preloadLink.href = "";
-  preloadLink.removeAttribute("href");
 };
 
 const preloadNextBackground = () => {
   if (!playlist.length || currentIndex < 0) {
-    clearPreloadLink();
+    clearPreloadLinkHref();
     lastPreloadedBackground = "";
     return;
   }
@@ -1548,7 +1547,7 @@ const preloadNextBackground = () => {
   const nextItem = playlist[nextIndex];
   const background = resolveItemBackground(nextItem);
   if (!background?.url) {
-    clearPreloadLink();
+    clearPreloadLinkHref();
     lastPreloadedBackground = "";
     return;
   }
