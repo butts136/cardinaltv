@@ -1291,6 +1291,7 @@ input[type="datetime-local"]:focus {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  background: radial-gradient(circle at 15% 15%, #ff9f1c 0%, #ff577f 35%, #2b1645 75%, #0e122a 100%);
 }
 
 .birthday-slide-backdrop--fallback {
@@ -1362,6 +1363,7 @@ input[type="datetime-local"]:focus {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  background: linear-gradient(135deg, #0a1f3c, #142a45, #050811);
 }
 
 .time-change-slide-backdrop--fallback {
@@ -1487,6 +1489,7 @@ input[type="datetime-local"]:focus {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  background: linear-gradient(135deg, #1a2a1a 0%, #8B0000 35%, #006400 65%, #050a05 100%);
 }
 
 .christmas-slide-backdrop--fallback {
@@ -1597,6 +1600,7 @@ input[type="datetime-local"]:focus {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
 }
 
 .custom-slide-background video,
@@ -2858,6 +2862,7 @@ input[type="datetime-local"]:focus {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
 }
 
 .weather-slide-backdrop--fallback {
