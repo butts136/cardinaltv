@@ -1479,6 +1479,88 @@ const isVideoBackground = (url, mimetype = "") => {
   return mime.startsWith("video/") || BACKGROUND_VIDEO_EXTENSIONS.includes(ext);
 };
 
+const BACKGROUND_VIDEO_SLOW_TYPES = new Set(["slow-2g", "2g", "3g"]);
+const BACKGROUND_VIDEO_FALLBACK_DELAY_MS = 1800;
+const getNetworkConnection = () =>
+  navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+const isSlowBackgroundConnection = () => {
+  const connection = getNetworkConnection();
+  if (!connection) return false;
+  if (connection.saveData) return true;
+  const type = String(connection.effectiveType || "").toLowerCase();
+  return BACKGROUND_VIDEO_SLOW_TYPES.has(type);
+};
+const getBackgroundVideoPreload = () => (isSlowBackgroundConnection() ? "metadata" : "auto");
+const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", playHandler = null } = {}) => {
+  if (!video) return;
+  const preload = getBackgroundVideoPreload();
+  video.preload = preload;
+  video.setAttribute("preload", preload);
+  if (video.muted) {
+    video.setAttribute("muted", "muted");
+  } else {
+    video.removeAttribute("muted");
+  }
+  const fallbackTarget = fallbackEl && fallbackClass ? fallbackEl : null;
+  const hadFallback = fallbackTarget?.classList.contains(fallbackClass) || false;
+  const shouldFade = Boolean(fallbackTarget && fallbackClass);
+  let fallbackTimer = null;
+  const applyFallback = () => {
+    if (fallbackTarget && fallbackClass) {
+      fallbackTarget.classList.add(fallbackClass);
+    }
+    if (shouldFade) {
+      video.style.opacity = "0";
+    }
+  };
+  const clearFallback = () => {
+    if (!fallbackTarget || !fallbackClass || hadFallback) return;
+    fallbackTarget.classList.remove(fallbackClass);
+    if (shouldFade) {
+      video.style.opacity = "1";
+    }
+  };
+  if (shouldFade) {
+    video.style.opacity = "0";
+    video.style.transition = "opacity 0.25s ease";
+  }
+  if (fallbackTarget && fallbackClass) {
+    fallbackTimer = setTimeout(() => {
+      if (video.readyState < 2) {
+        applyFallback();
+      }
+    }, BACKGROUND_VIDEO_FALLBACK_DELAY_MS);
+  }
+  const finalizeFallback = (shouldKeep) => {
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
+    if (shouldKeep) {
+      applyFallback();
+    } else {
+      clearFallback();
+    }
+  };
+  video.addEventListener("loadeddata", () => finalizeFallback(false), { once: true });
+  video.addEventListener("error", () => finalizeFallback(true), { once: true });
+  if (video.readyState >= 2) {
+    finalizeFallback(false);
+  }
+  const attemptPlay = () => {
+    if (playHandler) {
+      playHandler();
+      return;
+    }
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
+    }
+  };
+  video.addEventListener("canplay", attemptPlay, { once: true });
+  attemptPlay();
+};
+
 const resolveItemBackground = (item) => {
   if (!item || typeof item !== "object") {
     return null;
@@ -2265,7 +2347,9 @@ const createMediaElement = (item, kind) => {
     let playbackMuted = Boolean(item.muted);
     video.muted = playbackMuted;
     video.volume = playbackMuted ? 0 : 1;
-    video.preload = "auto";
+    const preload = getBackgroundVideoPreload();
+    video.preload = preload;
+    video.setAttribute("preload", preload);
 
     video.addEventListener("ended", () => {
       void advanceSlide().catch((error) => console.error(error));
@@ -2291,8 +2375,7 @@ const createMediaElement = (item, kind) => {
         });
       }
     };
-
-    attemptPlay();
+    setupBackgroundVideo(video, { playHandler: attemptPlay });
     currentVideo = video;
     return video;
   }
@@ -2575,9 +2658,9 @@ const renderTeamSlide = (item, employeesList = []) => {
       video.autoplay = true;
       video.loop = true;
       video.muted = true;
-      video.preload = "auto";
       video.playsInline = true;
       video.setAttribute("playsinline", "");
+      setupBackgroundVideo(video);
       root.appendChild(video);
     } else {
       const img = document.createElement("img");
@@ -2795,11 +2878,12 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
-    video.preload = "auto";
-    video.setAttribute("muted", "");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
-    void video.play().catch(() => {});
+    setupBackgroundVideo(video, {
+      fallbackEl: backdrop,
+      fallbackClass: "birthday-slide-backdrop--fallback",
+    });
     backdrop.appendChild(video);
     currentVideo = video;
   } else if (bgUrl) {
@@ -2991,9 +3075,12 @@ const renderChristmasSlide = (item) => {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
-    video.preload = "auto";
     video.playsInline = true;
     video.setAttribute("playsinline", "");
+    setupBackgroundVideo(video, {
+      fallbackEl: backdrop,
+      fallbackClass: "christmas-slide-backdrop--fallback",
+    });
     backdrop.appendChild(video);
     currentVideo = video;
   } else if (bgUrl) {
@@ -3098,10 +3185,13 @@ const renderCustomSlide = (item) => {
       video.muted = true;
       video.loop = true;
       video.autoplay = true;
-      video.preload = "auto";
       video.playsInline = true;
       video.setAttribute("playsinline", "");
       video.className = "custom-slide-media custom-slide-video";
+      setupBackgroundVideo(video, {
+        fallbackEl: backgroundLayer,
+        fallbackClass: "custom-slide-background--fallback",
+      });
       backgroundLayer.appendChild(video);
       currentVideo = video;
     } else {
@@ -3426,9 +3516,12 @@ const renderWeatherSlide = async (item) => {
       video.autoplay = true;
       video.loop = true;
       video.muted = true;
-      video.preload = "auto";
       video.playsInline = true;
       video.setAttribute("playsinline", "");
+      setupBackgroundVideo(video, {
+        fallbackEl: backdrop,
+        fallbackClass: "weather-slide-backdrop--fallback",
+      });
       backdrop.appendChild(video);
       currentVideo = video;
     } else {
@@ -3656,9 +3749,12 @@ const renderTimeChangeSlide = (item) => {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
-    video.preload = "auto";
     video.playsInline = true;
     video.setAttribute("playsinline", "");
+    setupBackgroundVideo(video, {
+      fallbackEl: backdrop,
+      fallbackClass: "time-change-slide-backdrop--fallback",
+    });
     backdrop.appendChild(video);
     currentVideo = video;
   } else if (bgUrl) {
