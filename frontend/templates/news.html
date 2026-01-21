@@ -60,7 +60,7 @@
     <div class="section-header">
       <div>
         <h2>Flux RSS</h2>
-        <p class="playlist-subtitle">Gérez les sources de nouvelles.</p>
+        <p class="playlist-subtitle">Gérez les sources de nouvelles RSS.</p>
       </div>
       <button type="button" class="secondary-button" id="add-feed-btn">Ajouter un flux</button>
     </div>
@@ -68,6 +68,77 @@
     <div class="section-content">
       <div id="feeds-list" class="feeds-list">
         <!-- Les flux seront chargés dynamiquement -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Section Scrapers -->
+  <section class="card scrapers-section" id="scrapers-section">
+    <div class="section-header">
+      <div>
+        <h2>🌐 Sources Web (Scraper)</h2>
+        <p class="playlist-subtitle">Analysez et récupérez les nouvelles directement depuis des sites web.</p>
+      </div>
+      <button type="button" class="secondary-button" id="add-scraper-btn">
+        <span>➕</span> Ajouter une source
+      </button>
+    </div>
+
+    <div class="section-content">
+      <!-- Analyse de site -->
+      <div class="scraper-analyze-section">
+        <h3>🔍 Analyser un nouveau site</h3>
+        <div class="form-row dual">
+          <div style="flex:3">
+            <label for="scraper-url-input">URL du site de nouvelles</label>
+            <input
+              type="url"
+              id="scraper-url-input"
+              placeholder="https://www.lapresse.ca/actualites/"
+              autocomplete="off"
+            />
+          </div>
+          <div style="flex:1; display:flex; align-items:flex-end">
+            <button type="button" class="primary-button" id="analyze-site-btn">
+              Analyser
+            </button>
+          </div>
+        </div>
+
+        <!-- Résultats d'analyse -->
+        <div id="scraper-analysis-results" class="scraper-analysis-results" style="display:none">
+          <div class="analysis-header">
+            <h4 id="analysis-site-name">Site analysé</h4>
+            <span id="analysis-articles-count" class="badge">0 articles trouvés</span>
+          </div>
+          <div id="analysis-sample-articles" class="analysis-sample-articles">
+            <!-- Articles échantillons -->
+          </div>
+          <div class="analysis-actions">
+            <button type="button" class="secondary-button" id="cancel-analysis-btn">Annuler</button>
+            <button type="button" class="primary-button" id="confirm-add-scraper-btn">
+              Ajouter cette source
+            </button>
+          </div>
+        </div>
+
+        <div id="scraper-analysis-error" class="scraper-analysis-error" style="display:none">
+          <span class="error-icon">⚠️</span>
+          <span id="analysis-error-message">Erreur lors de l'analyse</span>
+        </div>
+
+        <div id="scraper-analysis-loading" class="scraper-analysis-loading" style="display:none">
+          <div class="spinner"></div>
+          <span>Analyse du site en cours...</span>
+        </div>
+      </div>
+
+      <hr style="margin:1.5rem 0; border:none; border-top:1px solid rgba(255,255,255,0.1)">
+
+      <!-- Liste des scrapers -->
+      <h3 style="margin-bottom:1rem">📋 Sources configurées</h3>
+      <div id="scrapers-list" class="scrapers-list">
+        <p class="empty-message" id="no-scrapers-message">Aucune source web configurée. Analysez un site ci-dessus pour commencer.</p>
       </div>
     </div>
   </section>

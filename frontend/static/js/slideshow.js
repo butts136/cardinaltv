@@ -128,6 +128,7 @@ let playlistRefreshTimer = null;
 let wakeLock = null;
 let slideshowRunning = false;
 let isStarting = false;
+let initialCacheWarmupDone = false;
 let clockTimer = null;
 let currentVideo = null;
 let currentItem = null;
@@ -1602,6 +1603,43 @@ const resolveItemBackground = (item) => {
   return null;
 };
 
+const collectItemMediaUrls = (item) => {
+  if (!item || typeof item !== "object") return [];
+  const urls = new Set();
+  const primary = item.display_url || item.url || item.preview_url;
+  if (primary) {
+    urls.add(primary);
+  }
+  const background = resolveItemBackground(item);
+  if (background?.url) {
+    urls.add(background.url);
+  }
+  if (item.background_path) {
+    urls.add(item.background_path);
+  }
+  return Array.from(urls);
+};
+
+const ensureItemMediaCached = async (item, { timeoutMs = 6000, showStatus = false } = {}) => {
+  if (!slideshowCache?.precacheUrls) return;
+  const urls = collectItemMediaUrls(item);
+  if (!urls.length) return;
+  let statusTimer = null;
+  if (showStatus) {
+    statusTimer = setTimeout(() => {
+      setStatus("Préchargement des arrière-plans...");
+    }, 200);
+  }
+  try {
+    await slideshowCache.precacheUrls(urls, { timeoutMs, concurrency: 2 });
+  } finally {
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+      setStatus("");
+    }
+  }
+};
+
 let preloadLink = null;
 let lastPreloadedBackground = "";
 const ensurePreloadLink = () => {
@@ -1650,6 +1688,9 @@ const preloadNextBackground = () => {
   lastPreloadedBackground = background.url;
   link.href = background.url;
   link.as = isVideoBackground(background.url, background.mimetype) ? "video" : "image";
+  if (slideshowCache?.precacheUrls) {
+    void slideshowCache.precacheUrls([background.url], { timeoutMs: 8000, concurrency: 1 });
+  }
 };
 
 const detectMediaKind = (item) => {
@@ -4284,6 +4325,11 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   updateInfoBandWidgetProgress();
 
   noteItemDisplayed(item, { maintainSkip });
+
+  const showPreloadStatus = !initialCacheWarmupDone;
+  const preloadTimeoutMs = showPreloadStatus ? 15000 : 6000;
+  await ensureItemMediaCached(item, { timeoutMs: preloadTimeoutMs, showStatus: showPreloadStatus });
+  initialCacheWarmupDone = true;
 
   const durationSeconds = Math.max(1, Math.round(Number(item.duration) || 10));
   const kind = detectMediaKind(item);

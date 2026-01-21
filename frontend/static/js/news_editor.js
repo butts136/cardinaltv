@@ -135,6 +135,7 @@
       newsItems = data.items || [];
       updateUI();
       renderFeeds();
+      renderScrapers();
       renderNewsPreview();
       postSlidePreviewUpdate();
     } catch (error) {
@@ -219,29 +220,38 @@
     if (!newsPreview) return;
 
     if (newsItems.length === 0) {
-      newsPreview.innerHTML = '<p class="playlist-subtitle">Aucune nouvelle à afficher. Ajoutez des flux RSS.</p>';
+      newsPreview.innerHTML = '<p class="playlist-subtitle">Aucune nouvelle à afficher. Ajoutez des flux RSS ou des sources web.</p>';
       return;
     }
 
     newsPreview.style.gridTemplateColumns = `repeat(auto-fit, minmax(280px, 1fr))`;
 
-    newsPreview.innerHTML = newsItems.map(item => `
-      <div class="news-card">
-        ${item.image ? `
-          <div class="news-card-image">
-            <img src="${escapeHtml(item.image)}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'" />
-          </div>
-        ` : ''}
-        <div class="news-card-content">
-          <h3 class="news-card-title">${escapeHtml(item.title)}</h3>
-          ${item.description ? `<p class="news-card-description">${escapeHtml(item.description)}</p>` : ''}
-          ${item.time ? `
-            <span class="news-card-time">${escapeHtml(item.time)}</span>
+    newsPreview.innerHTML = newsItems.map(item => {
+      const isRss = item.type === 'rss' || !item.type;
+      const badgeClass = isRss ? 'rss-source-badge' : 'scraper-source-badge';
+      const badgeIcon = isRss ? '📰' : '🌐';
+
+      return `
+        <div class="news-card">
+          ${item.image ? `
+            <div class="news-card-image">
+              <img src="${escapeHtml(item.image)}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'" />
+            </div>
           ` : ''}
-          ${item.source ? `<span class="news-card-source">${escapeHtml(item.source)}</span>` : ''}
+          <div class="news-card-content">
+            <h3 class="news-card-title">${escapeHtml(item.title)}</h3>
+            ${item.description ? `<p class="news-card-description">${escapeHtml(item.description)}</p>` : ''}
+            ${item.time ? `
+              <span class="news-card-time">${escapeHtml(item.time)}</span>
+            ` : ''}
+            <span class="news-card-source">
+              ${item.source ? escapeHtml(item.source) : ''}
+              <span class="${badgeClass}">${badgeIcon} ${isRss ? 'RSS' : 'Web'}</span>
+            </span>
+          </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
   async function saveConfig(options = {}) {
@@ -392,6 +402,229 @@
     if (!result) return `rgba(0, 0, 0, ${alpha})`;
     return `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}, ${alpha})`;
   }
+
+  // ===== SCRAPERS =====
+
+  // Scraper elements
+  const scraperUrlInput = document.getElementById('scraper-url-input');
+  const analyzeSiteBtn = document.getElementById('analyze-site-btn');
+  const scraperAnalysisResults = document.getElementById('scraper-analysis-results');
+  const scraperAnalysisError = document.getElementById('scraper-analysis-error');
+  const scraperAnalysisLoading = document.getElementById('scraper-analysis-loading');
+  const analysisSiteName = document.getElementById('analysis-site-name');
+  const analysisArticlesCount = document.getElementById('analysis-articles-count');
+  const analysisSampleArticles = document.getElementById('analysis-sample-articles');
+  const cancelAnalysisBtn = document.getElementById('cancel-analysis-btn');
+  const confirmAddScraperBtn = document.getElementById('confirm-add-scraper-btn');
+  const scrapersList = document.getElementById('scrapers-list');
+  const noScrapersMessage = document.getElementById('no-scrapers-message');
+
+  let currentAnalysis = null;
+
+  function hideAllScraperResults() {
+    if (scraperAnalysisResults) scraperAnalysisResults.style.display = 'none';
+    if (scraperAnalysisError) scraperAnalysisError.style.display = 'none';
+    if (scraperAnalysisLoading) scraperAnalysisLoading.style.display = 'none';
+  }
+
+  async function analyzeNewsSite() {
+    const url = scraperUrlInput?.value?.trim();
+    if (!url) {
+      showStatus('Entrez une URL à analyser', true);
+      return;
+    }
+
+    hideAllScraperResults();
+    if (scraperAnalysisLoading) scraperAnalysisLoading.style.display = 'flex';
+
+    try {
+      const response = await fetch(`${API_BASE}/scrapers/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await response.json();
+      currentAnalysis = data;
+
+      if (scraperAnalysisLoading) scraperAnalysisLoading.style.display = 'none';
+
+      if (data.success && data.sample_articles?.length > 0) {
+        // Show results
+        if (analysisSiteName) analysisSiteName.textContent = data.site_name || 'Site analysé';
+        if (analysisArticlesCount) {
+          analysisArticlesCount.textContent = `${data.sample_articles.length} articles trouvés`;
+        }
+
+        if (analysisSampleArticles) {
+          analysisSampleArticles.innerHTML = data.sample_articles.map(article => `
+            <div class="analysis-sample-article">
+              ${article.image ? `
+                <div class="analysis-article-image">
+                  <img src="${escapeHtml(article.image)}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'" />
+                </div>
+              ` : ''}
+              <div class="analysis-article-content">
+                <h5 class="analysis-article-title">${escapeHtml(article.title)}</h5>
+                <span class="analysis-article-meta">
+                  ${article.time ? `<span>📅 ${escapeHtml(article.time)}</span>` : ''}
+                </span>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        if (scraperAnalysisResults) scraperAnalysisResults.style.display = 'block';
+      } else {
+        // Show error
+        const errorMsg = document.getElementById('analysis-error-message');
+        if (errorMsg) {
+          errorMsg.textContent = data.error || 'Aucun article détecté. Le site utilise peut-être JavaScript.';
+        }
+        if (scraperAnalysisError) scraperAnalysisError.style.display = 'flex';
+      }
+    } catch (error) {
+      console.error('Erreur analyse:', error);
+      if (scraperAnalysisLoading) scraperAnalysisLoading.style.display = 'none';
+      const errorMsg = document.getElementById('analysis-error-message');
+      if (errorMsg) errorMsg.textContent = 'Erreur de connexion au serveur.';
+      if (scraperAnalysisError) scraperAnalysisError.style.display = 'flex';
+    }
+  }
+
+  async function addScraperFromAnalysis() {
+    if (!currentAnalysis?.success) return;
+
+    const pattern = currentAnalysis.detected_patterns?.[0]?.name || 'article_tag';
+
+    try {
+      const response = await fetch(`${API_BASE}/scrapers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: currentAnalysis.url,
+          name: currentAnalysis.site_name || '',
+          pattern: pattern,
+        }),
+      });
+
+      const data = await response.json();
+      config = data.config || config;
+      renderScrapers();
+      hideAllScraperResults();
+      if (scraperUrlInput) scraperUrlInput.value = '';
+      currentAnalysis = null;
+      showStatus('Source web ajoutée');
+
+      // Refresh news to include new scraper
+      await refreshNews();
+    } catch (error) {
+      console.error('Erreur ajout scraper:', error);
+      showStatus('Erreur lors de l\'ajout', true);
+    }
+  }
+
+  function renderScrapers() {
+    if (!scrapersList) return;
+    const scrapers = config.scrapers || [];
+
+    if (scrapers.length === 0) {
+      if (noScrapersMessage) noScrapersMessage.style.display = 'block';
+      scrapersList.querySelectorAll('.scraper-item').forEach(el => el.remove());
+      return;
+    }
+
+    if (noScrapersMessage) noScrapersMessage.style.display = 'none';
+
+    scrapersList.innerHTML = scrapers.map(scraper => `
+      <div class="scraper-item" data-scraper-id="${scraper.id}">
+        <div class="scraper-info">
+          <span class="scraper-icon">🌐</span>
+          <div class="scraper-details">
+            <strong class="scraper-name">${escapeHtml(scraper.name)}</strong>
+            <span class="scraper-url">${escapeHtml(scraper.url)}</span>
+          </div>
+        </div>
+        <div class="scraper-actions">
+          <label class="visibility-toggle scraper-toggle">
+            <span class="visibility-toggle-label visibility-toggle-label-on">Actif</span>
+            <div class="visibility-toggle-switch">
+              <input type="checkbox" class="scraper-enabled" ${scraper.enabled !== false ? 'checked' : ''} />
+              <span class="visibility-toggle-slider"></span>
+            </div>
+            <span class="visibility-toggle-label visibility-toggle-label-off">Inactif</span>
+          </label>
+          <button type="button" class="scraper-delete-btn" data-scraper-id="${scraper.id}" title="Supprimer">
+            🗑️
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    // Attach event listeners
+    scrapersList.querySelectorAll('.scraper-enabled').forEach(checkbox => {
+      checkbox.addEventListener('change', handleScraperToggle);
+    });
+    scrapersList.querySelectorAll('.scraper-delete-btn').forEach(btn => {
+      btn.addEventListener('click', handleDeleteScraper);
+    });
+  }
+
+  async function handleScraperToggle(event) {
+    const scraperItem = event.target.closest('.scraper-item');
+    const scraperId = scraperItem?.dataset.scraperId;
+    if (!scraperId) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/scrapers/${scraperId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: event.target.checked }),
+      });
+
+      const data = await response.json();
+      config = data.config || config;
+      showStatus(event.target.checked ? 'Source activée' : 'Source désactivée');
+    } catch (error) {
+      console.error('Erreur toggle scraper:', error);
+      showStatus('Erreur de mise à jour', true);
+      event.target.checked = !event.target.checked; // Revert
+    }
+  }
+
+  async function handleDeleteScraper(event) {
+    const scraperId = event.target.dataset.scraperId || event.target.closest('.scraper-delete-btn')?.dataset.scraperId;
+    if (!scraperId) return;
+
+    if (!confirm('Supprimer cette source web ?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/scrapers/${scraperId}`, { method: 'DELETE' });
+      const data = await response.json();
+      config = data.config || config;
+      renderScrapers();
+      showStatus('Source supprimée');
+    } catch (error) {
+      console.error('Erreur suppression scraper:', error);
+      showStatus('Erreur de suppression', true);
+    }
+  }
+
+  // Scraper event listeners
+  analyzeSiteBtn?.addEventListener('click', analyzeNewsSite);
+  cancelAnalysisBtn?.addEventListener('click', () => {
+    hideAllScraperResults();
+    currentAnalysis = null;
+  });
+  confirmAddScraperBtn?.addEventListener('click', addScraperFromAnalysis);
+
+  // Allow Enter key to trigger analysis
+  scraperUrlInput?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      analyzeNewsSite();
+    }
+  });
 
   // Event listeners
   saveBtn?.addEventListener('click', saveConfig);

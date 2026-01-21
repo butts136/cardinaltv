@@ -53,8 +53,19 @@
     return urls;
   };
 
+  const collectMediaUrls = (items, extraUrls = []) => {
+    const urls = new Set();
+    (Array.isArray(items) ? items : []).forEach((entry) => {
+      collectMediaFromItem(entry).forEach((url) => urls.add(url));
+    });
+    (Array.isArray(extraUrls) ? extraUrls : []).forEach((url) => pushUrl(urls, url));
+    return urls;
+  };
+
   let registration = null;
   let cachedUrls = new Set();
+  let precacheSignature = "";
+  let precachePromise = null;
 
   const getActiveWorker = (reg) => reg?.active || reg?.waiting || reg?.installing || navigator.serviceWorker.controller;
 
@@ -71,16 +82,75 @@
     return registration;
   };
 
+  const postWorkerMessage = (worker, payload, { timeoutMs = 20000 } = {}) =>
+    new Promise((resolve) => {
+      if (!worker) {
+        resolve({ type: "precache-error", error: "no-worker" });
+        return;
+      }
+      const channel = new MessageChannel();
+      let settled = false;
+      let timeout = null;
+      const finalize = (data) => {
+        if (settled) return;
+        settled = true;
+        if (timeout) clearTimeout(timeout);
+        resolve(data);
+      };
+      if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+        timeout = setTimeout(() => finalize({ type: "precache-timeout" }), timeoutMs);
+      }
+      channel.port1.onmessage = (event) => finalize(event.data || {});
+      try {
+        worker.postMessage(payload, [channel.port2]);
+      } catch (error) {
+        finalize({ type: "precache-error", error: "post-failed" });
+      }
+    });
+
+  const precacheUrls = async (urls, { timeoutMs = 20000, concurrency = 2 } = {}) => {
+    const urlSet = new Set();
+    (Array.isArray(urls) ? urls : []).forEach((url) => pushUrl(urlSet, url));
+    const list = Array.from(urlSet);
+    if (!list.length) {
+      return { ok: true, total: 0, cached: 0, failed: 0 };
+    }
+    const reg = await ensureServiceWorker();
+    const worker = getActiveWorker(reg);
+    if (!worker) {
+      return { ok: false, total: list.length, cached: 0, failed: list.length, error: "no-worker" };
+    }
+    const result = await postWorkerMessage(
+      worker,
+      { type: "precache-media", urls: list, concurrency },
+      { timeoutMs },
+    );
+    if (result && result.type === "precache-complete") {
+      return { ok: true, ...result };
+    }
+    if (result && result.type === "precache-timeout") {
+      return { ok: false, total: list.length, cached: 0, failed: list.length, error: "timeout" };
+    }
+    return { ok: false, total: list.length, cached: 0, failed: list.length, error: "unknown" };
+  };
+
+  const precachePlaylistMedia = async (items, extraUrls = [], options = {}) => {
+    const urlSet = collectMediaUrls(items, extraUrls);
+    const signature = Array.from(urlSet).sort().join("|");
+    if (!options.force && signature && signature === precacheSignature && precachePromise) {
+      return precachePromise;
+    }
+    precacheSignature = signature;
+    precachePromise = precacheUrls(Array.from(urlSet), options);
+    return precachePromise;
+  };
+
   const updateCacheForPlaylist = async (items, extraUrls = []) => {
     const reg = await ensureServiceWorker();
     const worker = getActiveWorker(reg);
     if (!worker) return;
 
-    const nextUrls = new Set();
-    (Array.isArray(items) ? items : []).forEach((entry) => {
-      collectMediaFromItem(entry).forEach((url) => nextUrls.add(url));
-    });
-    (Array.isArray(extraUrls) ? extraUrls : []).forEach((url) => pushUrl(nextUrls, url));
+    const nextUrls = collectMediaUrls(items, extraUrls);
 
     const toAdd = Array.from(nextUrls).filter((url) => !cachedUrls.has(url));
     const toRemove = Array.from(cachedUrls).filter((url) => !nextUrls.has(url));
@@ -101,5 +171,7 @@
   window.CardinalSlideshowCache = {
     ensureServiceWorker,
     updateCacheForPlaylist,
+    precacheUrls,
+    precachePlaylistMedia,
   };
 })();
