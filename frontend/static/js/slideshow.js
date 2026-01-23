@@ -1461,6 +1461,173 @@ const setStatus = (message) => {
   }
 };
 
+const MEDIA_SWAP_FADE_MS = 300;
+const MEDIA_READY_TIMEOUT_MS = 1800;
+let activeMediaLayer = null;
+let idleMediaLayer = null;
+let mediaSwapToken = 0;
+
+const stopVideoElement = (video) => {
+  if (!video) return;
+  try {
+    video.pause();
+  } catch (error) {
+    // ignore
+  }
+  try {
+    video.removeAttribute("src");
+    video.load?.();
+  } catch (error) {
+    // ignore
+  }
+};
+
+const pauseVideoElement = (video) => {
+  if (!video) return;
+  try {
+    video.pause();
+  } catch (error) {
+    // ignore
+  }
+};
+
+const stopVideosInLayer = (layer) => {
+  if (!layer) return;
+  layer.querySelectorAll("video").forEach((video) => stopVideoElement(video));
+};
+
+const ensureMediaLayers = () => {
+  if (!mediaWrapper) return null;
+  if (activeMediaLayer && idleMediaLayer) {
+    return { active: activeMediaLayer, idle: idleMediaLayer };
+  }
+  const layerA = document.createElement("div");
+  layerA.className = "media-layer media-layer--active";
+  const layerB = document.createElement("div");
+  layerB.className = "media-layer";
+  mediaWrapper.replaceChildren(layerA, layerB);
+  activeMediaLayer = layerA;
+  idleMediaLayer = layerB;
+  return { active: activeMediaLayer, idle: idleMediaLayer };
+};
+
+const clearMediaLayers = () => {
+  if (!mediaWrapper) return;
+  mediaSwapToken += 1;
+  const layers = ensureMediaLayers();
+  if (!layers) {
+    mediaWrapper.innerHTML = "";
+    return;
+  }
+  stopVideosInLayer(layers.active);
+  stopVideosInLayer(layers.idle);
+  layers.active.replaceChildren();
+  layers.idle.replaceChildren();
+};
+
+const setActiveMediaContent = (element) => {
+  if (!mediaWrapper) return;
+  mediaSwapToken += 1;
+  const layers = ensureMediaLayers();
+  if (!layers) {
+    mediaWrapper.innerHTML = "";
+    mediaWrapper.appendChild(element);
+    return;
+  }
+  stopVideosInLayer(layers.active);
+  layers.active.replaceChildren(element);
+};
+
+const waitForVideoReady = (video) =>
+  new Promise((resolve) => {
+    if (!video) {
+      resolve();
+      return;
+    }
+    if (video.readyState >= 2) {
+      resolve();
+      return;
+    }
+    const onReady = () => resolve();
+    const onError = () => resolve();
+    video.addEventListener("loadeddata", onReady, { once: true });
+    video.addEventListener("canplay", onReady, { once: true });
+    video.addEventListener("error", onError, { once: true });
+  });
+
+const waitForMediaReady = (element, { timeoutMs = MEDIA_READY_TIMEOUT_MS } = {}) => {
+  if (!element) return Promise.resolve();
+  const videos = Array.from(element.querySelectorAll("video"));
+  if (!videos.length) return Promise.resolve();
+  const readyPromise = Promise.all(videos.map((video) => waitForVideoReady(video)));
+  if (!timeoutMs || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return readyPromise;
+  }
+  return Promise.race([
+    readyPromise,
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+};
+
+const setMediaContent = (element, { waitForReady = false } = {}) => {
+  if (!mediaWrapper) return Promise.resolve();
+  const layers = ensureMediaLayers();
+  if (!layers) {
+    mediaWrapper.innerHTML = "";
+    mediaWrapper.appendChild(element);
+    return Promise.resolve();
+  }
+  const token = ++mediaSwapToken;
+  const { idle } = layers;
+  idle.replaceChildren(element);
+
+  return new Promise((resolve) => {
+    const finalizeSwap = () => {
+      if (token !== mediaSwapToken) {
+        resolve();
+        return;
+      }
+      const oldLayer = activeMediaLayer;
+      const newLayer = idleMediaLayer;
+      if (!oldLayer || !newLayer) {
+        resolve();
+        return;
+      }
+      newLayer.classList.add("media-layer--active");
+      oldLayer.classList.remove("media-layer--active");
+      activeMediaLayer = newLayer;
+      idleMediaLayer = oldLayer;
+      setTimeout(() => {
+        stopVideosInLayer(oldLayer);
+        oldLayer.replaceChildren();
+      }, MEDIA_SWAP_FADE_MS + 50);
+      resolve();
+    };
+
+    if (waitForReady) {
+      void waitForMediaReady(element).then(finalizeSwap);
+    } else {
+      requestAnimationFrame(finalizeSwap);
+    }
+  });
+};
+
+const scheduleSlideAdvance = (durationSeconds, swapPromise, slideId = null) => {
+  const targetId = slideId || currentId;
+  const schedule = () => {
+    if (targetId && currentId !== targetId) return;
+    playbackTimer = setTimeout(() => {
+      if (targetId && currentId !== targetId) return;
+      void advanceSlide().catch((error) => console.error(error));
+    }, durationSeconds * 1000);
+  };
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(schedule);
+  } else {
+    schedule();
+  }
+};
+
 const BACKGROUND_VIDEO_EXTENSIONS = ["mp4", "m4v", "mov", "webm", "mkv"];
 const getExtension = (name) => {
   if (!name) {
@@ -2112,28 +2279,26 @@ const clearDocumentPlayback = () => {
 };
 
 const stopCurrentVideo = () => {
-  if (!currentVideo) {
-    return;
-  }
-  try {
-    currentVideo.pause();
-  } catch (error) {
-    // ignore
-  }
-  currentVideo.removeAttribute("src");
-  currentVideo.load?.();
+  stopVideoElement(currentVideo);
   currentVideo = null;
 };
 
-const clearPlaybackTimer = () => {
+const clearPlaybackTimer = ({ holdVideoFrame = false } = {}) => {
   if (playbackTimer) {
     clearTimeout(playbackTimer);
     playbackTimer = null;
   }
   clearDocumentPlayback();
   clearTeamSlideTimers();
-  stopCurrentVideo();
+  if (holdVideoFrame) {
+    pauseVideoElement(currentVideo);
+  } else {
+    stopCurrentVideo();
+  }
 };
+
+const shouldHoldVideoFrame = () =>
+  Boolean(currentVideo) && !currentVideo.muted && (Number(currentVideo.volume) || 0) > 0;
 
 const startImageSequence = (item, pageUrls, durationSeconds) => {
   let cancelled = false;
@@ -2169,8 +2334,7 @@ const startImageSequence = (item, pageUrls, durationSeconds) => {
     img.src = src;
     img.alt = `${item.original_name || item.filename} — Page ${pageIndex + 1}`;
 
-    mediaWrapper.innerHTML = "";
-    mediaWrapper.appendChild(img);
+    setActiveMediaContent(img);
 
     if (img.complete) {
       scheduleNext(pageIndex + 1 >= total);
@@ -2227,8 +2391,7 @@ const startTextSequence = (item, pages, durationSeconds) => {
     container.className = "document-text-page";
     container.textContent = pages[pageIndex] || "";
 
-    mediaWrapper.innerHTML = "";
-    mediaWrapper.appendChild(container);
+    setActiveMediaContent(container);
 
     scheduleNext(pageIndex + 1 >= total);
   };
@@ -2356,8 +2519,7 @@ const startPdfDocument = async (item, durationSeconds, urlOverride) => {
       return;
     }
 
-    mediaWrapper.innerHTML = "";
-    mediaWrapper.appendChild(canvasElement);
+    setActiveMediaContent(canvasElement);
 
     scheduleNext(pageNumber >= total, pageNumber);
   };
@@ -2670,18 +2832,15 @@ const ensureBirthdayEmployeesData = async () => {
 };
 
 const renderTeamSlide = (item, employeesList = []) => {
-  clearPlaybackTimer();
-  mediaWrapper.innerHTML = "";
+  currentVideo = null;
 
   const employees = Array.isArray(employeesList) ? employeesList.slice() : [];
   if (!employees.length) {
     const empty = document.createElement("div");
     empty.className = "team-slide-blank";
     empty.textContent = "Aucun employé configuré.";
-    mediaWrapper.appendChild(empty);
-    playbackTimer = setTimeout(() => {
-      void advanceSlide().catch((error) => console.error(error));
-    }, Math.max(5, Number(item.duration) || 10) * 1000);
+    const swapPromise = setMediaContent(empty);
+    scheduleSlideAdvance(Math.max(5, Number(item.duration) || 10), swapPromise, item.id);
     return;
   }
 
@@ -2703,6 +2862,7 @@ const renderTeamSlide = (item, employeesList = []) => {
       video.setAttribute("playsinline", "");
       setupBackgroundVideo(video);
       root.appendChild(video);
+      currentVideo = video;
     } else {
       const img = document.createElement("img");
       img.className = "team-slide-image";
@@ -2756,7 +2916,7 @@ const renderTeamSlide = (item, employeesList = []) => {
   }
   overlay.appendChild(overlayInner);
   root.appendChild(overlay);
-  mediaWrapper.appendChild(root);
+  const swapPromise = setMediaContent(root, { waitForReady: true });
 
   cardsContainer.innerHTML = "";
   employees.forEach((emp) => cardsContainer.appendChild(renderTeamCard(emp)));
@@ -2813,9 +2973,7 @@ const renderTeamSlide = (item, employeesList = []) => {
 
   if (pixelsPerSecond <= 0) {
     const fallbackSeconds = Math.max(cardDisplaySeconds, Number(item.duration) || 5);
-    playbackTimer = setTimeout(() => {
-      void advanceSlide().catch((error) => console.error(error));
-    }, fallbackSeconds * 1000);
+    scheduleSlideAdvance(fallbackSeconds, swapPromise, item.id);
     return;
   }
 
@@ -2852,13 +3010,20 @@ const renderTeamSlide = (item, employeesList = []) => {
   };
 
   const holdMs = title ? TEAM_TITLE_HOLD_MS : 0;
-  teamScrollStartTimer = setTimeout(() => {
-    teamScrollFrame = requestAnimationFrame(animateScroll);
-  }, holdMs);
+  const startScroll = () => {
+    teamScrollStartTimer = setTimeout(() => {
+      teamScrollFrame = requestAnimationFrame(animateScroll);
+    }, holdMs);
+  };
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(startScroll);
+  } else {
+    startScroll();
+  }
 };
 
 const renderBirthdaySlide = (item, variantConfig = null) => {
-  mediaWrapper.innerHTML = "";
+  currentVideo = null;
   const settings = birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE;
   const variant = item.birthday_variant || "before";
   const rawVariant =
@@ -2996,11 +3161,8 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   overlay.append(linesWrapper);
   frameEl.appendChild(overlay);
 
-  mediaWrapper.appendChild(frameEl);
-
-  playbackTimer = setTimeout(() => {
-    void advanceSlide().catch((error) => console.error(error));
-  }, durationSeconds * 1000);
+  const swapPromise = setMediaContent(frameEl, { waitForReady: true });
+  scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
 const normalizeTimeChangeLines = (settings) => {
@@ -3089,8 +3251,7 @@ const formatChristmasMessage = (template, info) => {
 };
 
 const renderChristmasSlide = (item) => {
-  clearPlaybackTimer();
-  mediaWrapper.innerHTML = "";
+  currentVideo = null;
   const settings = christmasSlideSettings || DEFAULT_CHRISTMAS_SLIDE;
   const info = item.christmas || christmasInfo;
   const durationSeconds = Math.max(
@@ -3190,16 +3351,11 @@ const renderChristmasSlide = (item) => {
   overlay.append(linesWrapper);
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
-  mediaWrapper.appendChild(viewport);
-
-  playbackTimer = setTimeout(() => {
-    void advanceSlide().catch((error) => console.error(error));
-  }, durationSeconds * 1000);
+  const swapPromise = setMediaContent(viewport, { waitForReady: true });
+  scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
 const renderCustomSlide = (item) => {
-  clearPlaybackTimer();
-  mediaWrapper.innerHTML = "";
   currentVideo = null;
   const payload = item.custom_payload || {};
   const background = payload.background || null;
@@ -3250,7 +3406,7 @@ const renderCustomSlide = (item) => {
   overlay.className = "custom-slide-overlay";
 
   stageEl.append(backgroundLayer, overlay);
-  mediaWrapper.appendChild(stageEl);
+  const swapPromise = setMediaContent(stageEl, { waitForReady: true });
 
   const layoutTexts = () => {
     overlay.innerHTML = "";
@@ -3269,9 +3425,7 @@ const renderCustomSlide = (item) => {
   };
 
   requestAnimationFrame(layoutTexts);
-  playbackTimer = setTimeout(() => {
-    void advanceSlide().catch((error) => console.error(error));
-  }, durationSeconds * 1000);
+  scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
 // Weather icons map for slideshow display
@@ -3352,9 +3506,10 @@ const refreshWeatherBackgroundUrls = async () => {
   }
 };
 
-const renderNewsSlide = async (item) => {
-  clearPlaybackTimer();
-  mediaWrapper.innerHTML = "";
+const renderNewsSlide = async (item, { skipClear = false } = {}) => {
+  if (!skipClear) {
+    clearPlaybackTimer({ holdVideoFrame: shouldHoldVideoFrame() });
+  }
   currentVideo = null;
 
   const { settings, items } = await fetchNewsData();
@@ -3476,9 +3631,10 @@ const renderNewsSlide = async (item) => {
     });
   }
 
+  const slideId = item.id;
   frame.appendChild(cardsContainer);
   viewport.appendChild(frame);
-  mediaWrapper.appendChild(viewport);
+  const swapPromise = setMediaContent(viewport);
 
   if (cardHeightPercent > 0) {
     requestAnimationFrame(() => {
@@ -3496,12 +3652,12 @@ const renderNewsSlide = async (item) => {
   let scrollY = 0;
 
   const startScroll = () => {
+    if (slideId && currentId !== slideId) return;
     const containerHeight = cardsContainer.scrollHeight;
     const viewportHeight = frame.clientHeight;
     if (containerHeight <= viewportHeight) {
-      playbackTimer = setTimeout(() => {
-        void advanceSlide().catch((error) => console.error(error));
-      }, (durationSeconds - scrollDelay / 1000) * 1000);
+      const fallbackSeconds = Math.max(1, durationSeconds - scrollDelay / 1000);
+      scheduleSlideAdvance(fallbackSeconds, null, slideId);
       return;
     }
 
@@ -3509,6 +3665,10 @@ const renderNewsSlide = async (item) => {
     const scrollDuration = (scrollDistance / scrollSpeed) * 1000;
 
     const animateScroll = () => {
+      if (slideId && currentId !== slideId) {
+        cancelAnimationFrame(scrollFrame);
+        return;
+      }
       scrollY += scrollSpeed / 60;
       cardsContainer.style.transform = `translateY(-${scrollY}px)`;
       if (scrollY >= scrollDistance) {
@@ -3522,12 +3682,21 @@ const renderNewsSlide = async (item) => {
     scrollFrame = requestAnimationFrame(animateScroll);
   };
 
-  setTimeout(startScroll, scrollDelay);
+  const startScrollTimer = () => {
+    if (slideId && currentId !== slideId) return;
+    setTimeout(startScroll, scrollDelay);
+  };
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(startScrollTimer);
+  } else {
+    startScrollTimer();
+  }
 };
 
-const renderWeatherSlide = async (item) => {
-  clearPlaybackTimer();
-  mediaWrapper.innerHTML = "";
+const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
+  if (!skipClear) {
+    clearPlaybackTimer({ holdVideoFrame: shouldHoldVideoFrame() });
+  }
   currentVideo = null;
 
   const { settings, data } = await fetchWeatherData(previewSlideType === "weather");
@@ -3755,16 +3924,12 @@ const renderWeatherSlide = async (item) => {
 
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
-  mediaWrapper.appendChild(viewport);
-
-  playbackTimer = setTimeout(() => {
-    void advanceSlide().catch((error) => console.error(error));
-  }, durationSeconds * 1000);
+  const swapPromise = setMediaContent(viewport, { waitForReady: true });
+  scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
 const renderTimeChangeSlide = (item) => {
-  clearPlaybackTimer();
-  mediaWrapper.innerHTML = "";
+  currentVideo = null;
   const settings = timeChangeSlideSettings || DEFAULT_TIME_CHANGE_SLIDE;
   const info = item.time_change || timeChangeInfo;
   const durationSeconds = Math.max(
@@ -3864,11 +4029,8 @@ const renderTimeChangeSlide = (item) => {
   overlay.append(linesWrapper);
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
-  mediaWrapper.appendChild(viewport);
-
-  playbackTimer = setTimeout(() => {
-    void advanceSlide().catch((error) => console.error(error));
-  }, durationSeconds * 1000);
+  const swapPromise = setMediaContent(viewport, { waitForReady: true });
+  scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
 const buildTeamSlideItem = () => ({
@@ -4236,7 +4398,7 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
 
 const handleEmptyPlaylist = () => {
   clearPlaybackTimer();
-  mediaWrapper.innerHTML = "";
+  clearMediaLayers();
   if (stage) {
     stage.hidden = false;
   }
@@ -4312,7 +4474,8 @@ const refreshPlaylist = async () => {
 };
 
 const showMedia = async (item, { maintainSkip = false } = {}) => {
-  clearPlaybackTimer();
+  const holdVideoFrame = shouldHoldVideoFrame();
+  clearPlaybackTimer({ holdVideoFrame });
   setStatus("");
 
   currentItem = item;
@@ -4333,6 +4496,9 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
 
   const durationSeconds = Math.max(1, Math.round(Number(item.duration) || 10));
   const kind = detectMediaKind(item);
+  if (kind !== "video") {
+    currentVideo = null;
+  }
 
   if (kind === "team") {
     const employeesForSlide = await ensureTeamEmployeesData();
@@ -4358,11 +4524,11 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
     return;
   }
   if (kind === "news") {
-    await renderNewsSlide(item);
+    await renderNewsSlide(item, { skipClear: true });
     return;
   }
   if (kind === "weather") {
-    await renderWeatherSlide(item);
+    await renderWeatherSlide(item, { skipClear: true });
     return;
   }
 
@@ -4393,14 +4559,11 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
     return;
   }
 
-  mediaWrapper.innerHTML = "";
   const element = createMediaElement(item, kind);
-  mediaWrapper.appendChild(element);
+  const swapPromise = setMediaContent(element, { waitForReady: kind !== "video" });
 
   if (kind !== "video") {
-    playbackTimer = setTimeout(() => {
-      void advanceSlide().catch((error) => console.error(error));
-    }, durationSeconds * 1000);
+    scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
   }
 };
 
