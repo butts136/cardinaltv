@@ -3,7 +3,7 @@
  * tout en laissant les appels API se rafraîchir depuis le réseau.
  */
 
-const CACHE_VERSION = "v5";
+const CACHE_VERSION = "v6";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 
@@ -64,7 +64,10 @@ const isSameOrigin = (url) => {
   }
 };
 
-const isMediaRequest = (url) => {
+const isMediaRequest = (url, request) => {
+  if (request && (request.destination === "image" || request.destination === "video" || request.destination === "audio")) {
+    return true;
+  }
   const lower = url.split("?")[0].toLowerCase();
   return MEDIA_EXTENSIONS.some((ext) => lower.endsWith(ext));
 };
@@ -152,7 +155,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Cache-first pour les médias pour éviter plusieurs téléchargements.
-  if (isMediaRequest(request.url)) {
+  if (isMediaRequest(request.url, request)) {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(async (cache) => {
         const rangeHeader = request.headers.get("range");

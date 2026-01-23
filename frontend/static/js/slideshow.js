@@ -115,6 +115,8 @@ let infoBandWeatherEntries = [];
 let infoBandWeatherTimer = null;
 let infoBandClockEntries = [];
 const INFO_BANDS_WEATHER_REFRESH_MS = 10 * 60 * 1000;
+const INITIAL_CACHE_WARMUP_TIMEOUT_MS = 20000;
+const INITIAL_CACHE_WARMUP_STATUS_DELAY_MS = 300;
 
 const skipState = new Map();
 let playlist = [];
@@ -129,6 +131,7 @@ let wakeLock = null;
 let slideshowRunning = false;
 let isStarting = false;
 let initialCacheWarmupDone = false;
+let initialCacheWarmupPromise = null;
 let clockTimer = null;
 let currentVideo = null;
 let currentItem = null;
@@ -1458,6 +1461,38 @@ const setStatus = (message) => {
   } else {
     statusOverlay.hidden = false;
     statusLabel.textContent = message;
+  }
+};
+
+const warmupPlaylistCache = async (items, extraUrls = []) => {
+  if (!slideshowCache?.precachePlaylistMedia) {
+    return { ok: false, skipped: true };
+  }
+  initialCacheWarmupPromise = slideshowCache.precachePlaylistMedia(items, extraUrls, {
+    timeoutMs: INITIAL_CACHE_WARMUP_TIMEOUT_MS,
+    concurrency: 3,
+  });
+  return initialCacheWarmupPromise;
+};
+
+const runInitialCacheWarmup = async (items, extraUrls = []) => {
+  if (!slideshowCache?.precachePlaylistMedia) return;
+  let statusTimer = null;
+  if (!initialCacheWarmupDone) {
+    statusTimer = setTimeout(() => {
+      setStatus("Préchargement des arrière-plans...");
+    }, INITIAL_CACHE_WARMUP_STATUS_DELAY_MS);
+  }
+  try {
+    await warmupPlaylistCache(items, extraUrls);
+  } finally {
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+    }
+    if (!initialCacheWarmupDone) {
+      setStatus("");
+    }
+    initialCacheWarmupDone = true;
   }
 };
 
@@ -4733,6 +4768,9 @@ const startSlideshow = async () => {
     if (stage) {
       stage.hidden = false;
     }
+    if (!isPreviewMode) {
+      await runInitialCacheWarmup(playlist, weatherBackgroundUrls);
+    }
     await showMedia(item);
     preloadNextBackground();
     return true;
@@ -4753,6 +4791,9 @@ const startSlideshow = async () => {
 
   const current = playlist[currentIndex] || playlist[0];
   if (current) {
+    if (!isPreviewMode) {
+      await runInitialCacheWarmup(playlist, weatherBackgroundUrls);
+    }
     await showMedia(current);
     preloadNextBackground();
   }
