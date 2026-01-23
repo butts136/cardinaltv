@@ -4489,13 +4489,24 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
 
   noteItemDisplayed(item, { maintainSkip });
 
-  const showPreloadStatus = !initialCacheWarmupDone;
-  const preloadTimeoutMs = showPreloadStatus ? 15000 : 6000;
-  await ensureItemMediaCached(item, { timeoutMs: preloadTimeoutMs, showStatus: showPreloadStatus });
-  initialCacheWarmupDone = true;
-
   const durationSeconds = Math.max(1, Math.round(Number(item.duration) || 10));
   const kind = detectMediaKind(item);
+  const background = resolveItemBackground(item);
+  const hasVideoBackground = Boolean(
+    background && isVideoBackground(background.url, background.mimetype),
+  );
+
+  const showPreloadStatus = !initialCacheWarmupDone;
+  const preloadTimeoutMs = showPreloadStatus ? 15000 : 6000;
+  const shouldBlockPreload = !showPreloadStatus && !(kind === "video" || hasVideoBackground);
+  const preloadPromise = ensureItemMediaCached(item, {
+    timeoutMs: preloadTimeoutMs,
+    showStatus: showPreloadStatus && shouldBlockPreload,
+  });
+  if (shouldBlockPreload) {
+    await preloadPromise;
+  }
+  initialCacheWarmupDone = true;
   if (kind !== "video") {
     currentVideo = null;
   }

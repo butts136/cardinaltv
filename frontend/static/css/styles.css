@@ -1258,10 +1258,22 @@ input[type="datetime-local"]:focus {
 #media-wrapper {
   position: absolute;
   inset: 0;
+  background: black;
+  overflow: hidden;
+}
+
+.media-layer {
+  position: absolute;
+  inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: black;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.media-layer--active {
+  opacity: 1;
 }
 
 #media-wrapper img,
