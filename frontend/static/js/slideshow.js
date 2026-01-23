@@ -512,6 +512,41 @@ const buildSlideAssetUrl = (prefix, path) => {
 const resolveBirthdayBackgroundUrl = (settings, fallbackUrl) =>
   fallbackUrl || buildSlideAssetUrl("birthday-slide-assets", settings?.background_path);
 
+const cachedMediaObjectUrls = new Map();
+
+const getCachedMediaObjectUrl = async (url) => {
+  if (!url || !("caches" in window)) return null;
+  if (cachedMediaObjectUrls.has(url)) {
+    return cachedMediaObjectUrls.get(url);
+  }
+  try {
+    const response = await caches.match(url, { ignoreVary: true });
+    if (!response || !response.ok) return null;
+    const blob = await response.blob();
+    if (!blob || !blob.size) return null;
+    const objectUrl = URL.createObjectURL(blob);
+    cachedMediaObjectUrls.set(url, objectUrl);
+    return objectUrl;
+  } catch (error) {
+    return null;
+  }
+};
+
+const maybeSwapVideoToCached = async (video, url, slideId = null) => {
+  if (!video || !url) return;
+  const cachedUrl = await getCachedMediaObjectUrl(url);
+  if (!cachedUrl) return;
+  if (!video.isConnected) return;
+  if (slideId && currentId !== slideId) return;
+  if (video.src === cachedUrl) return;
+  video.src = cachedUrl;
+  video.load?.();
+  const attempt = video.play?.();
+  if (attempt && typeof attempt.catch === "function") {
+    attempt.catch(() => {});
+  }
+};
+
 const fetchJSON = async (url, options = {}) => {
   const response = await fetch(buildApiUrl(url), {
     cache: "no-store",
@@ -3122,7 +3157,10 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
 
   const backdrop = document.createElement("div");
   backdrop.className = "birthday-slide-backdrop";
-  const bgUrl = variantCfg.background_url || item.background_url || settings.background_url;
+  let bgUrl = variantCfg.background_url || item.background_url || settings.background_url;
+  if (!bgUrl && settings?.background_path) {
+    bgUrl = resolveBirthdayBackgroundUrl(settings, "");
+  }
   const bgMime = (
     variantCfg.background_mimetype ||
     item.background_mimetype ||
@@ -3145,6 +3183,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     });
     backdrop.appendChild(video);
     currentVideo = video;
+    void maybeSwapVideoToCached(video, bgUrl, item.id);
   } else if (bgUrl) {
     const img = document.createElement("img");
     img.className = "birthday-slide-media birthday-slide-image";
@@ -4981,6 +5020,8 @@ window.addEventListener("beforeunload", () => {
     wakeLock.release().catch(() => {});
   }
   stopKeepAwakePlayback();
+  cachedMediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  cachedMediaObjectUrls.clear();
   if (playlistRefreshTimer) {
     clearInterval(playlistRefreshTimer);
     playlistRefreshTimer = null;
