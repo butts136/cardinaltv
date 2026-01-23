@@ -497,6 +497,21 @@ const resolveAssetUrl = (path) => {
   return buildApiUrl(path);
 };
 
+const buildSlideAssetUrl = (prefix, path) => {
+  if (!path) return "";
+  const value = String(path);
+  if (value.startsWith("/") || value.startsWith("http://") || value.startsWith("https://") || value.startsWith("//")) {
+    return resolveAssetUrl(value);
+  }
+  if (value.includes("/")) {
+    return resolveAssetUrl(value);
+  }
+  return buildApiUrl(`${prefix}/${encodeURIComponent(value)}`);
+};
+
+const resolveBirthdayBackgroundUrl = (settings, fallbackUrl) =>
+  fallbackUrl || buildSlideAssetUrl("birthday-slide-assets", settings?.background_path);
+
 const fetchJSON = async (url, options = {}) => {
   const response = await fetch(buildApiUrl(url), {
     cache: "no-store",
@@ -1409,6 +1424,9 @@ const refreshOverlaySettings = async () => {
         days_before: parsedDays,
         open_days: normalizeOpenDays(rawBirthday?.open_days),
       };
+      if (!birthdaySlideSettings.background_url && birthdaySlideSettings.background_path) {
+        birthdaySlideSettings.background_url = resolveBirthdayBackgroundUrl(birthdaySlideSettings, "");
+      }
       birthdayEmployeesData = null;
       lastBirthdayFetch = 0;
       teamSlideSettings = {
@@ -4092,7 +4110,8 @@ const buildBirthdaySlideItem = (birthdayData) => {
   const duration =
     Math.max(1, Number(birthdaySlideSettings.duration) || DEFAULT_BIRTHDAY_SLIDE.duration);
   const variantBackgroundUrl =
-    birthdayData?.config?.background_url || birthdaySlideSettings.background_url;
+    birthdayData?.config?.background_url ||
+    resolveBirthdayBackgroundUrl(birthdaySlideSettings, birthdaySlideSettings.background_url);
   const variantBackgroundMime =
     birthdayData?.config?.background_mimetype || birthdaySlideSettings.background_mimetype;
   const itemId =
