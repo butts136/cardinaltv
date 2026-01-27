@@ -1543,10 +1543,12 @@ const warmupPlaylistCache = async (items, extraUrls = []) => {
   return initialCacheWarmupPromise;
 };
 
+const shouldShowPreloadStatus = () => Boolean(slideshowCache?.isEnabled?.());
+
 const runInitialCacheWarmup = async (items, extraUrls = []) => {
   if (!slideshowCache?.precachePlaylistMedia) return;
   let statusTimer = null;
-  if (!initialCacheWarmupDone) {
+  if (!initialCacheWarmupDone && shouldShowPreloadStatus()) {
     statusTimer = setTimeout(() => {
       setStatus("Préchargement des arrière-plans...");
     }, INITIAL_CACHE_WARMUP_STATUS_DELAY_MS);
@@ -1884,9 +1886,6 @@ const collectItemMediaUrls = (item) => {
   if (background?.url) {
     urls.add(background.url);
   }
-  if (item.background_path) {
-    urls.add(item.background_path);
-  }
   return Array.from(urls);
 };
 
@@ -1895,7 +1894,7 @@ const ensureItemMediaCached = async (item, { timeoutMs = 6000, showStatus = fals
   const urls = collectItemMediaUrls(item);
   if (!urls.length) return;
   let statusTimer = null;
-  if (showStatus) {
+  if (showStatus && shouldShowPreloadStatus()) {
     statusTimer = setTimeout(() => {
       setStatus("Préchargement des arrière-plans...");
     }, 200);
@@ -1912,26 +1911,46 @@ const ensureItemMediaCached = async (item, { timeoutMs = 6000, showStatus = fals
 
 let preloadLink = null;
 let lastPreloadedBackground = "";
+const canUsePreloadLink = () => {
+  if (!document.head) {
+    return false;
+  }
+  const test = document.createElement("link");
+  if (test.relList && typeof test.relList.supports === "function") {
+    return test.relList.supports("preload");
+  }
+  return true;
+};
+
 const ensurePreloadLink = () => {
   if (preloadLink) {
     return preloadLink;
   }
-  if (!document.head) {
-    console.warn("Preload unavailable: document.head missing.");
+  if (!canUsePreloadLink()) {
     return null;
   }
   preloadLink = document.createElement("link");
   preloadLink.rel = "preload";
   preloadLink.fetchPriority = "low";
-  document.head.appendChild(preloadLink);
   return preloadLink;
+};
+
+const attachPreloadLink = (link) => {
+  if (!link || !document.head || link.isConnected) {
+    return;
+  }
+  document.head.appendChild(link);
 };
 
 const clearPreloadLinkHref = () => {
   if (!preloadLink) {
     return;
   }
-  preloadLink.href = "";
+  preloadLink.removeAttribute("href");
+  preloadLink.removeAttribute("as");
+  if (preloadLink.isConnected) {
+    preloadLink.remove();
+  }
 };
 
 const preloadNextBackground = () => {
@@ -1948,18 +1967,31 @@ const preloadNextBackground = () => {
     lastPreloadedBackground = "";
     return;
   }
+  const resolvedUrl = resolveAssetUrl(background.url);
+  if (!resolvedUrl) {
+    clearPreloadLinkHref();
+    lastPreloadedBackground = "";
+    return;
+  }
+  const isVideo = isVideoBackground(resolvedUrl, background.mimetype);
+  if (isVideo) {
+    clearPreloadLinkHref();
+    lastPreloadedBackground = "";
+    return;
+  }
   const link = ensurePreloadLink();
   if (!link) {
     return;
   }
-  if (background.url === lastPreloadedBackground) {
+  if (resolvedUrl === lastPreloadedBackground) {
     return;
   }
-  lastPreloadedBackground = background.url;
-  link.href = background.url;
-  link.as = isVideoBackground(background.url, background.mimetype) ? "video" : "image";
-  if (slideshowCache?.precacheUrls) {
-    void slideshowCache.precacheUrls([background.url], { timeoutMs: 8000, concurrency: 1 });
+  lastPreloadedBackground = resolvedUrl;
+  link.href = resolvedUrl;
+  link.as = "image";
+  attachPreloadLink(link);
+  if (slideshowCache?.precacheUrls && shouldShowPreloadStatus()) {
+    void slideshowCache.precacheUrls([resolvedUrl], { timeoutMs: 8000, concurrency: 1 });
   }
 };
 
@@ -2650,9 +2682,14 @@ const createMediaElement = (item, kind) => {
     video.controls = false;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
-    let playbackMuted = Boolean(item.muted);
+    let playbackMuted = item.muted == null ? true : Boolean(item.muted);
     video.muted = playbackMuted;
     video.volume = playbackMuted ? 0 : 1;
+    if (playbackMuted) {
+      video.setAttribute("muted", "muted");
+    } else {
+      video.removeAttribute("muted");
+    }
     const preload = getBackgroundVideoPreload();
     video.preload = preload;
     video.setAttribute("preload", preload);
@@ -4995,7 +5032,9 @@ const beginPlayback = async ({ fromAuto = false } = {}) => {
 
   isStarting = true;
 
-  await enterFullscreen({ silent: fromAuto });
+  if (!fromAuto) {
+    await enterFullscreen({ silent: false });
+  }
   await requestWakeLock();
 
   try {

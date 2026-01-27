@@ -27,7 +27,6 @@
 
     pushUrl(urls, item.url || item.display_url || item.preview_url);
     pushUrl(urls, item.background_url);
-    pushUrl(urls, item.background_path);
     const birthdayVariant = item.birthday_variant_config;
     if (birthdayVariant && typeof birthdayVariant === "object") {
       pushUrl(urls, birthdayVariant.background_url);
@@ -62,22 +61,40 @@
     return urls;
   };
 
+  const normalizeBaseUrl = (value) => {
+    if (!value) return "/";
+    return value.endsWith("/") ? value : `${value}/`;
+  };
+
+  const APP_BASE_URL = normalizeBaseUrl(document.body?.dataset?.baseUrl || "/");
+
+  const buildServiceWorkerUrl = () => {
+    try {
+      return new URL(`${APP_BASE_URL}service-worker.js`, window.location.href).toString();
+    } catch (error) {
+      return "/service-worker.js";
+    }
+  };
+
   let registration = null;
   let cachedUrls = new Set();
   let precacheSignature = "";
   let precachePromise = null;
+  let serviceWorkerDisabled = false;
 
   const getActiveWorker = (reg) => reg?.active || reg?.waiting || reg?.installing || navigator.serviceWorker.controller;
 
   const ensureServiceWorker = async () => {
-    if (!("serviceWorker" in navigator)) return null;
+    if (!("serviceWorker" in navigator) || serviceWorkerDisabled) return null;
     if (registration) return registration;
     try {
-      await navigator.serviceWorker.register("/service-worker.js");
+      const swUrl = buildServiceWorkerUrl();
+      await navigator.serviceWorker.register(swUrl, { scope: APP_BASE_URL });
       registration = await navigator.serviceWorker.ready;
     } catch (error) {
       console.warn("Impossible d'enregistrer le service worker du diaporama:", error);
       registration = null;
+      serviceWorkerDisabled = true;
     }
     return registration;
   };
@@ -173,5 +190,6 @@
     updateCacheForPlaylist,
     precacheUrls,
     precachePlaylistMedia,
+    isEnabled: () => !serviceWorkerDisabled,
   };
 })();
