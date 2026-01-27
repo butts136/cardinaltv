@@ -641,6 +641,26 @@ const fetchJSON = async (url, options) => {
   return response.json();
 };
 
+const buildSlideAssetUrl = (prefix, path) => {
+  if (!path) return "";
+  const value = String(path);
+  if (
+    value.startsWith("/") ||
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("//")
+  ) {
+    return buildApiUrl(value);
+  }
+  if (value.includes("/")) {
+    return buildApiUrl(value);
+  }
+  return buildApiUrl(`${prefix}/${encodeURIComponent(value)}`);
+};
+
+const resolveBirthdayBackgroundUrl = (settings, fallbackUrl) =>
+  fallbackUrl || buildSlideAssetUrl("birthday-slide-assets", settings?.background_path);
+
 const clampValue = (value, min, max) => Math.min(Math.max(value, min), max);
 
 window.CardinalApp = {
@@ -3637,6 +3657,26 @@ const getExtensionLower = (name) => {
   return name.slice(dot + 1).toLowerCase();
 };
 
+const resolveBirthdayPreviewBackground = (variantCfg, settings) => {
+  const variantUrl = variantCfg?.background_url || resolveBirthdayBackgroundUrl(variantCfg, "");
+  if (variantUrl) {
+    return {
+      url: variantUrl,
+      mimetype: variantCfg?.background_mimetype || "",
+      path: variantCfg?.background_path || "",
+    };
+  }
+  const settingsUrl = settings?.background_url || resolveBirthdayBackgroundUrl(settings, "");
+  if (settingsUrl) {
+    return {
+      url: settingsUrl,
+      mimetype: settings?.background_mimetype || "",
+      path: settings?.background_path || "",
+    };
+  }
+  return { url: "", mimetype: "", path: "" };
+};
+
 const updateBirthdayOverlayText = (root, settings) => {
   if (!root) return;
   const overlay =
@@ -3741,17 +3781,18 @@ const renderBirthdayPreview = () => {
     birthdayVariantConfigs[birthdayCurrentVariant] || BIRTHDAY_CONFIG_DEFAULT,
     birthdayCurrentVariant || "before",
   );
+  const background = resolveBirthdayPreviewBackground(variantCfg, settings);
   const effective = {
     ...settings,
     ...variantCfg,
     lines: normalizeBirthdayLines(variantCfg),
-    background_path: variantCfg.background_path || settings.background_path,
-    background_mimetype: variantCfg.background_mimetype || settings.background_mimetype,
-    background_url: variantCfg.background_url || settings.background_url,
+    background_path: background.path || null,
+    background_mimetype: background.mimetype || null,
+    background_url: background.url || null,
   };
-  const bgUrl = effective.background_url;
-  const mime = (effective.background_mimetype || "").toLowerCase();
-  const extHint = getExtensionLower(effective.background_path || bgUrl || "");
+  const bgUrl = background.url;
+  const mime = (background.mimetype || "").toLowerCase();
+  const extHint = getExtensionLower(background.path || bgUrl || "");
   const bgKey = `${bgUrl || "none"}|${mime}|${extHint}`;
 
   // If same source is already rendered, just refresh text/scale to avoid reloading the video.

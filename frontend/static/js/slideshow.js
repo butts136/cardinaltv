@@ -512,6 +512,21 @@ const buildSlideAssetUrl = (prefix, path) => {
 const resolveBirthdayBackgroundUrl = (settings, fallbackUrl) =>
   fallbackUrl || buildSlideAssetUrl("birthday-slide-assets", settings?.background_path);
 
+const resolveBirthdayBackgroundSource = (variantCfg, item, settings) => {
+  const variantUrl = variantCfg?.background_url || resolveBirthdayBackgroundUrl(variantCfg, "");
+  if (variantUrl) {
+    return { url: variantUrl, mimetype: variantCfg?.background_mimetype || "" };
+  }
+  if (item?.background_url) {
+    return { url: item.background_url, mimetype: item.background_mimetype || "" };
+  }
+  const settingsUrl = settings?.background_url || resolveBirthdayBackgroundUrl(settings, "");
+  if (settingsUrl) {
+    return { url: settingsUrl, mimetype: settings?.background_mimetype || "" };
+  }
+  return { url: "", mimetype: "" };
+};
+
 const cachedMediaObjectUrls = new Map();
 
 const getCachedMediaObjectUrl = async (url) => {
@@ -3157,16 +3172,9 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
 
   const backdrop = document.createElement("div");
   backdrop.className = "birthday-slide-backdrop";
-  let bgUrl = variantCfg.background_url || item.background_url || settings.background_url;
-  if (!bgUrl && settings?.background_path) {
-    bgUrl = resolveBirthdayBackgroundUrl(settings, "");
-  }
-  const bgMime = (
-    variantCfg.background_mimetype ||
-    item.background_mimetype ||
-    settings.background_mimetype ||
-    ""
-  ).toLowerCase();
+  const resolvedBackground = resolveBirthdayBackgroundSource(variantCfg, item, settings);
+  const bgUrl = resolvedBackground.url;
+  const bgMime = String(resolvedBackground.mimetype || "").toLowerCase();
   const isVideo = isVideoBackground(bgUrl, bgMime);
   if (bgUrl && isVideo) {
     const video = document.createElement("video");
@@ -4148,11 +4156,13 @@ const buildBirthdaySlideItem = (birthdayData) => {
     birthdaySlideSettings.background_mimetype || "application/x-birthday-slide";
   const duration =
     Math.max(1, Number(birthdaySlideSettings.duration) || DEFAULT_BIRTHDAY_SLIDE.duration);
-  const variantBackgroundUrl =
-    birthdayData?.config?.background_url ||
-    resolveBirthdayBackgroundUrl(birthdaySlideSettings, birthdaySlideSettings.background_url);
-  const variantBackgroundMime =
-    birthdayData?.config?.background_mimetype || birthdaySlideSettings.background_mimetype;
+  const resolvedBackground = resolveBirthdayBackgroundSource(
+    birthdayData?.config || null,
+    null,
+    birthdaySlideSettings,
+  );
+  const variantBackgroundUrl = resolvedBackground.url || null;
+  const variantBackgroundMime = resolvedBackground.mimetype || null;
   const itemId =
     birthdayData && birthdayData.idSuffix != null
       ? `${BIRTHDAY_SLIDE_ID}_${birthdayData.idSuffix}`
