@@ -3169,3 +3169,51 @@ input[type="datetime-local"]:focus {
 .weather-slide-overlay .temp-min {
   color: rgba(148, 163, 184, 0.7);
 }
+
+/* ========== SLIDESHOW LOW-POWER MODE ========== */
+.slideshow-low-power #slideshow-brand {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.slideshow-low-power .news-slide-card,
+.slideshow-low-power .team-slide-card {
+  box-shadow: none;
+}
+
+.slideshow-low-power .team-slide-cards-viewport--masked {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.slideshow-low-power .team-slide-title {
+  text-shadow: none;
+}
+
+.slideshow-low-power .birthday-slide-frame {
+  box-shadow: none;
+}
+
+.slideshow-low-power .time-change-slide-media,
+.slideshow-low-power .christmas-slide-media {
+  filter: none;
+}
+
+.slideshow-low-power .time-change-slide-backdrop::after,
+.slideshow-low-power .christmas-slide-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.slideshow-low-power .time-change-slide-overlay,
+.slideshow-low-power .christmas-slide-overlay,
+.slideshow-low-power .weather-slide-overlay {
+  text-shadow: none;
+}
+
+.slideshow-low-power .weather-slide-overlay .weather-icon {
+  filter: none;
+}

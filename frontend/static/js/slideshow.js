@@ -29,6 +29,38 @@ const isSingleSlideMode = previewSlideType === "news" || previewSlideType === "w
 const sharedRenderers = window.CardinalSlideRenderers || null;
 const slideshowCache = window.CardinalSlideshowCache || null;
 let weatherBackgroundUrls = [];
+const performanceParam = (urlParams.get("perf") || urlParams.get("performance") || "").trim().toLowerCase();
+const perfForceLow =
+  performanceParam === "low" ||
+  performanceParam === "lite" ||
+  performanceParam === "1" ||
+  performanceParam === "true" ||
+  urlParams.has("lite");
+const perfForceHigh =
+  performanceParam === "high" ||
+  performanceParam === "full" ||
+  performanceParam === "0" ||
+  performanceParam === "false";
+const prefersReducedMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+const perfConnection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+const perfSaveData = Boolean(perfConnection?.saveData);
+const perfEffectiveType = String(perfConnection?.effectiveType || "").toLowerCase();
+const perfSlowNetwork = ["slow-2g", "2g", "3g"].includes(perfEffectiveType);
+const perfLowMemory = Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2;
+const perfLowCores = Number.isFinite(navigator.hardwareConcurrency) && navigator.hardwareConcurrency <= 2;
+const perfLowPowerDetected =
+  !perfForceHigh && (perfForceLow || prefersReducedMotion || perfSaveData || perfSlowNetwork || perfLowMemory || perfLowCores);
+const performanceProfile = {
+  lowPower: perfLowPowerDetected,
+  maxAnimationFps: perfLowPowerDetected ? 30 : 60,
+  disableVideoCrossfade: perfLowPowerDetected,
+  reduceEffects: perfLowPowerDetected,
+  prefersReducedMotion,
+};
+if (document.body) {
+  document.body.classList.toggle("slideshow-low-power", performanceProfile.lowPower);
+  document.body.dataset.performance = performanceProfile.lowPower ? "low" : "full";
+}
 
 const defaults = window.CardinalSlideshowDefaults || {};
 const birthdayConfig = window.CardinalBirthdayConfig || null;
@@ -1601,6 +1633,11 @@ const stopVideosInLayer = (layer) => {
   layer.querySelectorAll("video").forEach((video) => stopVideoElement(video));
 };
 
+const pauseVideosInLayer = (layer) => {
+  if (!layer) return;
+  layer.querySelectorAll("video").forEach((video) => pauseVideoElement(video));
+};
+
 const ensureMediaLayers = () => {
   if (!mediaWrapper) return null;
   if (activeMediaLayer && idleMediaLayer) {
@@ -1674,7 +1711,9 @@ const waitForMediaReady = (element, { timeoutMs = MEDIA_READY_TIMEOUT_MS } = {})
   ]);
 };
 
-const setMediaContent = (element, { waitForReady = false } = {}) => {
+const hasVideoContent = (element) => Boolean(element?.querySelector?.("video"));
+
+const setMediaContent = (element, { waitForReady = false, immediateSwap = false } = {}) => {
   if (!mediaWrapper) return Promise.resolve();
   const layers = ensureMediaLayers();
   if (!layers) {
@@ -1685,6 +1724,40 @@ const setMediaContent = (element, { waitForReady = false } = {}) => {
   const token = ++mediaSwapToken;
   const { idle } = layers;
   idle.replaceChildren(element);
+  const hasVideo = hasVideoContent(element);
+  const shouldImmediate =
+    immediateSwap || (performanceProfile.disableVideoCrossfade && hasVideo);
+
+  if (shouldImmediate) {
+    const { active } = layers;
+    pauseVideosInLayer(active);
+    return new Promise((resolve) => {
+      const finalizeSwap = () => {
+        if (token !== mediaSwapToken) {
+          resolve();
+          return;
+        }
+        const oldLayer = activeMediaLayer;
+        const newLayer = idleMediaLayer;
+        if (!oldLayer || !newLayer) {
+          resolve();
+          return;
+        }
+        newLayer.classList.add("media-layer--active");
+        oldLayer.classList.remove("media-layer--active");
+        activeMediaLayer = newLayer;
+        idleMediaLayer = oldLayer;
+        stopVideosInLayer(oldLayer);
+        oldLayer.replaceChildren();
+        resolve();
+      };
+      if (waitForReady) {
+        void waitForMediaReady(element).then(finalizeSwap);
+      } else {
+        requestAnimationFrame(finalizeSwap);
+      }
+    });
+  }
 
   return new Promise((resolve) => {
     const finalizeSwap = () => {
@@ -1763,12 +1836,19 @@ const isSlowBackgroundConnection = () => {
   const type = String(connection.effectiveType || "").toLowerCase();
   return BACKGROUND_VIDEO_SLOW_TYPES.has(type);
 };
-const getBackgroundVideoPreload = () => (isSlowBackgroundConnection() ? "metadata" : "auto");
+const getBackgroundVideoPreload = () =>
+  isSlowBackgroundConnection() || performanceProfile.lowPower ? "metadata" : "auto";
 const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", playHandler = null } = {}) => {
   if (!video) return;
   const preload = getBackgroundVideoPreload();
   video.preload = preload;
   video.setAttribute("preload", preload);
+  video.playsInline = true;
+  video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "");
+  video.disablePictureInPicture = true;
+  video.setAttribute("disablepictureinpicture", "");
+  video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
   if (video.muted) {
     video.setAttribute("muted", "muted");
   } else {
@@ -3061,7 +3141,7 @@ const renderTeamSlide = (item, employeesList = []) => {
   cardsContainer.innerHTML = "";
   employees.forEach((emp) => cardsContainer.appendChild(renderTeamCard(emp)));
   cardsContainer.style.willChange = "transform";
-  cardsContainer.style.transform = "translateY(0)";
+  cardsContainer.style.transform = "translate3d(0, 0, 0)";
 
   const cardDisplaySeconds = Math.max(
     0.5,
@@ -3109,7 +3189,7 @@ const renderTeamSlide = (item, employeesList = []) => {
   const exitOffset = -(contentHeight + overrun);
   const pixelsPerSecond =
     contentHeight > 0 ? (viewportHeight + minCardHeight) / cardDisplaySeconds : 0;
-  cardsContainer.style.transform = `translateY(${startOffset}px)`;
+  cardsContainer.style.transform = `translate3d(0, ${startOffset}px, 0)`;
 
   if (pixelsPerSecond <= 0) {
     const fallbackSeconds = Math.max(cardDisplaySeconds, Number(item.duration) || 5);
@@ -3118,6 +3198,10 @@ const renderTeamSlide = (item, employeesList = []) => {
   }
 
   let startTime = null;
+  let lastFrameTime = 0;
+  const frameInterval = performanceProfile.maxAnimationFps > 0
+    ? 1000 / performanceProfile.maxAnimationFps
+    : 0;
   const titleStartCenter = title ? Number(title.dataset.startCenter) || 0 : 0;
   const titleEndCenter = title ? Number(title.dataset.endCenter) || 0 : 0;
   const titleDistance = title ? Math.max(0, titleStartCenter - titleEndCenter) : 0;
@@ -3126,11 +3210,16 @@ const renderTeamSlide = (item, employeesList = []) => {
     if (startTime == null) {
       startTime = timestamp;
     }
+    if (frameInterval > 0 && timestamp - lastFrameTime < frameInterval) {
+      teamScrollFrame = requestAnimationFrame(animateScroll);
+      return;
+    }
+    lastFrameTime = timestamp;
     const elapsedSeconds = (timestamp - startTime) / 1000;
     const traveled = elapsedSeconds * pixelsPerSecond;
     const currentOffset = startOffset - traveled;
     const clampedOffset = Math.max(currentOffset, exitOffset);
-    cardsContainer.style.transform = `translateY(${clampedOffset}px)`;
+    cardsContainer.style.transform = `translate3d(0, ${clampedOffset}px, 0)`;
 
     if (title && titleDistance > 0) {
       const titleTraveled = Math.min(titleDistance, elapsedSeconds * pixelsPerSecond);
@@ -3663,6 +3752,8 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
   const cardHeightPercent = Math.max(0, Math.min(100, Number(settings.card_height_percent) || 0));
   const showImage = settings.show_image !== false;
   const showTime = settings.show_time !== false;
+  const maxItems = Math.max(1, Number(settings.max_items) || 10);
+  const effectiveMaxItems = performanceProfile.lowPower ? Math.min(maxItems, 10) : maxItems;
   const titleSize = Math.max(10, Number(settings.card_title_size) || 28);
   const timeSize = Math.max(10, Number(settings.card_time_size) || 18);
   const sourceSize = Math.max(10, Number(settings.card_source_size) || 16);
@@ -3703,6 +3794,7 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
 
   const cardsContainer = document.createElement("div");
   cardsContainer.className = "news-slide-cards";
+  cardsContainer.style.willChange = "transform";
 
   if (!items.length) {
     const noItems = document.createElement("div");
@@ -3710,7 +3802,7 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
     noItems.textContent = "Aucune nouvelle disponible";
     cardsContainer.appendChild(noItems);
   } else {
-    items.slice(0, settings.max_items || 10).forEach((newsItem) => {
+    items.slice(0, effectiveMaxItems).forEach((newsItem) => {
       const card = document.createElement("div");
       card.className = "news-slide-card";
 
@@ -3720,7 +3812,9 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
         const img = document.createElement("img");
         img.src = newsItem.image;
         img.alt = "";
-        img.loading = "eager";
+        img.loading = performanceProfile.lowPower ? "lazy" : "eager";
+        img.decoding = "async";
+        img.fetchPriority = performanceProfile.lowPower ? "low" : "high";
         imgWrap.appendChild(img);
         card.appendChild(imgWrap);
       }
@@ -3800,15 +3894,30 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
 
     const scrollDistance = containerHeight;
     const scrollDuration = (scrollDistance / scrollSpeed) * 1000;
+    let startTime = null;
+    let lastFrameTime = 0;
+    const frameInterval = performanceProfile.maxAnimationFps > 0
+      ? 1000 / performanceProfile.maxAnimationFps
+      : 0;
 
-    const animateScroll = () => {
+    const animateScroll = (timestamp) => {
       if (slideId && currentId !== slideId) {
         cancelAnimationFrame(scrollFrame);
         return;
       }
-      scrollY += scrollSpeed / 60;
-      cardsContainer.style.transform = `translateY(-${scrollY}px)`;
-      if (scrollY >= scrollDistance) {
+      if (startTime == null) {
+        startTime = timestamp;
+      }
+      if (frameInterval > 0 && timestamp - lastFrameTime < frameInterval) {
+        scrollFrame = requestAnimationFrame(animateScroll);
+        return;
+      }
+      lastFrameTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = scrollDuration > 0 ? Math.min(1, elapsed / scrollDuration) : 1;
+      scrollY = scrollDistance * progress;
+      cardsContainer.style.transform = `translate3d(0, -${scrollY}px, 0)`;
+      if (progress >= 1) {
         cancelAnimationFrame(scrollFrame);
         void advanceSlide().catch((error) => console.error(error));
         return;
