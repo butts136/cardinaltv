@@ -155,6 +155,8 @@ let playlist = [];
 let playlistSignature = "";
 let currentIndex = -1;
 let currentId = null;
+let visibleIndex = -1;
+let visibleId = null;
 let playbackTimer = null;
 let documentTimer = null;
 let documentPlayback = null;
@@ -1108,10 +1110,36 @@ const applyInfoBandWidgetTextFitAll = () => {
   infoBandWidgetAutoFitEntries.forEach((entry) => applyInfoBandWidgetTextFit(entry));
 };
 
+const resolveVisibleIndex = () => {
+  const total = Array.isArray(playlist) ? playlist.length : 0;
+  if (visibleId && total > 0) {
+    const idx = playlist.findIndex((entry) => entry && entry.id === visibleId);
+    if (idx >= 0) return idx;
+  }
+  if (Number.isFinite(visibleIndex) && visibleIndex >= 0 && visibleIndex < total) {
+    return visibleIndex;
+  }
+  return -1;
+};
+
+const markSlideVisible = (item) => {
+  if (!item || !Array.isArray(playlist)) {
+    return;
+  }
+  if (item.id && currentId && item.id !== currentId) {
+    return;
+  }
+  visibleId = item.id;
+  const idx = playlist.findIndex((entry) => entry && entry.id === item.id);
+  visibleIndex = idx >= 0 ? idx : currentIndex;
+  updateInfoBandWidgetProgress();
+};
+
 const updateInfoBandWidgetProgress = () => {
   if (!infoBandWidgetProgressNodes.length) return;
   const total = Array.isArray(playlist) ? playlist.length : 0;
-  const current = currentIndex >= 0 ? currentIndex + 1 : 0;
+  const resolvedIndex = resolveVisibleIndex();
+  const current = resolvedIndex >= 0 ? resolvedIndex + 1 : 0;
   infoBandWidgetProgressNodes.forEach(({ track, widget }) => {
     renderInfoBandProgressTrack(track, widget, current, total);
   });
@@ -2536,13 +2564,16 @@ const stopCurrentVideo = () => {
   currentVideo = null;
 };
 
-const clearPlaybackTimer = ({ holdVideoFrame = false } = {}) => {
+const clearPlaybackTimer = ({ holdVideoFrame = false, keepVideo = false } = {}) => {
   if (playbackTimer) {
     clearTimeout(playbackTimer);
     playbackTimer = null;
   }
   clearDocumentPlayback();
   clearTeamSlideTimers();
+  if (keepVideo) {
+    return;
+  }
   if (holdVideoFrame) {
     pauseVideoElement(currentVideo);
   } else {
@@ -2557,6 +2588,7 @@ const startImageSequence = (item, pageUrls, durationSeconds) => {
   let cancelled = false;
   let pageIndex = 0;
   const total = pageUrls.length || 1;
+  let hasMarkedVisible = false;
 
   const scheduleNext = (advance) => {
     if (cancelled) {
@@ -2588,6 +2620,10 @@ const startImageSequence = (item, pageUrls, durationSeconds) => {
     img.alt = `${item.original_name || item.filename} — Page ${pageIndex + 1}`;
 
     setActiveMediaContent(img);
+    if (!hasMarkedVisible) {
+      hasMarkedVisible = true;
+      markSlideVisible(item);
+    }
 
     if (img.complete) {
       scheduleNext(pageIndex + 1 >= total);
@@ -2615,6 +2651,7 @@ const startTextSequence = (item, pages, durationSeconds) => {
   let cancelled = false;
   let pageIndex = 0;
   const total = pages.length || 1;
+  let hasMarkedVisible = false;
 
   const scheduleNext = (advance) => {
     if (cancelled) {
@@ -2645,6 +2682,10 @@ const startTextSequence = (item, pages, durationSeconds) => {
     container.textContent = pages[pageIndex] || "";
 
     setActiveMediaContent(container);
+    if (!hasMarkedVisible) {
+      hasMarkedVisible = true;
+      markSlideVisible(item);
+    }
 
     scheduleNext(pageIndex + 1 >= total);
   };
@@ -2682,6 +2723,7 @@ const startPdfDocument = async (item, durationSeconds, urlOverride) => {
   const loadingTask = window.pdfjsLib.getDocument({ url });
   let cancelled = false;
   let pdfDoc = null;
+  let hasMarkedVisible = false;
 
   const cleanup = () => {
     cancelled = true;
@@ -2773,6 +2815,10 @@ const startPdfDocument = async (item, durationSeconds, urlOverride) => {
     }
 
     setActiveMediaContent(canvasElement);
+    if (!hasMarkedVisible) {
+      hasMarkedVisible = true;
+      markSlideVisible(item);
+    }
 
     scheduleNext(pageNumber >= total, pageNumber);
   };
@@ -3098,6 +3144,11 @@ const renderTeamSlide = (item, employeesList = []) => {
     empty.className = "team-slide-blank";
     empty.textContent = "Aucun employé configuré.";
     const swapPromise = setMediaContent(empty);
+    if (swapPromise && typeof swapPromise.then === "function") {
+      swapPromise.then(() => markSlideVisible(item));
+    } else {
+      markSlideVisible(item);
+    }
     scheduleSlideAdvance(Math.max(5, Number(item.duration) || 10), swapPromise, item.id);
     return;
   }
@@ -3175,6 +3226,11 @@ const renderTeamSlide = (item, employeesList = []) => {
   overlay.appendChild(overlayInner);
   root.appendChild(overlay);
   const swapPromise = setMediaContent(root, { waitForReady: true });
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => markSlideVisible(item));
+  } else {
+    markSlideVisible(item);
+  }
 
   cardsContainer.innerHTML = "";
   employees.forEach((emp) => cardsContainer.appendChild(renderTeamCard(emp)));
@@ -3426,6 +3482,11 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   frameEl.appendChild(overlay);
 
   const swapPromise = setMediaContent(frameEl, { waitForReady: true });
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => markSlideVisible(item));
+  } else {
+    markSlideVisible(item);
+  }
   scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
@@ -3616,6 +3677,11 @@ const renderChristmasSlide = (item) => {
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
   const swapPromise = setMediaContent(viewport, { waitForReady: true });
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => markSlideVisible(item));
+  } else {
+    markSlideVisible(item);
+  }
   scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
@@ -3671,6 +3737,11 @@ const renderCustomSlide = (item) => {
 
   stageEl.append(backgroundLayer, overlay);
   const swapPromise = setMediaContent(stageEl, { waitForReady: true });
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => markSlideVisible(item));
+  } else {
+    markSlideVisible(item);
+  }
 
   const layoutTexts = () => {
     overlay.innerHTML = "";
@@ -3904,6 +3975,11 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
   frame.appendChild(cardsContainer);
   viewport.appendChild(frame);
   const swapPromise = setMediaContent(viewport);
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => markSlideVisible(item));
+  } else {
+    markSlideVisible(item);
+  }
 
   if (cardHeightPercent > 0) {
     requestAnimationFrame(() => {
@@ -4314,6 +4390,11 @@ const renderTimeChangeSlide = (item) => {
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
   const swapPromise = setMediaContent(viewport, { waitForReady: true });
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => markSlideVisible(item));
+  } else {
+    markSlideVisible(item);
+  }
   scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
@@ -4686,6 +4767,9 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
 const handleEmptyPlaylist = () => {
   clearPlaybackTimer();
   clearMediaLayers();
+  visibleIndex = -1;
+  visibleId = null;
+  updateInfoBandWidgetProgress();
   if (stage) {
     stage.hidden = false;
   }
@@ -4736,6 +4820,8 @@ const refreshPlaylist = async () => {
   if (!playlist.length) {
     currentIndex = -1;
     currentId = null;
+    visibleIndex = -1;
+    visibleId = null;
     updateInfoBandWidgetProgress();
     return { empty: true, restart: false, changed };
   }
@@ -4761,8 +4847,9 @@ const refreshPlaylist = async () => {
 };
 
 const showMedia = async (item, { maintainSkip = false } = {}) => {
-  const holdVideoFrame = shouldHoldVideoFrame();
-  clearPlaybackTimer({ holdVideoFrame });
+  const keepVideo = Boolean(currentVideo) && currentVideo.muted;
+  const holdVideoFrame = !keepVideo && shouldHoldVideoFrame();
+  clearPlaybackTimer({ holdVideoFrame, keepVideo });
   setStatus("");
 
   currentItem = item;
@@ -4772,21 +4859,14 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
     currentIndex = index;
   }
 
-  updateInfoBandWidgetProgress();
-
   noteItemDisplayed(item, { maintainSkip });
 
   const durationSeconds = Math.max(1, Math.round(Number(item.duration) || 10));
   const kind = detectMediaKind(item);
-  const background = resolveItemBackground(item);
-  const hasVideoBackground = Boolean(
-    background && isVideoBackground(background.url, background.mimetype),
-  );
 
   const showPreloadStatus = !initialCacheWarmupDone;
   const preloadTimeoutMs = showPreloadStatus ? 15000 : 6000;
-  const shouldBlockPreload =
-    !initialCacheWarmupDone || (!(kind === "video" || hasVideoBackground));
+  const shouldBlockPreload = !initialCacheWarmupDone;
   const preloadPromise = ensureItemMediaCached(item, {
     timeoutMs: preloadTimeoutMs,
     showStatus: showPreloadStatus && shouldBlockPreload,
@@ -4860,6 +4940,11 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
 
   const element = createMediaElement(item, kind);
   const swapPromise = setMediaContent(element, { waitForReady: kind !== "video" });
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => markSlideVisible(item));
+  } else {
+    markSlideVisible(item);
+  }
 
   if (kind !== "video") {
     scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
