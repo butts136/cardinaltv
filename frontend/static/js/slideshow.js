@@ -148,6 +148,7 @@ let infoBandWidgetResizeObserver = null;
 let infoBandWeatherEntries = [];
 let infoBandWeatherTimer = null;
 let infoBandClockEntries = [];
+let lastInfoBandFitKey = "";
 const INFO_BANDS_WEATHER_REFRESH_MS = 10 * 60 * 1000;
 const INITIAL_CACHE_WARMUP_TIMEOUT_MS = 20000;
 const INITIAL_CACHE_WARMUP_STATUS_DELAY_MS = 300;
@@ -866,7 +867,13 @@ const updateInfoBandWidgetTime = () => {
       if (entry.secondEl) entry.secondEl.textContent = parts.seconds;
     });
   }
-  applyInfoBandWidgetTextFitAll();
+  if (infoBandWidgetAutoFitEntries.length) {
+    const fitKey = `${parts.hour}:${parts.minutes}`;
+    if (fitKey !== lastInfoBandFitKey) {
+      lastInfoBandFitKey = fitKey;
+      applyInfoBandWidgetTextFitAll();
+    }
+  }
 };
 
 const stopInfoBandWidgetClock = () => {
@@ -3319,6 +3326,23 @@ const renderTeamSlide = (item, employeesList = []) => {
   const titleStartCenter = title ? Number(title.dataset.startCenter) || 0 : 0;
   const titleEndCenter = title ? Number(title.dataset.endCenter) || 0 : 0;
   const titleDistance = title ? Math.max(0, titleStartCenter - titleEndCenter) : 0;
+  const settleTitle = () => {
+    if (!title || titleDistance <= 0) return;
+    const from = "translate3d(-50%, -50%, 0)";
+    const to = `translate3d(-50%, -50%, 0) translate3d(0, -${titleDistance}px, 0)`;
+    title.style.transform = from;
+    if (title.animate) {
+      teamTitleAnimation = title.animate(
+        [{ transform: from }, { transform: to }],
+        { duration: 600, easing: "ease-out", fill: "forwards" },
+      );
+      teamTitleAnimation.onfinish = () => {
+        teamTitleAnimation = null;
+      };
+      return;
+    }
+    title.style.transform = to;
+  };
   const holdMs = title ? TEAM_TITLE_HOLD_MS : 0;
 
   const distancePx = Math.max(1, startOffset - exitOffset);
@@ -3347,20 +3371,6 @@ const renderTeamSlide = (item, employeesList = []) => {
         void advanceSlide().catch((error) => console.error(error));
       };
 
-      if (title && titleDistance > 0 && title.animate) {
-        title.style.top = `${titleStartCenter}px`;
-        teamTitleAnimation = title.animate(
-          [
-            { transform: "translate3d(-50%, -50%, 0)" },
-            { transform: `translate3d(-50%, -50%, 0) translate3d(0, -${titleDistance}px, 0)` },
-          ],
-          {
-            duration: scrollDurationMs,
-            easing: "linear",
-            fill: "forwards",
-          },
-        );
-      }
       return;
     }
 
@@ -3389,11 +3399,6 @@ const renderTeamSlide = (item, employeesList = []) => {
       const clampedOffset = Math.max(currentOffset, exitOffset);
       cardsContainer.style.transform = `translate3d(0, ${clampedOffset}px, 0)`;
 
-      if (title && titleDistance > 0) {
-        const titleTraveled = Math.min(titleDistance, elapsedSeconds * pixelsPerSecond);
-        title.style.transform = `translate3d(-50%, -50%, 0) translate3d(0, -${titleTraveled}px, 0)`;
-      }
-
       if (clampedOffset <= exitOffset) {
         teamScrollFrame = null;
         teamScrollEndTimer = null;
@@ -3411,8 +3416,12 @@ const renderTeamSlide = (item, employeesList = []) => {
     teamScrollStartTimer = setTimeout(runScroll, holdMs);
   };
   if (swapPromise && typeof swapPromise.then === "function") {
-    swapPromise.then(startScroll);
+    swapPromise.then(() => {
+      settleTitle();
+      startScroll();
+    });
   } else {
+    settleTitle();
     startScroll();
   }
 };
