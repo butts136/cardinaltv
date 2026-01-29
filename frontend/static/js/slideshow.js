@@ -173,6 +173,7 @@ let playlistWarmupToken = 0;
 let clockTimer = null;
 let currentVideo = null;
 let currentItem = null;
+let overlayClockEl = null;
 let overlaySettings = { ...DEFAULT_OVERLAY };
 let overlaySignature = "";
 let teamSlideSettings = { ...DEFAULT_TEAM_SLIDE };
@@ -427,11 +428,13 @@ const updateClock = () => {
   const now = new Date();
   const dateText = clockDateFormatter.format(now);
   const timeText = clockTimeFormatter.format(now);
-  overlayContent.querySelector(".clock-text")?.remove();
-  const clockEl = document.createElement("div");
-  clockEl.className = "clock-text";
-  clockEl.textContent = `${dateText} • ${timeText}`;
-  overlayContent.appendChild(clockEl);
+  if (!overlayClockEl || !overlayClockEl.isConnected) {
+    overlayContent.querySelector(".clock-text")?.remove();
+    overlayClockEl = document.createElement("div");
+    overlayClockEl.className = "clock-text";
+    overlayContent.appendChild(overlayClockEl);
+  }
+  overlayClockEl.textContent = `${dateText} • ${timeText}`;
 };
 
 const startClock = () => {
@@ -439,13 +442,18 @@ const startClock = () => {
   if (!isClockModeActive()) {
     return;
   }
-  updateClock();
-  clockTimer = setInterval(updateClock, 1000);
+  const tick = () => {
+    updateClock();
+    const now = Date.now();
+    const delay = 1000 - (now % 1000);
+    clockTimer = setTimeout(tick, delay);
+  };
+  tick();
 };
 
 const stopClock = () => {
   if (clockTimer) {
-    clearInterval(clockTimer);
+    clearTimeout(clockTimer);
     clockTimer = null;
   }
 };
@@ -464,6 +472,7 @@ const applyOverlaySettings = (input = {}) => {
   if (!overlaySettings.enabled) {
     overlayContainer.hidden = true;
     overlayContent.innerHTML = "";
+    overlayClockEl = null;
     stopClock();
     return;
   }
@@ -878,16 +887,21 @@ const updateInfoBandWidgetTime = () => {
 
 const stopInfoBandWidgetClock = () => {
   if (infoBandWidgetTimer) {
-    clearInterval(infoBandWidgetTimer);
+    clearTimeout(infoBandWidgetTimer);
     infoBandWidgetTimer = null;
   }
 };
 
 const startInfoBandWidgetClock = () => {
   stopInfoBandWidgetClock();
-  if (!infoBandWidgetTokenEntries.length) return;
-  updateInfoBandWidgetTime();
-  infoBandWidgetTimer = setInterval(updateInfoBandWidgetTime, 1000);
+  if (!infoBandWidgetTokenEntries.length && !infoBandClockEntries.length) return;
+  const tick = () => {
+    updateInfoBandWidgetTime();
+    const now = Date.now();
+    const delay = 1000 - (now % 1000);
+    infoBandWidgetTimer = setTimeout(tick, delay);
+  };
+  tick();
 };
 
 const DEFAULT_INFO_BAND_WIDGET_STYLE = {
@@ -3264,8 +3278,9 @@ const renderTeamSlide = (item, employeesList = []) => {
     markSlideVisible(item);
   }
 
-  cardsContainer.innerHTML = "";
-  employees.forEach((emp) => cardsContainer.appendChild(renderTeamCard(emp)));
+  const cardsFragment = document.createDocumentFragment();
+  employees.forEach((emp) => cardsFragment.appendChild(renderTeamCard(emp)));
+  cardsContainer.replaceChildren(cardsFragment);
   cardsContainer.style.willChange = "transform";
   cardsContainer.style.transform = "translate3d(0, 0, 0)";
 
@@ -3282,13 +3297,13 @@ const renderTeamSlide = (item, employeesList = []) => {
   const overlayPaddingTop = Number.parseFloat(overlayStyles.paddingTop) || 0;
 
   let minCardHeight = Infinity;
-  const cardNodes = cardsContainer.querySelectorAll(".team-slide-card");
-  cardNodes.forEach((node) => {
-    const h = node.getBoundingClientRect().height;
+  const firstCard = cardsContainer.querySelector(".team-slide-card");
+  if (firstCard) {
+    const h = firstCard.getBoundingClientRect().height;
     if (Number.isFinite(h) && h > 0) {
-      minCardHeight = Math.min(minCardHeight, h);
+      minCardHeight = h;
     }
-  });
+  }
   if (!Number.isFinite(minCardHeight) || minCardHeight <= 0) {
     minCardHeight = 180;
   }
