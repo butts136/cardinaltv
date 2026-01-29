@@ -26,6 +26,8 @@ const urlParams = new URLSearchParams(window.location.search);
 const isPreviewMode = urlParams.has("preview");
 const previewSlideType = (urlParams.get("slide") || "").trim().toLowerCase();
 const isSingleSlideMode = previewSlideType === "news" || previewSlideType === "weather";
+const preloadParam = (urlParams.get("preload") || "").trim().toLowerCase();
+const PRELOAD_ENABLED = preloadParam === "1" || preloadParam === "true" || preloadParam === "yes";
 const sharedRenderers = window.CardinalSlideRenderers || null;
 const slideshowCache = window.CardinalSlideshowCache || null;
 let weatherBackgroundUrls = [];
@@ -200,6 +202,8 @@ const CUSTOM_SLIDE_REFRESH_MS = 15 * 1000;
 let teamEmployeesData = [];
 let teamEmployeesPromise = null;
 let teamRotationTimer = null;
+let teamScrollAnimation = null;
+let teamTitleAnimation = null;
 let lastTeamEmployeesFetch = 0;
 let autoStartRequested = false;
 let keepAwakeVideo = null;
@@ -1594,7 +1598,7 @@ const setStatus = (message) => {
 };
 
 const warmupPlaylistCache = async (items, extraUrls = []) => {
-  if (!slideshowCache?.precacheUrls) {
+  if (!PRELOAD_ENABLED || !slideshowCache?.precacheUrls) {
     return { ok: false, skipped: true };
   }
   const token = ++playlistWarmupToken;
@@ -1632,10 +1636,10 @@ const warmupPlaylistCache = async (items, extraUrls = []) => {
   return { ok: true };
 };
 
-const shouldShowPreloadStatus = () => Boolean(slideshowCache?.isEnabled?.());
+const shouldShowPreloadStatus = () => PRELOAD_ENABLED && Boolean(slideshowCache?.isEnabled?.());
 
 const runInitialCacheWarmup = async (items, extraUrls = [], startIndex = 0) => {
-  if (!slideshowCache?.precacheUrls) return;
+  if (!PRELOAD_ENABLED || !slideshowCache?.precacheUrls) return;
   const ordered = buildOrderedPlaylist(items, startIndex);
   if (!ordered.length && !(Array.isArray(extraUrls) && extraUrls.length)) {
     return;
@@ -2036,7 +2040,7 @@ const buildOrderedPlaylist = (items, startIndex = 0) => {
 };
 
 const ensureItemMediaCached = async (item, { timeoutMs = 6000, showStatus = false } = {}) => {
-  if (!slideshowCache?.precacheUrls) return;
+  if (!PRELOAD_ENABLED || !slideshowCache?.precacheUrls) return;
   const urls = collectItemMediaUrls(item);
   if (!urls.length) return;
   let statusTimer = null;
@@ -2100,6 +2104,11 @@ const clearPreloadLinkHref = () => {
 };
 
 const preloadNextBackground = () => {
+  if (!PRELOAD_ENABLED) {
+    clearPreloadLinkHref();
+    lastPreloadedBackground = "";
+    return;
+  }
   if (!playlist.length || currentIndex < 0) {
     clearPreloadLinkHref();
     lastPreloadedBackground = "";
@@ -2533,6 +2542,22 @@ const clearTeamSlideTimers = () => {
   if (teamScrollFrame) {
     cancelAnimationFrame(teamScrollFrame);
     teamScrollFrame = null;
+  }
+  if (teamScrollAnimation) {
+    try {
+      teamScrollAnimation.cancel();
+    } catch (error) {
+      // ignore
+    }
+    teamScrollAnimation = null;
+  }
+  if (teamTitleAnimation) {
+    try {
+      teamTitleAnimation.cancel();
+    } catch (error) {
+      // ignore
+    }
+    teamTitleAnimation = null;
   }
   if (teamScrollEndTimer) {
     clearTimeout(teamScrollEndTimer);
@@ -3275,8 +3300,8 @@ const renderTeamSlide = (item, employeesList = []) => {
     title.style.position = "absolute";
     title.style.left = "50%";
     title.style.top = `${titleStartCenter}px`;
-    title.style.transform = "translate(-50%, -50%)";
-    title.style.willChange = "transform, top";
+    title.style.transform = "translate3d(-50%, -50%, 0)";
+    title.style.willChange = "transform";
   }
 
   const startOffset = viewportHeight;
@@ -3291,52 +3316,99 @@ const renderTeamSlide = (item, employeesList = []) => {
     return;
   }
 
-  let startTime = null;
-  let lastFrameTime = 0;
-  const frameInterval = performanceProfile.maxAnimationFps > 0
-    ? 1000 / performanceProfile.maxAnimationFps
-    : 0;
   const titleStartCenter = title ? Number(title.dataset.startCenter) || 0 : 0;
   const titleEndCenter = title ? Number(title.dataset.endCenter) || 0 : 0;
   const titleDistance = title ? Math.max(0, titleStartCenter - titleEndCenter) : 0;
+  const holdMs = title ? TEAM_TITLE_HOLD_MS : 0;
 
-  const animateScroll = (timestamp) => {
-    if (startTime == null) {
-      startTime = timestamp;
+  const distancePx = Math.max(1, startOffset - exitOffset);
+  const scrollDurationMs = Math.max(1, Math.round((distancePx / pixelsPerSecond) * 1000));
+
+  const runScroll = () => {
+    if (cardsContainer.animate) {
+      cardsContainer.style.transform = `translate3d(0, ${startOffset}px, 0)`;
+      teamScrollAnimation = cardsContainer.animate(
+        [
+          { transform: `translate3d(0, ${startOffset}px, 0)` },
+          { transform: `translate3d(0, ${exitOffset}px, 0)` },
+        ],
+        {
+          duration: scrollDurationMs,
+          easing: "linear",
+          fill: "forwards",
+        },
+      );
+      teamScrollAnimation.onfinish = () => {
+        teamScrollAnimation = null;
+        teamTitleAnimation = null;
+        if (item && item.id && currentId !== item.id) {
+          return;
+        }
+        void advanceSlide().catch((error) => console.error(error));
+      };
+
+      if (title && titleDistance > 0 && title.animate) {
+        title.style.top = `${titleStartCenter}px`;
+        teamTitleAnimation = title.animate(
+          [
+            { transform: "translate3d(-50%, -50%, 0)" },
+            { transform: `translate3d(-50%, -50%, 0) translate3d(0, -${titleDistance}px, 0)` },
+          ],
+          {
+            duration: scrollDurationMs,
+            easing: "linear",
+            fill: "forwards",
+          },
+        );
+      }
+      return;
     }
-    if (frameInterval > 0 && timestamp - lastFrameTime < frameInterval) {
+
+    let startTime = null;
+    let lastFrameTime = 0;
+    const frameInterval = performanceProfile.maxAnimationFps > 0
+      ? 1000 / performanceProfile.maxAnimationFps
+      : 0;
+
+    const animateScroll = (timestamp) => {
+      if (item && item.id && currentId !== item.id) {
+        teamScrollFrame = null;
+        return;
+      }
+      if (startTime == null) {
+        startTime = timestamp;
+      }
+      if (frameInterval > 0 && timestamp - lastFrameTime < frameInterval) {
+        teamScrollFrame = requestAnimationFrame(animateScroll);
+        return;
+      }
+      lastFrameTime = timestamp;
+      const elapsedSeconds = (timestamp - startTime) / 1000;
+      const traveled = elapsedSeconds * pixelsPerSecond;
+      const currentOffset = startOffset - traveled;
+      const clampedOffset = Math.max(currentOffset, exitOffset);
+      cardsContainer.style.transform = `translate3d(0, ${clampedOffset}px, 0)`;
+
+      if (title && titleDistance > 0) {
+        const titleTraveled = Math.min(titleDistance, elapsedSeconds * pixelsPerSecond);
+        title.style.transform = `translate3d(-50%, -50%, 0) translate3d(0, -${titleTraveled}px, 0)`;
+      }
+
+      if (clampedOffset <= exitOffset) {
+        teamScrollFrame = null;
+        teamScrollEndTimer = null;
+        void advanceSlide().catch((error) => console.error(error));
+        return;
+      }
+
       teamScrollFrame = requestAnimationFrame(animateScroll);
-      return;
-    }
-    lastFrameTime = timestamp;
-    const elapsedSeconds = (timestamp - startTime) / 1000;
-    const traveled = elapsedSeconds * pixelsPerSecond;
-    const currentOffset = startOffset - traveled;
-    const clampedOffset = Math.max(currentOffset, exitOffset);
-    cardsContainer.style.transform = `translate3d(0, ${clampedOffset}px, 0)`;
-
-    if (title && titleDistance > 0) {
-      const titleTraveled = Math.min(titleDistance, elapsedSeconds * pixelsPerSecond);
-      const currentCenter = titleStartCenter - titleTraveled;
-      title.style.top = `${currentCenter}px`;
-      title.style.transform = "translate(-50%, -50%)";
-    }
-
-    if (clampedOffset <= exitOffset) {
-      teamScrollFrame = null;
-      teamScrollEndTimer = null;
-      void advanceSlide().catch((error) => console.error(error));
-      return;
-    }
+    };
 
     teamScrollFrame = requestAnimationFrame(animateScroll);
   };
 
-  const holdMs = title ? TEAM_TITLE_HOLD_MS : 0;
   const startScroll = () => {
-    teamScrollStartTimer = setTimeout(() => {
-      teamScrollFrame = requestAnimationFrame(animateScroll);
-    }, holdMs);
+    teamScrollStartTimer = setTimeout(runScroll, holdMs);
   };
   if (swapPromise && typeof swapPromise.then === "function") {
     swapPromise.then(startScroll);
@@ -4795,7 +4867,7 @@ const refreshPlaylist = async () => {
   playlistSignature = signature;
   playlist = enhanced;
 
-  if (slideshowCache?.updateCacheForPlaylist) {
+  if (PRELOAD_ENABLED && slideshowCache?.updateCacheForPlaylist) {
     void slideshowCache.updateCacheForPlaylist(playlist, weatherBackgroundUrls);
   }
 
@@ -4864,9 +4936,9 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   const durationSeconds = Math.max(1, Math.round(Number(item.duration) || 10));
   const kind = detectMediaKind(item);
 
-  const showPreloadStatus = !initialCacheWarmupDone;
+  const showPreloadStatus = PRELOAD_ENABLED && !initialCacheWarmupDone;
   const preloadTimeoutMs = showPreloadStatus ? 15000 : 6000;
-  const shouldBlockPreload = !initialCacheWarmupDone;
+  const shouldBlockPreload = PRELOAD_ENABLED && !initialCacheWarmupDone;
   const preloadPromise = ensureItemMediaCached(item, {
     timeoutMs: preloadTimeoutMs,
     showStatus: showPreloadStatus && shouldBlockPreload,
