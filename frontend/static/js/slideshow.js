@@ -164,6 +164,7 @@ let slideshowRunning = false;
 let isStarting = false;
 let initialCacheWarmupDone = false;
 let initialCacheWarmupPromise = null;
+let playlistWarmupToken = 0;
 let clockTimer = null;
 let currentVideo = null;
 let currentItem = null;
@@ -1565,37 +1566,54 @@ const setStatus = (message) => {
 };
 
 const warmupPlaylistCache = async (items, extraUrls = []) => {
-  if (!slideshowCache?.precachePlaylistMedia) {
+  if (!slideshowCache?.precacheUrls) {
     return { ok: false, skipped: true };
   }
-  initialCacheWarmupPromise = slideshowCache.precachePlaylistMedia(items, extraUrls, {
-    timeoutMs: INITIAL_CACHE_WARMUP_TIMEOUT_MS,
-    concurrency: 3,
-  });
-  return initialCacheWarmupPromise;
+  const token = ++playlistWarmupToken;
+  const ordered = buildOrderedPlaylist(items, 0);
+  const preloadNext = async (urls) => {
+    if (!urls || !urls.length) return;
+    if (token !== playlistWarmupToken) return;
+    await slideshowCache.precacheUrls(urls, {
+      timeoutMs: INITIAL_CACHE_WARMUP_TIMEOUT_MS,
+      concurrency: 1,
+    });
+  };
+
+  try {
+    for (const entry of ordered) {
+      if (token !== playlistWarmupToken) {
+        return { ok: false, skipped: true };
+      }
+      const urls = collectItemMediaUrls(entry);
+      await preloadNext(urls);
+    }
+
+    if (Array.isArray(extraUrls) && extraUrls.length) {
+      for (const url of extraUrls) {
+        if (token !== playlistWarmupToken) {
+          return { ok: false, skipped: true };
+        }
+        const normalized = typeof url === "string" && url ? [url] : [];
+        await preloadNext(normalized);
+      }
+    }
+  } catch (error) {
+    return { ok: false, error };
+  }
+  return { ok: true };
 };
 
 const shouldShowPreloadStatus = () => Boolean(slideshowCache?.isEnabled?.());
 
-const runInitialCacheWarmup = async (items, extraUrls = []) => {
-  if (!slideshowCache?.precachePlaylistMedia) return;
-  let statusTimer = null;
-  if (!initialCacheWarmupDone && shouldShowPreloadStatus()) {
-    statusTimer = setTimeout(() => {
-      setStatus("Préchargement des arrière-plans...");
-    }, INITIAL_CACHE_WARMUP_STATUS_DELAY_MS);
+const runInitialCacheWarmup = async (items, extraUrls = [], startIndex = 0) => {
+  if (!slideshowCache?.precacheUrls) return;
+  const ordered = buildOrderedPlaylist(items, startIndex);
+  if (!ordered.length && !(Array.isArray(extraUrls) && extraUrls.length)) {
+    return;
   }
-  try {
-    await warmupPlaylistCache(items, extraUrls);
-  } finally {
-    if (statusTimer) {
-      clearTimeout(statusTimer);
-    }
-    if (!initialCacheWarmupDone) {
-      setStatus("");
-    }
-    initialCacheWarmupDone = true;
-  }
+  initialCacheWarmupPromise = warmupPlaylistCache(ordered, extraUrls);
+  return initialCacheWarmupPromise;
 };
 
 const MEDIA_SWAP_FADE_MS = 300;
@@ -1962,11 +1980,31 @@ const collectItemMediaUrls = (item) => {
   if (primary) {
     urls.add(primary);
   }
+  if (Array.isArray(item.page_urls)) {
+    item.page_urls.forEach((url) => {
+      if (url) urls.add(url);
+    });
+  }
+  if (Array.isArray(item.text_pages)) {
+    item.text_pages.forEach((url) => {
+      if (url) urls.add(url);
+    });
+  }
   const background = resolveItemBackground(item);
   if (background?.url) {
     urls.add(background.url);
   }
   return Array.from(urls);
+};
+
+const buildOrderedPlaylist = (items, startIndex = 0) => {
+  if (!Array.isArray(items) || !items.length) return [];
+  const total = items.length;
+  const start = Number.isFinite(Number(startIndex))
+    ? Math.max(0, Math.min(total - 1, Number(startIndex)))
+    : 0;
+  if (start === 0) return items.slice();
+  return [...items.slice(start), ...items.slice(0, start)];
 };
 
 const ensureItemMediaCached = async (item, { timeoutMs = 6000, showStatus = false } = {}) => {
@@ -4747,7 +4785,8 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
 
   const showPreloadStatus = !initialCacheWarmupDone;
   const preloadTimeoutMs = showPreloadStatus ? 15000 : 6000;
-  const shouldBlockPreload = !showPreloadStatus && !(kind === "video" || hasVideoBackground);
+  const shouldBlockPreload =
+    !initialCacheWarmupDone || (!(kind === "video" || hasVideoBackground));
   const preloadPromise = ensureItemMediaCached(item, {
     timeoutMs: preloadTimeoutMs,
     showStatus: showPreloadStatus && shouldBlockPreload,
@@ -4875,6 +4914,10 @@ const advanceSlide = async () => {
     if (item) {
       await showMedia(item);
       preloadNextBackground();
+      if (!isPreviewMode) {
+        const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
+        void runInitialCacheWarmup(playlist, weatherBackgroundUrls, startIndex);
+      }
     }
     return;
   }
@@ -4925,6 +4968,10 @@ const handlePlaylistRefresh = async () => {
     const current = playlist[currentIndex] || playlist[0];
     if (current) {
       await showMedia(current);
+      if (!isPreviewMode) {
+        const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
+        void runInitialCacheWarmup(playlist, weatherBackgroundUrls, startIndex);
+      }
     }
     return;
   }
@@ -4933,6 +4980,10 @@ const handlePlaylistRefresh = async () => {
     if (current && detectMediaKind(current) !== "video") {
       await showMedia(current, { maintainSkip: true });
       preloadNextBackground();
+      if (!isPreviewMode) {
+        const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
+        void runInitialCacheWarmup(playlist, weatherBackgroundUrls, startIndex);
+      }
     }
   }
 };
@@ -4982,11 +5033,12 @@ const startSlideshow = async () => {
     if (stage) {
       stage.hidden = false;
     }
-    if (!isPreviewMode) {
-      await runInitialCacheWarmup(playlist, weatherBackgroundUrls);
-    }
     await showMedia(item);
     preloadNextBackground();
+    if (!isPreviewMode) {
+      const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
+      void runInitialCacheWarmup(playlist, weatherBackgroundUrls, startIndex);
+    }
     return true;
   }
   await ensureTeamEmployeesData();
@@ -5005,11 +5057,12 @@ const startSlideshow = async () => {
 
   const current = playlist[currentIndex] || playlist[0];
   if (current) {
-    if (!isPreviewMode) {
-      await runInitialCacheWarmup(playlist, weatherBackgroundUrls);
-    }
     await showMedia(current);
     preloadNextBackground();
+    if (!isPreviewMode) {
+      const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
+      void runInitialCacheWarmup(playlist, weatherBackgroundUrls, startIndex);
+    }
   }
 
   startPlaylistRefresh();
