@@ -1,0 +1,388 @@
+/**
+ * Cardinal TV - CSS Performance Optimizations
+ * Optimisations adaptatives pour machines faibles et puissantes
+ */
+
+/* ============================================
+   Variables CSS pour performance adaptative
+   ============================================ */
+:root {
+  /* Durées d'animation adaptatives */
+  --transition-fast: 0.15s;
+  --transition-normal: 0.25s;
+  --transition-slow: 0.4s;
+  
+  /* Timings d'animation */
+  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+  
+  /* GPU Acceleration */
+  --gpu-hack: translateZ(0);
+}
+
+/* ============================================
+   Mode Low Power - Réductions d'effets
+   ============================================ */
+.perf-low-power {
+  /* Transitions plus rapides */
+  --transition-fast: 0.1s;
+  --transition-normal: 0.15s;
+  --transition-slow: 0.2s;
+}
+
+.perf-low-power * {
+  /* Désactiver will-change pour économiser GPU */
+  will-change: auto !important;
+  
+  /* Simplifier les animations */
+  animation-duration: 0.2s !important;
+}
+
+.perf-low-power .slideshow-canvas,
+.perf-low-power .slideshow-frame,
+.perf-low-power .media-wrapper {
+  /* Réduire la complexité des transformations */
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Désactiver les effets coûteux en mode low power */
+.perf-low-power .team-slide-cards,
+.perf-low-power .birthday-slide-overlay,
+.perf-low-power .christmas-slide-overlay,
+.perf-low-power .custom-slide-overlay {
+  /* Pas de blur ou de shadow */
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.perf-low-power video {
+  /* Réduire la qualité de rendu vidéo si possible */
+  image-rendering: auto;
+}
+
+/* ============================================
+   Mode High Power - Optimisations GPU
+   ============================================ */
+.perf-high-power .slideshow-stage,
+.perf-high-power .slideshow-canvas,
+.perf-high-power video,
+.perf-high-power .team-slide-cards {
+  /* Activer will-change pour les éléments animés */
+  will-change: transform;
+}
+
+.perf-high-power .media-wrapper img,
+.perf-high-power .media-wrapper video {
+  /* GPU acceleration pour médias */
+  transform: var(--gpu-hack);
+}
+
+/* ============================================
+   Optimisations de scroll et animations
+   ============================================ */
+
+/* Amélioration des performances de scroll pour la team slide */
+.team-slide-cards {
+  /* Isolation du layer pour GPU */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  
+  /* Utiliser contain pour isolation */
+  contain: layout style paint;
+}
+
+.team-slide-card {
+  /* Optimiser le rendu des cartes */
+  contain: content;
+  transform: var(--gpu-hack);
+}
+
+/* Optimiser les animations de ticker */
+.ticker-track,
+.info-band-widget-ticker-track {
+  /* Forcer l'accélération GPU */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+  
+  /* Réduire les repaints */
+  contain: layout style;
+}
+
+/* Optimiser les transitions de médias */
+.media-item.is-visible {
+  /* GPU acceleration */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ============================================
+   Optimisations spécifiques aux slides
+   ============================================ */
+
+/* Birthday slide optimizations */
+.birthday-slide-frame {
+  contain: layout style paint;
+}
+
+.birthday-slide-line {
+  /* Éviter les recalculs de layout */
+  contain: layout;
+  transform: var(--gpu-hack);
+}
+
+/* Christmas slide optimizations */
+.christmas-slide-frame {
+  contain: layout style paint;
+}
+
+.christmas-line {
+  contain: layout;
+  transform: var(--gpu-hack);
+}
+
+/* Custom slide optimizations */
+.custom-slide-stage {
+  contain: layout style paint;
+}
+
+.custom-slide-text-card {
+  contain: layout;
+  transform: var(--gpu-hack);
+}
+
+/* News slide optimizations */
+.news-slide-card {
+  contain: content;
+  transform: var(--gpu-hack);
+}
+
+/* Weather slide optimizations */
+.weather-card {
+  contain: content;
+  transform: var(--gpu-hack);
+}
+
+/* ============================================
+   Optimisations des widgets info-bands
+   ============================================ */
+.info-band-widget {
+  /* Isolation du layer */
+  contain: layout style;
+  transform: var(--gpu-hack);
+}
+
+.info-band-widget-clock,
+.info-band-widget-progress,
+.info-band-widget-label {
+  /* Éviter les reflows */
+  contain: layout;
+}
+
+/* ============================================
+   Optimisations vidéo
+   ============================================ */
+video {
+  /* Forcer l'accélération matérielle */
+  transform: var(--gpu-hack);
+  backface-visibility: hidden;
+  
+  /* Optimiser le décodage */
+  image-rendering: auto;
+}
+
+.perf-low-power video {
+  /* Désactiver les effets sur les vidéos en low power */
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* ============================================
+   Optimisations des transitions de slides
+   ============================================ */
+
+/* Fade optimisé */
+.media-item {
+  transition: opacity var(--transition-normal) var(--ease-in-out);
+  will-change: opacity;
+}
+
+.perf-low-power .media-item {
+  /* Transition plus courte en low power */
+  transition-duration: var(--transition-fast);
+  will-change: auto;
+}
+
+/* ============================================
+   Optimisations de fonts et textes
+   ============================================ */
+
+/* Améliorer le rendu de texte */
+body {
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.perf-high-power body {
+  /* Meilleur rendu en high power */
+  text-rendering: optimizeLegibility;
+}
+
+/* Optimiser les gros textes */
+.team-slide-card-header,
+.birthday-line-content,
+.christmas-line-content,
+.custom-slide-text-content {
+  /* Éviter les recalculs de layout sur le texte */
+  contain: layout;
+}
+
+/* ============================================
+   Préférences utilisateur
+   ============================================ */
+
+/* Respecter prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  /* Désactiver will-change */
+  * {
+    will-change: auto !important;
+  }
+}
+
+/* ============================================
+   Optimisations pour écrans avec faible taux de rafraîchissement
+   ============================================ */
+@media (update: slow) {
+  * {
+    animation-duration: 0.1s !important;
+    transition-duration: 0.1s !important;
+  }
+}
+
+/* ============================================
+   Optimisations pour connexions lentes
+   ============================================ */
+@media (prefers-reduced-data) {
+  /* Désactiver les effets coûteux */
+  * {
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  
+  /* Simplifier les animations */
+  .ticker-track,
+  .info-band-widget-ticker-track {
+    animation: none !important;
+  }
+}
+
+/* ============================================
+   Optimisations pour écrans haute résolution
+   ============================================ */
+@media (min-resolution: 2dppx) {
+  .perf-high-power img {
+    /* Meilleur rendu sur écrans haute résolution */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* ============================================
+   Conteneur queries pour optimisations contextuelles
+   ============================================ */
+@container (max-width: 600px) {
+  /* Réduire la complexité sur petits containers */
+  .team-slide-card,
+  .news-slide-card {
+    box-shadow: none;
+  }
+}
+
+/* ============================================
+   Optimisations de repaint/reflow
+   ============================================ */
+
+/* Utiliser transform au lieu de top/left pour les positions */
+.birthday-slide-line,
+.christmas-line,
+.custom-slide-text-card {
+  /* Déjà optimisé dans les règles principales */
+}
+
+/* Éviter les changements de geometry */
+.slideshow-overlay,
+.team-slide-overlay,
+.birthday-slide-overlay,
+.christmas-slide-overlay,
+.custom-slide-overlay {
+  /* Position fixe pour éviter les reflows */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* ============================================
+   Optimisations de mémoire
+   ============================================ */
+
+/* Limiter la complexité des éléments cachés */
+.slideshow-stage[hidden],
+.media-item:not(.is-visible) {
+  /* Réduire l'impact des éléments cachés */
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ============================================
+   Debug mode - Performance monitoring
+   ============================================ */
+[data-performance="low"]::after {
+  content: "⚡ LOW POWER MODE";
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(255, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  font-size: 10px;
+  border-radius: 4px;
+  z-index: 999999;
+  pointer-events: none;
+  font-family: monospace;
+}
+
+[data-performance="high"]::after {
+  content: "🚀 HIGH PERFORMANCE";
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 255, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  font-size: 10px;
+  border-radius: 4px;
+  z-index: 999999;
+  pointer-events: none;
+  font-family: monospace;
+}
+
+/* Masquer en production */
+:not([data-debug="true"])[data-performance]::after {
+  display: none;
+}
