@@ -862,6 +862,10 @@ const updateInfoBandWidgetTime = () => {
       const key = p1.toLowerCase();
       return parts[key] ?? m;
     });
+    if (entry.lastValue === replaced) {
+      return;
+    }
+    entry.lastValue = replaced;
     if (entry.isTicker && entry.track) {
       setInfoBandTickerText(entry.track, replaced);
       updateInfoBandTickerGap(entry.track);
@@ -2904,11 +2908,41 @@ const createMediaElement = (item, kind) => {
     video.preload = preload;
     video.setAttribute("preload", preload);
 
+    let fallbackActive = false;
+    const clearVideoFallback = () => {
+      if (playbackTimer) {
+        clearTimeout(playbackTimer);
+        playbackTimer = null;
+      }
+      fallbackActive = false;
+    };
+    const scheduleVideoFallback = (seconds) => {
+      if (!Number.isFinite(seconds) || seconds <= 0) return;
+      clearVideoFallback();
+      fallbackActive = true;
+      playbackTimer = setTimeout(() => {
+        if (currentId && item.id && currentId !== item.id) return;
+        void advanceSlide().catch((error) => console.error(error));
+      }, seconds * 1000);
+    };
+    const explicitDuration = Number(item.duration);
+    if (Number.isFinite(explicitDuration) && explicitDuration > 0) {
+      scheduleVideoFallback(explicitDuration);
+    }
+
+    video.addEventListener("playing", () => {
+      if (!Number.isFinite(explicitDuration) || explicitDuration <= 0) {
+        clearVideoFallback();
+      }
+    }, { once: true });
+
     video.addEventListener("ended", () => {
+      clearVideoFallback();
       void advanceSlide().catch((error) => console.error(error));
     });
 
     video.addEventListener("error", () => {
+      clearVideoFallback();
       setStatus("Erreur de lecture vidéo.");
       void advanceSlide().catch((error) => console.error(error));
     });
@@ -2921,9 +2955,17 @@ const createMediaElement = (item, kind) => {
             playbackMuted = true;
             video.muted = true;
             video.volume = 0;
-            video.play().catch((err) => console.warn("La lecture vidéo a échoué:", err));
+            video.play().catch((err) => {
+              console.warn("La lecture vidéo a échoué:", err);
+              if (!fallbackActive && (!Number.isFinite(explicitDuration) || explicitDuration <= 0)) {
+                scheduleVideoFallback(15);
+              }
+            });
           } else {
             console.warn("Lecture vidéo impossible:", error);
+            if (!fallbackActive && (!Number.isFinite(explicitDuration) || explicitDuration <= 0)) {
+              scheduleVideoFallback(15);
+            }
           }
         });
       }
@@ -3362,8 +3404,21 @@ const renderTeamSlide = (item, employeesList = []) => {
 
   const distancePx = Math.max(1, startOffset - exitOffset);
   const scrollDurationMs = Math.max(1, Math.round((distancePx / pixelsPerSecond) * 1000));
+  const scheduleTeamFallbackAdvance = () => {
+    if (teamScrollEndTimer) {
+      clearTimeout(teamScrollEndTimer);
+    }
+    const fallbackDelay = scrollDurationMs + 1500;
+    teamScrollEndTimer = setTimeout(() => {
+      if (item && item.id && currentId !== item.id) {
+        return;
+      }
+      void advanceSlide().catch((error) => console.error(error));
+    }, fallbackDelay);
+  };
 
   const runScroll = () => {
+    scheduleTeamFallbackAdvance();
     if (cardsContainer.animate) {
       cardsContainer.style.transform = `translate3d(0, ${startOffset}px, 0)`;
       teamScrollAnimation = cardsContainer.animate(
@@ -3380,6 +3435,10 @@ const renderTeamSlide = (item, employeesList = []) => {
       teamScrollAnimation.onfinish = () => {
         teamScrollAnimation = null;
         teamTitleAnimation = null;
+        if (teamScrollEndTimer) {
+          clearTimeout(teamScrollEndTimer);
+          teamScrollEndTimer = null;
+        }
         if (item && item.id && currentId !== item.id) {
           return;
         }
@@ -3416,7 +3475,10 @@ const renderTeamSlide = (item, employeesList = []) => {
 
       if (clampedOffset <= exitOffset) {
         teamScrollFrame = null;
-        teamScrollEndTimer = null;
+        if (teamScrollEndTimer) {
+          clearTimeout(teamScrollEndTimer);
+          teamScrollEndTimer = null;
+        }
         void advanceSlide().catch((error) => console.error(error));
         return;
       }

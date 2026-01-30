@@ -172,7 +172,7 @@
 .info-band-widget {
   /* Isolation du layer */
   contain: layout style;
-  transform: var(--gpu-hack);
+  backface-visibility: hidden;
 }
 
 .info-band-widget-clock,
