@@ -2044,12 +2044,30 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
       clearFallback();
     }
   };
-  video.addEventListener("loadeddata", () => finalizeFallback(false), { once: true });
-  video.addEventListener("canplay", () => finalizeFallback(false), { once: true });
-  video.addEventListener("playing", () => finalizeFallback(false), { once: true });
+  let hasRevealed = false;
+  const revealVideo = () => {
+    if (hasRevealed) return;
+    hasRevealed = true;
+    finalizeFallback(false);
+  };
+  const scheduleReveal = () => {
+    if (hasRevealed) return;
+    if (typeof video.requestVideoFrameCallback === "function") {
+      video.requestVideoFrameCallback(() => revealVideo());
+      return;
+    }
+    if (video.videoWidth > 0 && video.readyState >= 2 && !video.paused) {
+      revealVideo();
+      return;
+    }
+    video.addEventListener("timeupdate", revealVideo, { once: true });
+  };
+  video.addEventListener("loadeddata", scheduleReveal, { once: true });
+  video.addEventListener("canplay", scheduleReveal, { once: true });
+  video.addEventListener("playing", scheduleReveal, { once: true });
   video.addEventListener("error", () => finalizeFallback(true), { once: true });
   if (video.readyState >= 2) {
-    finalizeFallback(false);
+    scheduleReveal();
   }
   const attemptPlay = () => {
     if (playHandler) {
@@ -3776,12 +3794,12 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   if (bgUrl && isVideo) {
     const video = document.createElement("video");
     video.className = "birthday-slide-media birthday-slide-video";
-    video.src = bgUrl;
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
+    video.src = bgUrl;
     backdrop.appendChild(video);
     currentVideo = video;
     const playHandler = createBackgroundVideoPlayHandler(video, {
