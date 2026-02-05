@@ -124,8 +124,16 @@
    ============================================ */
 
 /* Birthday slide optimizations */
-.birthday-slide-frame {
+.birthday-slide-frame:not(.birthday-slide-frame--video) {
   contain: layout style paint;
+}
+
+.birthday-slide-frame--video {
+  contain: none;
+}
+
+.slideshow-tv .birthday-slide-frame {
+  contain: none;
 }
 
 .birthday-slide-line {

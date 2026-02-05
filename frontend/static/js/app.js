@@ -658,8 +658,28 @@ const buildSlideAssetUrl = (prefix, path) => {
   return buildApiUrl(`${prefix}/${encodeURIComponent(value)}`);
 };
 
-const resolveBirthdayBackgroundUrl = (settings, fallbackUrl) =>
-  fallbackUrl || buildSlideAssetUrl("birthday-slide-assets", settings?.background_path);
+const resolveBirthdayBackgroundUrl = (settings, fallbackUrl) => {
+  if (fallbackUrl) return buildApiUrl(fallbackUrl);
+  if (settings?.background_url) return buildApiUrl(settings.background_url);
+  return buildSlideAssetUrl("birthday-slide-assets", settings?.background_path);
+};
+
+const resolveBirthdayBackgroundVideoUrl = (settings, fallbackUrl) => {
+  const direct =
+    settings?.background_video_url ||
+    settings?.video_background_url ||
+    settings?.backgroundVideoUrl ||
+    settings?.videoBackgroundUrl;
+  if (direct) return buildApiUrl(direct);
+  if (fallbackUrl) return buildApiUrl(fallbackUrl);
+  const path =
+    settings?.background_video_path ||
+    settings?.video_background_path ||
+    settings?.backgroundVideoPath ||
+    settings?.videoBackgroundPath;
+  if (!path) return "";
+  return buildSlideAssetUrl("birthday-slide-assets", path);
+};
 
 const clampValue = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -3657,24 +3677,82 @@ const getExtensionLower = (name) => {
   return name.slice(dot + 1).toLowerCase();
 };
 
-const resolveBirthdayPreviewBackground = (variantCfg, settings) => {
-  const variantUrl = variantCfg?.background_url || resolveBirthdayBackgroundUrl(variantCfg, "");
-  if (variantUrl) {
-    return {
-      url: variantUrl,
-      mimetype: variantCfg?.background_mimetype || "",
-      path: variantCfg?.background_path || "",
-    };
+const BIRTHDAY_VIDEO_EXTENSIONS = ["mp4", "m4v", "mov", "webm", "mkv"];
+
+const isBirthdayVideoBackground = (url, mimetype = "") => {
+  const ext = getExtensionLower(url || "");
+  const mime = String(mimetype || "").toLowerCase();
+  return mime.startsWith("video/") || BIRTHDAY_VIDEO_EXTENSIONS.includes(ext);
+};
+
+const collectBirthdayPreviewCandidates = (variantCfg, settings) => {
+  const candidates = [];
+  const pushCandidate = (source, kind, url, mimetype = "", path = "") => {
+    if (!url) return;
+    candidates.push({ source, kind, url, mimetype: mimetype || "", path: path || "" });
+  };
+  const addFrom = (source, data, { videoFallback = "", imageFallback = "" } = {}) => {
+    if (!data || typeof data !== "object") return;
+    const videoUrl = resolveBirthdayBackgroundVideoUrl(data, videoFallback);
+    const videoMime =
+      data.background_video_mimetype ||
+      data.video_background_mimetype ||
+      data.backgroundVideoMimetype ||
+      data.videoBackgroundMimetype ||
+      data.background_mimetype ||
+      "";
+    if (videoUrl) {
+      const videoPath =
+        data.background_video_path ||
+        data.video_background_path ||
+        data.backgroundVideoPath ||
+        data.videoBackgroundPath ||
+        data.background_path ||
+        "";
+      pushCandidate(source, "video", videoUrl, videoMime, videoPath);
+    }
+
+    const imageUrl = resolveBirthdayBackgroundUrl(data, imageFallback);
+    if (imageUrl) {
+      pushCandidate(source, "image", imageUrl, data.background_mimetype || "", data.background_path || "");
+    }
+  };
+
+  addFrom("variant", variantCfg, {
+    videoFallback: variantCfg?.background_video_url || variantCfg?.video_background_url || "",
+    imageFallback: variantCfg?.background_url || "",
+  });
+  addFrom("settings", settings, {
+    videoFallback: settings?.background_video_url || settings?.video_background_url || "",
+    imageFallback: settings?.background_url || "",
+  });
+
+  return candidates;
+};
+
+const selectBirthdayPreviewBackground = (variantCfg, settings) => {
+  const candidates = collectBirthdayPreviewCandidates(variantCfg, settings);
+  const sourceOrder = ["variant", "settings"];
+  for (const source of sourceOrder) {
+    const grouped = candidates.filter((candidate) => candidate.source === source);
+    if (!grouped.length) continue;
+    const videoCandidate = grouped.find(
+      (candidate) => candidate.kind === "video" || isBirthdayVideoBackground(candidate.url, candidate.mimetype),
+    );
+    const selected = videoCandidate || grouped.find((candidate) => candidate.url);
+    if (selected) {
+      const isVideo =
+        selected.kind === "video" || isBirthdayVideoBackground(selected.url, selected.mimetype || "");
+      return { ...selected, isVideo };
+    }
   }
-  const settingsUrl = settings?.background_url || resolveBirthdayBackgroundUrl(settings, "");
-  if (settingsUrl) {
-    return {
-      url: settingsUrl,
-      mimetype: settings?.background_mimetype || "",
-      path: settings?.background_path || "",
-    };
+  const fallback = candidates.find((candidate) => candidate.url);
+  if (fallback) {
+    const isVideo =
+      fallback.kind === "video" || isBirthdayVideoBackground(fallback.url, fallback.mimetype || "");
+    return { ...fallback, isVideo };
   }
-  return { url: "", mimetype: "", path: "" };
+  return { url: "", mimetype: "", path: "", source: "", kind: "", isVideo: false };
 };
 
 const updateBirthdayOverlayText = (root, settings) => {
@@ -3781,7 +3859,7 @@ const renderBirthdayPreview = () => {
     birthdayVariantConfigs[birthdayCurrentVariant] || BIRTHDAY_CONFIG_DEFAULT,
     birthdayCurrentVariant || "before",
   );
-  const background = resolveBirthdayPreviewBackground(variantCfg, settings);
+  const background = selectBirthdayPreviewBackground(variantCfg, settings);
   const effective = {
     ...settings,
     ...variantCfg,
@@ -3792,8 +3870,8 @@ const renderBirthdayPreview = () => {
   };
   const bgUrl = background.url;
   const mime = (background.mimetype || "").toLowerCase();
-  const extHint = getExtensionLower(background.path || bgUrl || "");
-  const bgKey = `${bgUrl || "none"}|${mime}|${extHint}`;
+  const isVideo = Boolean(bgUrl) && (background.isVideo || isBirthdayVideoBackground(bgUrl, mime));
+  const bgKey = `${bgUrl || "none"}|${mime}|${isVideo ? "video" : "image"}`;
 
   // If same source is already rendered, just refresh text/scale to avoid reloading the video.
   if (birthdayPreviewRenderedSource === bgKey && birthdayPreviewStage.firstChild) {
@@ -3815,19 +3893,27 @@ const renderBirthdayPreview = () => {
 
   const backdrop = document.createElement("div");
   backdrop.className = "birthday-slide-backdrop";
-  const ext = extHint;
-  const isVideo = mime.startsWith("video/") || ["mp4", "m4v", "mov", "webm", "mkv"].includes(ext);
+  if (isVideo) {
+    frame.classList.add("birthday-slide-frame--video");
+    backdrop.classList.add("birthday-slide-backdrop--video");
+  }
 
   if (bgUrl && isVideo) {
     const video = document.createElement("video");
     video.className = "birthday-slide-media birthday-slide-video";
     video.src = bgUrl;
     video.preload = "auto";
+    video.setAttribute("preload", "auto");
     video.loop = true;
     video.autoplay = true;
+    video.setAttribute("autoplay", "");
     video.muted = true;
+    video.defaultMuted = true;
+    video.volume = 0;
+    video.setAttribute("muted", "muted");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
     void video.play().catch(() => {});
     video.addEventListener("loadedmetadata", applyBirthdayPreviewScale);
     video.addEventListener("canplay", applyBirthdayPreviewScale);

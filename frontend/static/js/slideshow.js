@@ -115,7 +115,6 @@ const isTvDevice =
 if (document.body) {
   document.body.classList.toggle("slideshow-tv", isTvDevice);
 }
-VIDEO_DEBUG_ENABLED = VIDEO_DEBUG_ENABLED || isTvDevice;
 
 const defaults = window.CardinalSlideshowDefaults || {};
 const birthdayConfig = window.CardinalBirthdayConfig || null;
@@ -621,22 +620,101 @@ const buildSlideAssetUrl = (prefix, path) => {
   return buildApiUrl(`${prefix}/${encodeURIComponent(value)}`);
 };
 
-const resolveBirthdayBackgroundUrl = (settings, fallbackUrl) =>
-  fallbackUrl || buildSlideAssetUrl("birthday-slide-assets", settings?.background_path);
+const resolveBirthdayBackgroundUrl = (settings, fallbackUrl) => {
+  if (fallbackUrl) return resolveAssetUrl(fallbackUrl);
+  if (settings?.background_url) return resolveAssetUrl(settings.background_url);
+  return buildSlideAssetUrl("birthday-slide-assets", settings?.background_path);
+};
 
-const resolveBirthdayBackgroundSource = (variantCfg, item, settings) => {
-  const variantUrl = variantCfg?.background_url || resolveBirthdayBackgroundUrl(variantCfg, "");
-  if (variantUrl) {
-    return { url: variantUrl, mimetype: variantCfg?.background_mimetype || "" };
+const resolveBirthdayBackgroundVideoUrl = (settings, fallbackUrl) => {
+  const direct =
+    settings?.background_video_url ||
+    settings?.video_background_url ||
+    settings?.backgroundVideoUrl ||
+    settings?.videoBackgroundUrl;
+  if (direct) return resolveAssetUrl(direct);
+  if (fallbackUrl) return resolveAssetUrl(fallbackUrl);
+  const path =
+    settings?.background_video_path ||
+    settings?.video_background_path ||
+    settings?.backgroundVideoPath ||
+    settings?.videoBackgroundPath;
+  if (!path) return "";
+  return buildSlideAssetUrl("birthday-slide-assets", path);
+};
+
+const collectBirthdayBackgroundCandidates = (variantCfg, item, settings) => {
+  const candidates = [];
+  const pushCandidate = (source, kind, url, mimetype = "", path = "") => {
+    if (!url) return;
+    candidates.push({ source, kind, url, mimetype: mimetype || "", path: path || "" });
+  };
+  const addFrom = (source, data, { videoFallback = "", imageFallback = "" } = {}) => {
+    if (!data || typeof data !== "object") return;
+    const videoUrl = resolveBirthdayBackgroundVideoUrl(data, videoFallback);
+    const videoMime =
+      data.background_video_mimetype ||
+      data.video_background_mimetype ||
+      data.backgroundVideoMimetype ||
+      data.videoBackgroundMimetype ||
+      data.background_mimetype ||
+      "";
+    if (videoUrl) {
+      const videoPath =
+        data.background_video_path ||
+        data.video_background_path ||
+        data.backgroundVideoPath ||
+        data.videoBackgroundPath ||
+        data.background_path ||
+        "";
+      pushCandidate(source, "video", videoUrl, videoMime, videoPath);
+    }
+
+    const imageUrl = resolveBirthdayBackgroundUrl(data, imageFallback);
+    if (imageUrl) {
+      pushCandidate(source, "image", imageUrl, data.background_mimetype || "", data.background_path || "");
+    }
+  };
+
+  addFrom("variant", variantCfg, {
+    videoFallback: variantCfg?.background_video_url || variantCfg?.video_background_url || "",
+    imageFallback: variantCfg?.background_url || "",
+  });
+  addFrom("item", item, {
+    videoFallback: item?.background_video_url || item?.video_background_url || "",
+    imageFallback: item?.background_url || "",
+  });
+  addFrom("settings", settings, {
+    videoFallback: settings?.background_video_url || settings?.video_background_url || "",
+    imageFallback: settings?.background_url || "",
+  });
+
+  return candidates;
+};
+
+const selectBirthdayBackground = (variantCfg, item, settings) => {
+  const candidates = collectBirthdayBackgroundCandidates(variantCfg, item, settings);
+  const sourceOrder = ["variant", "item", "settings"];
+  for (const source of sourceOrder) {
+    const grouped = candidates.filter((candidate) => candidate.source === source);
+    if (!grouped.length) continue;
+    const videoCandidate = grouped.find(
+      (candidate) => candidate.kind === "video" || isVideoBackground(candidate.url, candidate.mimetype),
+    );
+    const selected = videoCandidate || grouped.find((candidate) => candidate.url);
+    if (selected) {
+      const isVideo =
+        selected.kind === "video" || isVideoBackground(selected.url, selected.mimetype || "");
+      return { ...selected, isVideo };
+    }
   }
-  if (item?.background_url) {
-    return { url: item.background_url, mimetype: item.background_mimetype || "" };
+  const fallback = candidates.find((candidate) => candidate.url);
+  if (fallback) {
+    const isVideo =
+      fallback.kind === "video" || isVideoBackground(fallback.url, fallback.mimetype || "");
+    return { ...fallback, isVideo };
   }
-  const settingsUrl = settings?.background_url || resolveBirthdayBackgroundUrl(settings, "");
-  if (settingsUrl) {
-    return { url: settingsUrl, mimetype: settings?.background_mimetype || "" };
-  }
-  return { url: "", mimetype: "" };
+  return { url: "", mimetype: "", path: "", source: "", kind: "", isVideo: false };
 };
 
 const cachedMediaObjectUrls = new Map();
@@ -2113,8 +2191,15 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
     hasRevealed = true;
     finalizeFallback(false);
   };
+  const forceReveal = () => {
+    if (hasRevealed) return;
+    if (video.readyState >= 2) {
+      revealVideo();
+      video.style.opacity = "1";
+    }
+  };
   const canReveal = () =>
-    video.videoWidth > 0 &&
+    (video.videoWidth > 0 || isTvDevice) &&
     video.readyState >= 2 &&
     !video.paused &&
     (video.currentTime > 0 || video.readyState >= 3);
@@ -2149,6 +2234,10 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
   video.addEventListener("error", () => finalizeFallback(true), { once: true });
   if (video.readyState >= 2) {
     scheduleReveal();
+  }
+  if (isTvDevice) {
+    setTimeout(forceReveal, 1200);
+    setTimeout(forceReveal, 2500);
   }
   const attemptPlay = () => {
     if (playHandler) {
@@ -2233,7 +2322,7 @@ const createBackgroundVideoPlayHandler = (video, { slideId = null, maxRetries = 
   return attemptPlay;
 };
 
-const attachVideoDebugOverlay = (container, video, { label = "" } = {}) => {
+const attachVideoDebugOverlay = (container, video, { label = "", fallbackEl = null, fallbackClass = "" } = {}) => {
   if (!container || !video || !VIDEO_DEBUG_ENABLED) return null;
   const panel = document.createElement("div");
   panel.className = "video-debug-overlay";
@@ -2253,6 +2342,10 @@ const attachVideoDebugOverlay = (container, video, { label = "" } = {}) => {
       return false;
     }
     const error = video.error;
+    const computedOpacity =
+      typeof window.getComputedStyle === "function" ? window.getComputedStyle(video).opacity : "";
+    const fallbackActive =
+      Boolean(fallbackEl && fallbackClass && fallbackEl.classList.contains(fallbackClass));
     const lines = [
       `label: ${label || "video"}`,
       `src: ${formatSrc(video.currentSrc || video.src)}`,
@@ -2261,6 +2354,8 @@ const attachVideoDebugOverlay = (container, video, { label = "" } = {}) => {
       `paused: ${formatBool(video.paused)} | ended: ${formatBool(video.ended)}`,
       `muted: ${formatBool(video.muted)} | volume: ${formatTime(video.volume)}`,
       `videoSize: ${video.videoWidth || 0}x${video.videoHeight || 0}`,
+      `opacity: ${video.style.opacity || ""} | computed: ${computedOpacity}`,
+      `fallback: ${formatBool(fallbackActive)}`,
       `error.code: ${error ? error.code : 0}`,
       `visibility: ${document.visibilityState || "unknown"}`,
       `tv: ${formatBool(isTvDevice)}`,
@@ -2290,7 +2385,10 @@ const attachVideoDebugOverlay = (container, video, { label = "" } = {}) => {
   return panel;
 };
 
-const attachBirthdayDebugOverlay = (container, { bgUrl = "", bgMime = "", isVideo = false } = {}) => {
+const attachBirthdayDebugOverlay = (
+  container,
+  { bgUrl = "", bgMime = "", isVideo = false, source = "" } = {},
+) => {
   if (!container || !VIDEO_DEBUG_ENABLED) return null;
   const panel = document.createElement("div");
   panel.className = "video-debug-overlay video-debug-overlay--static";
@@ -2299,6 +2397,7 @@ const attachBirthdayDebugOverlay = (container, { bgUrl = "", bgMime = "", isVide
     "birthday debug",
     `bgUrl: ${safeUrl}`,
     `mime: ${bgMime || ""}`,
+    `source: ${source || ""}`,
     `isVideo: ${isVideo ? "true" : "false"}`,
     `visibility: ${document.visibilityState || "unknown"}`,
     `tv: ${isTvDevice ? "true" : "false"}`,
@@ -3945,10 +4044,11 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
 
   const backdrop = document.createElement("div");
   backdrop.className = "birthday-slide-backdrop";
-  const resolvedBackground = resolveBirthdayBackgroundSource(variantCfg, item, settings);
+  const resolvedBackground = selectBirthdayBackground(variantCfg, item, settings);
   const bgUrl = resolvedBackground.url;
   const bgMime = String(resolvedBackground.mimetype || "").toLowerCase();
-  const isVideo = isVideoBackground(bgUrl, bgMime);
+  const isVideo = Boolean(bgUrl) && (resolvedBackground.isVideo || isVideoBackground(bgUrl, bgMime));
+  const bgSource = resolvedBackground.source || "";
   const hasVideoBackground = Boolean(bgUrl && isVideo);
   if (hasVideoBackground) {
     frameEl.classList.add("birthday-slide-frame--video");
@@ -3977,17 +4077,21 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     });
     backdrop.appendChild(video);
     currentVideo = video;
-    attachVideoDebugOverlay(frameEl, video, { label: "birthday" });
+    attachVideoDebugOverlay(frameEl, video, {
+      label: bgSource ? `birthday:${bgSource}` : "birthday",
+      fallbackEl: backdrop,
+      fallbackClass: "birthday-slide-backdrop--fallback",
+    });
   } else if (bgUrl) {
     const img = document.createElement("img");
     img.className = "birthday-slide-media birthday-slide-image";
     img.src = bgUrl;
     img.alt = "Arrière-plan anniversaire";
     backdrop.appendChild(img);
-    attachBirthdayDebugOverlay(frameEl, { bgUrl, bgMime, isVideo });
+    attachBirthdayDebugOverlay(frameEl, { bgUrl, bgMime, isVideo, source: bgSource });
   } else {
     backdrop.classList.add("birthday-slide-backdrop--fallback");
-    attachBirthdayDebugOverlay(frameEl, { bgUrl, bgMime, isVideo });
+    attachBirthdayDebugOverlay(frameEl, { bgUrl, bgMime, isVideo, source: bgSource });
   }
   frameEl.appendChild(backdrop);
 
@@ -5055,7 +5159,7 @@ const buildBirthdaySlideItem = (birthdayData) => {
     birthdaySlideSettings.background_mimetype || "application/x-birthday-slide";
   const duration =
     Math.max(1, Number(birthdaySlideSettings.duration) || DEFAULT_BIRTHDAY_SLIDE.duration);
-  const resolvedBackground = resolveBirthdayBackgroundSource(
+  const resolvedBackground = selectBirthdayBackground(
     birthdayData?.config || null,
     null,
     birthdaySlideSettings,

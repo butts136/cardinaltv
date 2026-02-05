@@ -27,9 +27,23 @@
 
     pushUrl(urls, item.url || item.display_url || item.preview_url);
     pushUrl(urls, item.background_url);
+    pushUrl(
+      urls,
+      item.background_video_url ||
+        item.video_background_url ||
+        item.backgroundVideoUrl ||
+        item.videoBackgroundUrl
+    );
     const birthdayVariant = item.birthday_variant_config;
     if (birthdayVariant && typeof birthdayVariant === "object") {
       pushUrl(urls, birthdayVariant.background_url);
+      pushUrl(
+        urls,
+        birthdayVariant.background_video_url ||
+          birthdayVariant.video_background_url ||
+          birthdayVariant.backgroundVideoUrl ||
+          birthdayVariant.videoBackgroundUrl
+      );
     }
 
     if (Array.isArray(item.page_urls)) {
