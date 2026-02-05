@@ -3878,10 +3878,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
       fallbackClass: "birthday-slide-backdrop--fallback",
       playHandler,
     });
-    void maybeSwapVideoToCached(video, resolvedUrl, item.id, { fallbackUrl: resolvedUrl });
-    void ensureBackgroundVideoCached(resolvedUrl).then(() =>
-      maybeSwapVideoToCached(video, resolvedUrl, item.id, { fallbackUrl: resolvedUrl }),
-    );
+    void ensureBackgroundVideoCached(resolvedUrl);
   } else if (bgUrl) {
     const img = document.createElement("img");
     img.className = "birthday-slide-media birthday-slide-image";
