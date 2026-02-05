@@ -5590,6 +5590,8 @@ const initialsFromName = (name = "") => {
 
 const TEAM_AVATAR_OFFSET_RATIO = 0.6 / 5.3;
 const TEAM_AVATAR_FONT_RATIO = 1.6 / 5.3;
+const TEAM_CARD_MIN_HEIGHT_RATIO = 72 / 5.3;
+const TEAM_CARD_PADDING_Y_RATIO = 0.7 / 5.3;
 
 const applyTeamAvatarSizing = (root, settings) => {
   if (!root || !settings) return;
@@ -5599,10 +5601,14 @@ const applyTeamAvatarSizing = (root, settings) => {
   const offset = Math.max(1, scaled * TEAM_AVATAR_OFFSET_RATIO);
   const paddingLeft = scaled + offset * 2;
   const fontSize = scaled * TEAM_AVATAR_FONT_RATIO;
+  const minHeight = Math.max(scaled + offset * 2, scaled * TEAM_CARD_MIN_HEIGHT_RATIO);
+  const paddingY = Math.max(offset, scaled * TEAM_CARD_PADDING_Y_RATIO);
   root.style.setProperty("--team-avatar-size", `${scaled}px`);
   root.style.setProperty("--team-avatar-offset", `${offset}px`);
   root.style.setProperty("--team-card-padding-left", `${paddingLeft}px`);
   root.style.setProperty("--team-avatar-font", `${fontSize}px`);
+  root.style.setProperty("--team-card-min-height", `${minHeight}px`);
+  root.style.setProperty("--team-card-padding-y", `${paddingY}px`);
 };
 
 const computeServiceDuration = (hireDate) => {
