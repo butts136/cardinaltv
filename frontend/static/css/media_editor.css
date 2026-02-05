@@ -5619,6 +5619,24 @@ details.collapsible:not([open]) .birthday-text-footer {
   gap: 0.75rem;
 }
 
+.scraper-interval-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.scraper-interval-control select {
+  min-width: 110px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 18, 31, 0.9);
+  color: #f8fafc;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
 .scraper-toggle .visibility-toggle-switch {
   transform: scale(0.85);
 }

@@ -16,7 +16,7 @@ import sys
 import urllib.parse
 import urllib.request
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from threading import RLock
@@ -328,6 +328,11 @@ DEFAULT_SETTINGS = {
                 "enabled": True,
             }
         ],
+        "scrapers": [],
+        "scraper_defaults": {
+            "refresh_interval": 10,
+            "max_items": 12,
+        },
         "scroll_delay": 3.0,
         "scroll_speed": 50,
         "max_items": 10,
@@ -6097,6 +6102,18 @@ NEWS_CACHE_LOCK = RLock()
 NEWS_CACHE_TTL = timedelta(minutes=1)
 NEWS_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".avif"}
 NEWS_FEED_SCHEMES = ("http", "https")
+NEWS_SCRAPER_CACHE: Dict[str, Dict[str, Any]] = {}
+NEWS_SCRAPER_CACHE_LOCK = RLock()
+NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES = 10
+NEWS_SCRAPER_MIN_INTERVAL_MINUTES = 1
+NEWS_SCRAPER_MAX_INTERVAL_MINUTES = 720
+NEWS_SCRAPER_MAX_HTML_BYTES = 2_000_000
+NEWS_SCRAPER_MAX_ITEMS_DEFAULT = 12
+NEWS_SCRAPER_PATTERNS = (
+    "ld_json",
+    "article_tag",
+    "headline_links",
+)
 
 DEFAULT_WEATHER_SECRETS = {
     "api_key": "",
@@ -6189,6 +6206,271 @@ def _normalize_feed_url(url: str) -> str:
     if cleaned.startswith("//"):
         return f"https:{cleaned}"
     return f"https://{cleaned}"
+
+
+def _normalize_scraper_interval(value: Any, fallback: int = NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES) -> int:
+    try:
+        minutes = int(float(value))
+    except (TypeError, ValueError):
+        minutes = fallback
+    minutes = max(NEWS_SCRAPER_MIN_INTERVAL_MINUTES, min(NEWS_SCRAPER_MAX_INTERVAL_MINUTES, minutes))
+    return minutes
+
+
+def _normalize_scraper_url(url: str) -> str:
+    return _normalize_feed_url(url)
+
+
+def _fetch_html(url: str, timeout: int = 15) -> str:
+    url = _normalize_scraper_url(url)
+    try:
+        request_obj = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "CardinalTV/1.0 (+https://cardinaltv.local)",
+                "Accept": "text/html,application/xhtml+xml",
+            },
+        )
+        with urllib.request.urlopen(request_obj, timeout=timeout) as response:
+            raw = response.read(NEWS_SCRAPER_MAX_HTML_BYTES + 1)
+            content_type = response.headers.get("Content-Type", "")
+    except Exception:
+        return ""
+
+    if len(raw) > NEWS_SCRAPER_MAX_HTML_BYTES:
+        raw = raw[:NEWS_SCRAPER_MAX_HTML_BYTES]
+
+    charset_match = re.search(r"charset=([^\s;]+)", content_type, re.IGNORECASE)
+    charset = charset_match.group(1).strip() if charset_match else "utf-8"
+    try:
+        return raw.decode(charset, errors="ignore")
+    except Exception:
+        return raw.decode("utf-8", errors="ignore")
+
+
+def _parse_datetime_value(raw: Any) -> Optional[datetime]:
+    if not raw:
+        return None
+    cleaned = _strip_html(raw)
+    if not cleaned:
+        return None
+    cleaned = cleaned.strip()
+    try:
+        if cleaned.endswith("Z"):
+            cleaned = f"{cleaned[:-1]}+00:00"
+        dt = datetime.fromisoformat(cleaned)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(QUEBEC_TZ)
+    except Exception:
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+
+        dt = parsedate_to_datetime(cleaned)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(QUEBEC_TZ)
+    except Exception:
+        return None
+
+
+def _normalize_scraper_item(
+    *,
+    title: str,
+    link: str,
+    image: str,
+    published: Any,
+    source: str,
+) -> Dict[str, Any]:
+    title = _strip_html(title)[:200]
+    link = link.strip()
+    image = image.strip()
+    dt = _parse_datetime_value(published)
+    ts = dt.timestamp() if dt else 0.0
+    time_label = dt.strftime("%H:%M") if dt else ""
+    return {
+        "title": title,
+        "link": link,
+        "description": "",
+        "image": image,
+        "time": time_label,
+        "pubdate": published if isinstance(published, str) else "",
+        "pubdate_ts": ts,
+        "source": source,
+        "type": "web",
+    }
+
+
+def _extract_meta_content(html_text: str, key: str) -> str:
+    pattern = re.compile(
+        rf'<meta[^>]+(?:property|name)=["\']{re.escape(key)}["\'][^>]+content=["\']([^"\']+)["\']',
+        re.IGNORECASE,
+    )
+    match = pattern.search(html_text)
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
+def _extract_ld_json_articles(html_text: str, base_url: str) -> List[Dict[str, Any]]:
+    script_pattern = re.compile(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    items: List[Dict[str, Any]] = []
+
+    def parse_node(node: Any) -> None:
+        if isinstance(node, list):
+            for entry in node:
+                parse_node(entry)
+            return
+        if not isinstance(node, dict):
+            return
+        node_type = node.get("@type") or node.get("type") or ""
+        if isinstance(node_type, list):
+            node_type = " ".join(node_type)
+        node_type = str(node_type)
+        if "NewsArticle" in node_type or "Article" in node_type or "ReportageNewsArticle" in node_type:
+            title = node.get("headline") or node.get("name") or ""
+            link = node.get("url") or ""
+            if isinstance(link, dict):
+                link = link.get("@id") or link.get("url") or ""
+            if link:
+                link = urllib.parse.urljoin(base_url, link)
+            image = node.get("image") or ""
+            if isinstance(image, dict):
+                image = image.get("url") or ""
+            if isinstance(image, list) and image:
+                image = image[0]
+            published = node.get("datePublished") or node.get("dateModified") or ""
+            if title and link:
+                items.append(_normalize_scraper_item(
+                    title=title,
+                    link=link,
+                    image=str(image or ""),
+                    published=published,
+                    source="",
+                ))
+        for key in ("@graph", "itemListElement", "mainEntity", "mainEntityOfPage", "item"):
+            if key in node:
+                parse_node(node[key])
+
+    for match in script_pattern.finditer(html_text):
+        raw = match.group(1).strip()
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:
+            continue
+        parse_node(data)
+
+    # Deduplicate by link
+    seen = set()
+    unique_items: List[Dict[str, Any]] = []
+    for item in items:
+        key = item.get("link") or item.get("title")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        unique_items.append(item)
+    return unique_items
+
+
+def _extract_article_tag_items(html_text: str, base_url: str) -> List[Dict[str, Any]]:
+    article_pattern = re.compile(r"<article[^>]*>(.*?)</article>", re.IGNORECASE | re.DOTALL)
+    h_pattern = re.compile(r"<h[1-3][^>]*>(.*?)</h[1-3]>", re.IGNORECASE | re.DOTALL)
+    link_pattern = re.compile(r'<a[^>]+href=["\']([^"\']+)["\']', re.IGNORECASE)
+    img_pattern = re.compile(
+        r'<img[^>]+(?:data-src|data-original|data-lazy|data-lazy-src|src)=["\']([^"\']+)["\']',
+        re.IGNORECASE,
+    )
+    time_pattern = re.compile(r'<time[^>]*(?:datetime=["\']([^"\']+)["\'])?[^>]*>(.*?)</time>', re.IGNORECASE | re.DOTALL)
+
+    items: List[Dict[str, Any]] = []
+    for match in article_pattern.finditer(html_text):
+        block = match.group(1)
+        title = ""
+        link = ""
+        image = ""
+        published = ""
+        h_match = h_pattern.search(block)
+        if h_match:
+            title = _strip_html(h_match.group(1))
+            link_match = link_pattern.search(h_match.group(1))
+            if link_match:
+                link = link_match.group(1)
+        if not link:
+            link_match = link_pattern.search(block)
+            if link_match:
+                link = link_match.group(1)
+        if link:
+            link = urllib.parse.urljoin(base_url, link)
+        img_match = img_pattern.search(block)
+        if img_match:
+            image = urllib.parse.urljoin(base_url, img_match.group(1))
+        time_match = time_pattern.search(block)
+        if time_match:
+            published = time_match.group(1) or time_match.group(2) or ""
+        if title and link:
+            items.append(_normalize_scraper_item(
+                title=title,
+                link=link,
+                image=image,
+                published=published,
+                source="",
+            ))
+    return items
+
+
+def _extract_headline_links(html_text: str, base_url: str) -> List[Dict[str, Any]]:
+    h_pattern = re.compile(r"<h[1-3][^>]*>(.*?)</h[1-3]>", re.IGNORECASE | re.DOTALL)
+    link_pattern = re.compile(r'<a[^>]+href=["\']([^"\']+)["\']', re.IGNORECASE)
+    items: List[Dict[str, Any]] = []
+    for match in h_pattern.finditer(html_text):
+        block = match.group(1)
+        title = _strip_html(block)
+        if not title:
+            continue
+        link_match = link_pattern.search(block)
+        if not link_match:
+            continue
+        link = urllib.parse.urljoin(base_url, link_match.group(1))
+        items.append(_normalize_scraper_item(
+            title=title,
+            link=link,
+            image="",
+            published="",
+            source="",
+        ))
+    return items
+
+
+def _extract_scraper_items(html_text: str, base_url: str, pattern: str) -> List[Dict[str, Any]]:
+    if pattern == "ld_json":
+        return _extract_ld_json_articles(html_text, base_url)
+    if pattern == "article_tag":
+        return _extract_article_tag_items(html_text, base_url)
+    if pattern == "headline_links":
+        return _extract_headline_links(html_text, base_url)
+    return []
+
+
+def _analyze_scraper_patterns(html_text: str, base_url: str) -> Dict[str, Any]:
+    detected: List[Dict[str, Any]] = []
+    samples: List[Dict[str, Any]] = []
+    for pattern in NEWS_SCRAPER_PATTERNS:
+        items = _extract_scraper_items(html_text, base_url, pattern)
+        detected.append({
+            "name": pattern,
+            "label": pattern.replace("_", " ").title(),
+            "count": len(items),
+        })
+        if not samples and items:
+            samples = items[:6]
+    detected.sort(key=lambda x: x.get("count", 0), reverse=True)
+    return {"detected_patterns": detected, "sample_articles": samples}
 
 
 def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
@@ -6290,9 +6572,69 @@ def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
             "time": parsed_time,
             "pubdate": pubdate,
             "pubdate_ts": parsed_ts,
+            "type": "rss",
         })
 
     return items
+
+
+def _fetch_scraper_items(scraper: Dict[str, Any], config: Dict[str, Any], force: bool = False) -> List[Dict[str, Any]]:
+    if not scraper.get("enabled", True):
+        return []
+    scraper_id = scraper.get("id") or ""
+    interval = _normalize_scraper_interval(
+        scraper.get("refresh_interval", config.get("scraper_defaults", {}).get("refresh_interval", NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES)),
+        NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES,
+    )
+    max_items = scraper.get("max_items", config.get("scraper_defaults", {}).get("max_items", NEWS_SCRAPER_MAX_ITEMS_DEFAULT))
+    try:
+        max_items = max(1, int(max_items))
+    except (TypeError, ValueError):
+        max_items = NEWS_SCRAPER_MAX_ITEMS_DEFAULT
+
+    now = _now()
+    with NEWS_SCRAPER_CACHE_LOCK:
+        cached = NEWS_SCRAPER_CACHE.get(scraper_id)
+        if cached and not force:
+            cached_at = cached.get("fetched_at")
+            if cached_at and (now - cached_at) < timedelta(minutes=interval):
+                return copy.deepcopy(cached.get("items", []))
+
+    url = scraper.get("url", "")
+    if not url:
+        return []
+    base_url = url
+    html_text = _fetch_html(url)
+    if not html_text:
+        return []
+
+    pattern = scraper.get("pattern") or "ld_json"
+    if pattern not in NEWS_SCRAPER_PATTERNS:
+        pattern = "ld_json"
+    items = _extract_scraper_items(html_text, base_url, pattern)
+    if not items and pattern != "ld_json":
+        # Fallback to JSON-LD if main pattern failed
+        items = _extract_scraper_items(html_text, base_url, "ld_json")
+
+    source_name = scraper.get("name") or url
+    normalized: List[Dict[str, Any]] = []
+    for idx, item in enumerate(items):
+        if idx >= max_items:
+            break
+        if not item.get("title") or not item.get("link"):
+            continue
+        entry = {
+            **item,
+            "source": source_name,
+        }
+        if not entry.get("pubdate_ts"):
+            entry["pubdate_ts"] = now.timestamp() - idx
+        normalized.append(entry)
+
+    with NEWS_SCRAPER_CACHE_LOCK:
+        NEWS_SCRAPER_CACHE[scraper_id] = {"items": normalized, "fetched_at": now}
+
+    return normalized
 
 
 def _load_news_config() -> Dict[str, Any]:
@@ -6325,6 +6667,48 @@ def _load_news_config() -> Dict[str, Any]:
                 if normalized and normalized != url:
                     feed["url"] = normalized
                     changed = True
+        scraper_defaults = default.get("scraper_defaults") or {}
+        default_interval = _normalize_scraper_interval(scraper_defaults.get("refresh_interval", NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES))
+        default_max_items = max(1, int(scraper_defaults.get("max_items", NEWS_SCRAPER_MAX_ITEMS_DEFAULT) or NEWS_SCRAPER_MAX_ITEMS_DEFAULT))
+        default["scraper_defaults"] = {
+            "refresh_interval": default_interval,
+            "max_items": default_max_items,
+        }
+        scrapers = default.get("scrapers", [])
+        if not isinstance(scrapers, list):
+            scrapers = []
+        normalized_scrapers: List[Dict[str, Any]] = []
+        for scraper in scrapers:
+            if not isinstance(scraper, dict):
+                continue
+            url = _normalize_scraper_url(scraper.get("url", ""))
+            if not url:
+                continue
+            pattern = scraper.get("pattern") or "ld_json"
+            if pattern not in NEWS_SCRAPER_PATTERNS:
+                pattern = "ld_json"
+            refresh_interval = _normalize_scraper_interval(
+                scraper.get("refresh_interval", scraper.get("interval_minutes", default_interval)),
+                default_interval,
+            )
+            max_items = scraper.get("max_items", default_max_items)
+            try:
+                max_items = max(1, int(max_items))
+            except (TypeError, ValueError):
+                max_items = default_max_items
+            scraper_id = scraper.get("id") or uuid.uuid4().hex[:8]
+            normalized_scrapers.append({
+                "id": scraper_id,
+                "name": scraper.get("name") or url,
+                "url": url,
+                "pattern": pattern,
+                "enabled": scraper.get("enabled", True) is not False,
+                "refresh_interval": refresh_interval,
+                "max_items": max_items,
+            })
+        default["scrapers"] = normalized_scrapers
+        if normalized_scrapers != scrapers:
+            changed = True
         if changed or not NEWS_CONFIG_FILE.exists():
             _write_json_atomic(NEWS_CONFIG_FILE, default)
     return default
@@ -6334,6 +6718,14 @@ def _save_news_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Sauvegarde la configuration de la diapositive Nouvelles."""
     _write_json_atomic(NEWS_CONFIG_FILE, config)
     return config
+
+
+def _invalidate_news_cache() -> None:
+    with NEWS_CACHE_LOCK:
+        NEWS_CACHE["items"] = []
+        NEWS_CACHE["fetched_at"] = None
+    with NEWS_SCRAPER_CACHE_LOCK:
+        NEWS_SCRAPER_CACHE.clear()
 
 
 def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
@@ -6346,6 +6738,7 @@ def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
 
     config = _load_news_config()
     feeds = config.get("rss_feeds", [])
+    scrapers = config.get("scrapers", [])
     max_items = config.get("max_items", 10)
     all_items: List[Dict[str, Any]] = []
 
@@ -6360,9 +6753,26 @@ def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
             item["source"] = feed.get("name", "RSS")
         all_items.extend(items)
 
+    if isinstance(scrapers, list):
+        for scraper in scrapers:
+            if not isinstance(scraper, dict):
+                continue
+            scraped_items = _fetch_scraper_items(scraper, config, force=force)
+            all_items.extend(scraped_items)
+
+    # Deduplicate by link or title
+    seen_keys = set()
+    unique_items: List[Dict[str, Any]] = []
+    for item in all_items:
+        key = item.get("link") or item.get("title")
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        unique_items.append(item)
+
     # Trier par date de publication (plus récent en premier)
-    all_items.sort(key=lambda x: (x.get("pubdate_ts", 0), x.get("pubdate", "")), reverse=True)
-    all_items = all_items[:max_items]
+    unique_items.sort(key=lambda x: (x.get("pubdate_ts", 0), x.get("pubdate", "")), reverse=True)
+    all_items = unique_items[:max_items]
 
     with NEWS_CACHE_LOCK:
         NEWS_CACHE["items"] = all_items
@@ -6426,6 +6836,7 @@ def api_news_slide_update() -> Any:
         config["layout"] = {**config.get("layout", {}), **payload["layout"]}
 
     _save_news_config(config)
+    _invalidate_news_cache()
 
     # Also update main settings store for playlist integration
     try:
@@ -6497,6 +6908,7 @@ def api_news_add_feed() -> Any:
     feeds.append(new_feed)
     config["rss_feeds"] = feeds
     _save_news_config(config)
+    _invalidate_news_cache()
 
     return jsonify({"feed": new_feed, "config": config})
 
@@ -6508,7 +6920,143 @@ def api_news_delete_feed(feed_id: str) -> Any:
     feeds = config.get("rss_feeds", [])
     config["rss_feeds"] = [f for f in feeds if f.get("id") != feed_id]
     _save_news_config(config)
+    _invalidate_news_cache()
     return jsonify({"removed": feed_id, "config": config})
+
+
+@bp.post("/api/news-slide/scrapers/analyze")
+def api_news_scraper_analyze() -> Any:
+    """Analyse un site web pour détecter des articles."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Requête invalide.")
+    url = (payload.get("url") or "").strip()
+    if not url:
+        abort(400, description="L'URL du site est requise.")
+    url = _normalize_scraper_url(url)
+    html_text = _fetch_html(url)
+    if not html_text:
+        return jsonify({
+            "success": False,
+            "url": url,
+            "error": "Impossible de récupérer le contenu.",
+            "detected_patterns": [],
+            "sample_articles": [],
+        })
+    title = _extract_meta_content(html_text, "og:site_name") or _extract_meta_content(html_text, "application-name")
+    if not title:
+        title_match = re.search(r"<title[^>]*>(.*?)</title>", html_text, re.IGNORECASE | re.DOTALL)
+        if title_match:
+            title = _strip_html(title_match.group(1))
+    analysis = _analyze_scraper_patterns(html_text, url)
+    success = bool(analysis.get("sample_articles"))
+    return jsonify({
+        "success": success,
+        "url": url,
+        "site_name": title or url,
+        "detected_patterns": analysis.get("detected_patterns", []),
+        "sample_articles": analysis.get("sample_articles", []),
+    })
+
+
+@bp.post("/api/news-slide/scrapers")
+def api_news_add_scraper() -> Any:
+    """Ajoute un scraper."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Requête invalide.")
+    url = (payload.get("url") or "").strip()
+    if not url:
+        abort(400, description="L'URL du site est requise.")
+    url = _normalize_scraper_url(url)
+    config = _load_news_config()
+    defaults = config.get("scraper_defaults", {})
+    interval = _normalize_scraper_interval(
+        payload.get("refresh_interval", payload.get("interval_minutes", defaults.get("refresh_interval", NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES))),
+        defaults.get("refresh_interval", NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES),
+    )
+    max_items = payload.get("max_items", defaults.get("max_items", NEWS_SCRAPER_MAX_ITEMS_DEFAULT))
+    try:
+        max_items = max(1, int(max_items))
+    except (TypeError, ValueError):
+        max_items = defaults.get("max_items", NEWS_SCRAPER_MAX_ITEMS_DEFAULT)
+    pattern = payload.get("pattern") or "ld_json"
+    if pattern not in NEWS_SCRAPER_PATTERNS:
+        pattern = "ld_json"
+    new_scraper = {
+        "id": uuid.uuid4().hex[:8],
+        "name": (payload.get("name") or url).strip(),
+        "url": url,
+        "pattern": pattern,
+        "enabled": payload.get("enabled", True) is not False,
+        "refresh_interval": interval,
+        "max_items": max_items,
+    }
+    scrapers = config.get("scrapers", [])
+    if not isinstance(scrapers, list):
+        scrapers = []
+    scrapers.append(new_scraper)
+    config["scrapers"] = scrapers
+    _save_news_config(config)
+    _invalidate_news_cache()
+    return jsonify({"scraper": new_scraper, "config": config})
+
+
+@bp.patch("/api/news-slide/scrapers/<scraper_id>")
+def api_news_update_scraper(scraper_id: str) -> Any:
+    """Met à jour un scraper existant."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Requête invalide.")
+    config = _load_news_config()
+    scrapers = config.get("scrapers", [])
+    if not isinstance(scrapers, list):
+        scrapers = []
+    updated = None
+    defaults = config.get("scraper_defaults", {})
+    for scraper in scrapers:
+        if scraper.get("id") != scraper_id:
+            continue
+        if "enabled" in payload:
+            scraper["enabled"] = payload.get("enabled") is not False
+        if "name" in payload:
+            scraper["name"] = str(payload.get("name") or scraper.get("name") or "")
+        if "url" in payload:
+            scraper["url"] = _normalize_scraper_url(payload.get("url") or scraper.get("url") or "")
+        if "pattern" in payload:
+            pattern = payload.get("pattern") or scraper.get("pattern") or "ld_json"
+            if pattern not in NEWS_SCRAPER_PATTERNS:
+                pattern = "ld_json"
+            scraper["pattern"] = pattern
+        if "refresh_interval" in payload or "interval_minutes" in payload:
+            scraper["refresh_interval"] = _normalize_scraper_interval(
+                payload.get("refresh_interval", payload.get("interval_minutes", scraper.get("refresh_interval", defaults.get("refresh_interval", NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES)))),
+                defaults.get("refresh_interval", NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES),
+            )
+        if "max_items" in payload:
+            try:
+                scraper["max_items"] = max(1, int(payload.get("max_items")))
+            except (TypeError, ValueError):
+                pass
+        updated = scraper
+        break
+    config["scrapers"] = scrapers
+    _save_news_config(config)
+    _invalidate_news_cache()
+    return jsonify({"scraper": updated, "config": config})
+
+
+@bp.delete("/api/news-slide/scrapers/<scraper_id>")
+def api_news_delete_scraper(scraper_id: str) -> Any:
+    """Supprime un scraper."""
+    config = _load_news_config()
+    scrapers = config.get("scrapers", [])
+    if not isinstance(scrapers, list):
+        scrapers = []
+    config["scrapers"] = [s for s in scrapers if s.get("id") != scraper_id]
+    _save_news_config(config)
+    _invalidate_news_cache()
+    return jsonify({"removed": scraper_id, "config": config})
 
 
 # ───────────────────────────────────────────────────────────────────────────────

@@ -98,6 +98,17 @@
               autocomplete="off"
             />
           </div>
+          <div style="flex:1">
+            <label for="scraper-interval-select">Intervalle (min)</label>
+            <select id="scraper-interval-select">
+              <option value="1">1</option>
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="60">60</option>
+            </select>
+          </div>
           <div style="flex:1; display:flex; align-items:flex-end">
             <button type="button" class="primary-button" id="analyze-site-btn">
               Analyser
@@ -294,5 +305,5 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/news_editor.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/news_editor.js') }}?v=20260205-12"></script>
 {% endblock %}

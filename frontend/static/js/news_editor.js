@@ -77,6 +77,26 @@
     setTimeout(() => statusEl.classList.remove('visible'), 3000);
   }
 
+  async function readJsonResponse(response) {
+    const text = await response.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      return {};
+    }
+  }
+
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, options);
+    const data = await readJsonResponse(response);
+    if (!response.ok) {
+      const message = data.error || data.message || `Erreur HTTP ${response.status}`;
+      throw new Error(message);
+    }
+    return data;
+  }
+
   function buildPreviewSettings(cfg) {
     const style = cfg.card_style || {};
     const layout = cfg.layout || {};
@@ -129,8 +149,7 @@
 
   async function fetchConfig() {
     try {
-      const response = await fetch(API_BASE);
-      const data = await response.json();
+      const data = await fetchJson(API_BASE);
       config = data.config || {};
       newsItems = data.items || [];
       updateUI();
@@ -140,7 +159,7 @@
       postSlidePreviewUpdate();
     } catch (error) {
       console.error('Erreur lors du chargement de la config:', error);
-      showStatus('Erreur de chargement', true);
+      showStatus(error.message || 'Erreur de chargement', true);
     }
   }
 
@@ -176,6 +195,10 @@
     if (showTime) showTime.checked = layout.show_time !== false;
     if (imageWidth) imageWidth.value = layout.image_width || 0;
     if (imageHeight) imageHeight.value = layout.image_height || 0;
+    if (scraperIntervalSelect) {
+      const defaultInterval = parseInt(config.scraper_defaults?.refresh_interval) || 10;
+      scraperIntervalSelect.value = `${defaultInterval}`;
+    }
   }
 
   function renderFeeds() {
@@ -289,22 +312,18 @@
     }
 
     try {
-      const response = await fetch(API_BASE, {
+      const data = await fetchJson(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
-      if (!response.ok) throw new Error('Erreur serveur');
-
-      const data = await response.json();
       config = data.config || config;
       showStatus('Configuration enregistrée');
       renderNewsPreview();
       postSlidePreviewUpdate();
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      showStatus('Erreur de sauvegarde', true);
+      showStatus(error.message || 'Erreur de sauvegarde', true);
     }
   }
 
@@ -328,14 +347,13 @@
     if (!confirm('Supprimer ce flux RSS ?')) return;
 
     try {
-      const response = await fetch(`${API_BASE}/feeds/${feedId}`, { method: 'DELETE' });
-      const data = await response.json();
+      const data = await fetchJson(`${API_BASE}/feeds/${feedId}`, { method: 'DELETE' });
       config = data.config || config;
       renderFeeds();
       showStatus('Flux supprimé');
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
-      showStatus('Erreur de suppression', true);
+      showStatus(error.message || 'Erreur de suppression', true);
     }
   }
 
@@ -349,13 +367,11 @@
     }
 
     try {
-      const response = await fetch(`${API_BASE}/feeds`, {
+      const data = await fetchJson(`${API_BASE}/feeds`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, url }),
       });
-
-      const data = await response.json();
       config = data.config || config;
       renderFeeds();
       closeModal();
@@ -366,20 +382,20 @@
       if (newFeedUrl) newFeedUrl.value = '';
     } catch (error) {
       console.error('Erreur lors de l\'ajout:', error);
-      showStatus('Erreur d\'ajout', true);
+      showStatus(error.message || 'Erreur d\'ajout', true);
     }
   }
 
   async function refreshNews() {
     try {
-      const response = await fetch(`${API_BASE}/items?force=true`);
-      const data = await response.json();
+      const data = await fetchJson(`${API_BASE}/items?force=true`);
       newsItems = data.items || [];
       renderNewsPreview();
+      postSlidePreviewUpdate();
       showStatus('Nouvelles actualisées');
     } catch (error) {
       console.error('Erreur lors du rafraîchissement:', error);
-      showStatus('Erreur de rafraîchissement', true);
+      showStatus(error.message || 'Erreur de rafraîchissement', true);
     }
   }
 
@@ -407,7 +423,9 @@
 
   // Scraper elements
   const scraperUrlInput = document.getElementById('scraper-url-input');
+  const scraperIntervalSelect = document.getElementById('scraper-interval-select');
   const analyzeSiteBtn = document.getElementById('analyze-site-btn');
+  const addScraperBtn = document.getElementById('add-scraper-btn');
   const scraperAnalysisResults = document.getElementById('scraper-analysis-results');
   const scraperAnalysisError = document.getElementById('scraper-analysis-error');
   const scraperAnalysisLoading = document.getElementById('scraper-analysis-loading');
@@ -418,6 +436,7 @@
   const confirmAddScraperBtn = document.getElementById('confirm-add-scraper-btn');
   const scrapersList = document.getElementById('scrapers-list');
   const noScrapersMessage = document.getElementById('no-scrapers-message');
+  const SCRAPER_INTERVAL_OPTIONS = [1, 5, 10, 15, 30, 60];
 
   let currentAnalysis = null;
 
@@ -438,13 +457,11 @@
     if (scraperAnalysisLoading) scraperAnalysisLoading.style.display = 'flex';
 
     try {
-      const response = await fetch(`${API_BASE}/scrapers/analyze`, {
+      const data = await fetchJson(`${API_BASE}/scrapers/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
-
-      const data = await response.json();
       currentAnalysis = data;
 
       if (scraperAnalysisLoading) scraperAnalysisLoading.style.display = 'none';
@@ -487,7 +504,7 @@
       console.error('Erreur analyse:', error);
       if (scraperAnalysisLoading) scraperAnalysisLoading.style.display = 'none';
       const errorMsg = document.getElementById('analysis-error-message');
-      if (errorMsg) errorMsg.textContent = 'Erreur de connexion au serveur.';
+      if (errorMsg) errorMsg.textContent = error.message || 'Erreur de connexion au serveur.';
       if (scraperAnalysisError) scraperAnalysisError.style.display = 'flex';
     }
   }
@@ -495,20 +512,20 @@
   async function addScraperFromAnalysis() {
     if (!currentAnalysis?.success) return;
 
-    const pattern = currentAnalysis.detected_patterns?.[0]?.name || 'article_tag';
+    const pattern = currentAnalysis.detected_patterns?.[0]?.name || 'ld_json';
+    const intervalValue = parseInt(scraperIntervalSelect?.value) || 10;
 
     try {
-      const response = await fetch(`${API_BASE}/scrapers`, {
+      const data = await fetchJson(`${API_BASE}/scrapers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: currentAnalysis.url,
           name: currentAnalysis.site_name || '',
           pattern: pattern,
+          refresh_interval: intervalValue,
         }),
       });
-
-      const data = await response.json();
       config = data.config || config;
       renderScrapers();
       hideAllScraperResults();
@@ -520,7 +537,7 @@
       await refreshNews();
     } catch (error) {
       console.error('Erreur ajout scraper:', error);
-      showStatus('Erreur lors de l\'ajout', true);
+      showStatus(error.message || 'Erreur lors de l\'ajout', true);
     }
   }
 
@@ -536,7 +553,12 @@
 
     if (noScrapersMessage) noScrapersMessage.style.display = 'none';
 
-    scrapersList.innerHTML = scrapers.map(scraper => `
+    scrapersList.innerHTML = scrapers.map(scraper => {
+      const selectedInterval = parseInt(scraper.refresh_interval) || parseInt(config.scraper_defaults?.refresh_interval) || 10;
+      const intervalOptions = SCRAPER_INTERVAL_OPTIONS.map(value => `
+        <option value="${value}" ${value === selectedInterval ? 'selected' : ''}>${value} min</option>
+      `).join('');
+      return `
       <div class="scraper-item" data-scraper-id="${scraper.id}">
         <div class="scraper-info">
           <span class="scraper-icon">🌐</span>
@@ -546,6 +568,12 @@
           </div>
         </div>
         <div class="scraper-actions">
+          <div class="scraper-interval-control">
+            <label>Intervalle</label>
+            <select class="scraper-interval" data-scraper-id="${scraper.id}">
+              ${intervalOptions}
+            </select>
+          </div>
           <label class="visibility-toggle scraper-toggle">
             <span class="visibility-toggle-label visibility-toggle-label-on">Actif</span>
             <div class="visibility-toggle-switch">
@@ -559,7 +587,8 @@
           </button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     // Attach event listeners
     scrapersList.querySelectorAll('.scraper-enabled').forEach(checkbox => {
@@ -567,6 +596,9 @@
     });
     scrapersList.querySelectorAll('.scraper-delete-btn').forEach(btn => {
       btn.addEventListener('click', handleDeleteScraper);
+    });
+    scrapersList.querySelectorAll('.scraper-interval').forEach(select => {
+      select.addEventListener('change', handleScraperIntervalChange);
     });
   }
 
@@ -576,19 +608,37 @@
     if (!scraperId) return;
 
     try {
-      const response = await fetch(`${API_BASE}/scrapers/${scraperId}`, {
+      const data = await fetchJson(`${API_BASE}/scrapers/${scraperId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: event.target.checked }),
       });
-
-      const data = await response.json();
       config = data.config || config;
       showStatus(event.target.checked ? 'Source activée' : 'Source désactivée');
     } catch (error) {
       console.error('Erreur toggle scraper:', error);
-      showStatus('Erreur de mise à jour', true);
+      showStatus(error.message || 'Erreur de mise à jour', true);
       event.target.checked = !event.target.checked; // Revert
+    }
+  }
+
+  async function handleScraperIntervalChange(event) {
+    const scraperItem = event.target.closest('.scraper-item');
+    const scraperId = scraperItem?.dataset.scraperId;
+    if (!scraperId) return;
+    const value = parseInt(event.target.value) || 10;
+    try {
+      const data = await fetchJson(`${API_BASE}/scrapers/${scraperId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_interval: value }),
+      });
+      config = data.config || config;
+      showStatus('Intervalle mis à jour');
+      await refreshNews();
+    } catch (error) {
+      console.error('Erreur intervalle scraper:', error);
+      showStatus(error.message || 'Erreur de mise à jour', true);
     }
   }
 
@@ -599,19 +649,22 @@
     if (!confirm('Supprimer cette source web ?')) return;
 
     try {
-      const response = await fetch(`${API_BASE}/scrapers/${scraperId}`, { method: 'DELETE' });
-      const data = await response.json();
+      const data = await fetchJson(`${API_BASE}/scrapers/${scraperId}`, { method: 'DELETE' });
       config = data.config || config;
       renderScrapers();
       showStatus('Source supprimée');
     } catch (error) {
       console.error('Erreur suppression scraper:', error);
-      showStatus('Erreur de suppression', true);
+      showStatus(error.message || 'Erreur de suppression', true);
     }
   }
 
   // Scraper event listeners
   analyzeSiteBtn?.addEventListener('click', analyzeNewsSite);
+  addScraperBtn?.addEventListener('click', () => {
+    scraperUrlInput?.focus();
+    scraperUrlInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
   cancelAnalysisBtn?.addEventListener('click', () => {
     hideAllScraperResults();
     currentAnalysis = null;
