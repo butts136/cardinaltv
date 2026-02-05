@@ -96,6 +96,12 @@ if (document.body) {
   document.body.dataset.performance = performanceProfile.lowPower ? "low" : "full";
 }
 
+const userAgent = navigator.userAgent || "";
+const isTvDevice =
+  /AFT|Fire TV|Android TV|SmartTV|SMART-TV|HbbTV|NetCast|Viera|BRAVIA|CrKey|Roku|Tizen|WebOS/i.test(
+    userAgent,
+  );
+
 const defaults = window.CardinalSlideshowDefaults || {};
 const birthdayConfig = window.CardinalBirthdayConfig || null;
 const {
@@ -653,13 +659,51 @@ const ensureBackgroundVideoCached = async (url, { timeoutMs = 12000 } = {}) => {
   }
 };
 
-const maybeSwapVideoToCached = async (video, url, slideId = null) => {
+const shouldUseCachedObjectUrlForVideo = () => !isTvDevice;
+
+const maybeSwapVideoToCached = async (video, url, slideId = null, { fallbackUrl = "" } = {}) => {
   if (!video || !url) return;
+  if (!shouldUseCachedObjectUrlForVideo()) return;
   const cachedUrl = await getCachedMediaObjectUrl(url);
   if (!cachedUrl) return;
   if (!video.isConnected) return;
   if (slideId && currentId !== slideId) return;
   if (video.src === cachedUrl) return;
+  const originalUrl = fallbackUrl || url;
+  const swapToken = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  video.dataset.cachedSwapToken = swapToken;
+  let fallbackTimer = null;
+  const clearFallbackTimer = () => {
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
+  };
+  const revertToOriginal = () => {
+    if (video.dataset.cachedSwapToken !== swapToken) return;
+    if (slideId && currentId !== slideId) return;
+    clearFallbackTimer();
+    if (video.src !== originalUrl) {
+      video.src = originalUrl;
+      video.load?.();
+      const attempt = video.play?.();
+      if (attempt && typeof attempt.catch === "function") {
+        attempt.catch(() => {});
+      }
+    }
+  };
+  const markPlayable = () => {
+    if (video.dataset.cachedSwapToken !== swapToken) return;
+    clearFallbackTimer();
+  };
+  video.addEventListener("canplay", markPlayable, { once: true });
+  video.addEventListener("playing", markPlayable, { once: true });
+  video.addEventListener("error", revertToOriginal, { once: true });
+  fallbackTimer = setTimeout(() => {
+    if (video.readyState < 2 || video.paused) {
+      revertToOriginal();
+    }
+  }, 2000);
   video.src = cachedUrl;
   video.preload = "auto";
   video.setAttribute("preload", "auto");
@@ -2000,6 +2044,8 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
   video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
   if (video.muted) {
     video.setAttribute("muted", "muted");
+    video.defaultMuted = true;
+    video.volume = 0;
   } else {
     video.removeAttribute("muted");
   }
@@ -2050,17 +2096,35 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
     hasRevealed = true;
     finalizeFallback(false);
   };
+  const canReveal = () =>
+    video.videoWidth > 0 &&
+    video.readyState >= 2 &&
+    !video.paused &&
+    (video.currentTime > 0 || video.readyState >= 3);
   const scheduleReveal = () => {
     if (hasRevealed) return;
     if (typeof video.requestVideoFrameCallback === "function") {
-      video.requestVideoFrameCallback(() => revealVideo());
+      video.requestVideoFrameCallback(() => {
+        if (canReveal()) {
+          revealVideo();
+          return;
+        }
+        scheduleReveal();
+      });
       return;
     }
-    if (video.videoWidth > 0 && video.readyState >= 2 && !video.paused) {
+    if (canReveal()) {
       revealVideo();
       return;
     }
-    video.addEventListener("timeupdate", revealVideo, { once: true });
+    const onTimeUpdate = () => {
+      if (canReveal()) {
+        revealVideo();
+      } else {
+        scheduleReveal();
+      }
+    };
+    video.addEventListener("timeupdate", onTimeUpdate, { once: true });
   };
   video.addEventListener("loadeddata", scheduleReveal, { once: true });
   video.addEventListener("canplay", scheduleReveal, { once: true });
@@ -3797,9 +3861,12 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
+    video.defaultMuted = true;
+    video.volume = 0;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
-    video.src = bgUrl;
+    const resolvedUrl = resolveAssetUrl(bgUrl);
+    video.src = resolvedUrl;
     backdrop.appendChild(video);
     currentVideo = video;
     const playHandler = createBackgroundVideoPlayHandler(video, {
@@ -3811,10 +3878,9 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
       fallbackClass: "birthday-slide-backdrop--fallback",
       playHandler,
     });
-    const resolvedUrl = resolveAssetUrl(bgUrl);
-    void maybeSwapVideoToCached(video, resolvedUrl, item.id);
+    void maybeSwapVideoToCached(video, resolvedUrl, item.id, { fallbackUrl: resolvedUrl });
     void ensureBackgroundVideoCached(resolvedUrl).then(() =>
-      maybeSwapVideoToCached(video, resolvedUrl, item.id),
+      maybeSwapVideoToCached(video, resolvedUrl, item.id, { fallbackUrl: resolvedUrl }),
     );
   } else if (bgUrl) {
     const img = document.createElement("img");
