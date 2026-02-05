@@ -3846,6 +3846,9 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     1,
     Math.round(Number(item.duration) || settings.duration || DEFAULT_BIRTHDAY_SLIDE.duration)
   );
+  const viewport = document.createElement("div");
+  viewport.className = "birthday-slide-viewport";
+
   const frameEl = document.createElement("div");
   frameEl.className = "birthday-slide-frame";
 
@@ -3855,6 +3858,11 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   const bgUrl = resolvedBackground.url;
   const bgMime = String(resolvedBackground.mimetype || "").toLowerCase();
   const isVideo = isVideoBackground(bgUrl, bgMime);
+  const hasVideoBackground = Boolean(bgUrl && isVideo);
+  if (hasVideoBackground) {
+    frameEl.classList.add("birthday-slide-frame--video");
+    backdrop.classList.add("birthday-slide-backdrop--video");
+  }
   if (bgUrl && isVideo) {
     const video = document.createElement("video");
     video.className = "birthday-slide-media birthday-slide-video";
@@ -3865,20 +3873,13 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     video.volume = 0;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
-    const resolvedUrl = resolveAssetUrl(bgUrl);
-    video.src = resolvedUrl;
-    backdrop.appendChild(video);
-    currentVideo = video;
-    const playHandler = createBackgroundVideoPlayHandler(video, {
-      slideId: item.id,
-      maxRetries: performanceProfile.lowPower ? 4 : 3,
-    });
+    video.src = bgUrl;
     setupBackgroundVideo(video, {
       fallbackEl: backdrop,
       fallbackClass: "birthday-slide-backdrop--fallback",
-      playHandler,
     });
-    void ensureBackgroundVideoCached(resolvedUrl);
+    backdrop.appendChild(video);
+    currentVideo = video;
   } else if (bgUrl) {
     const img = document.createElement("img");
     img.className = "birthday-slide-media birthday-slide-image";
@@ -3947,8 +3948,9 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   overlay.style.alignItems = "center";
   overlay.append(linesWrapper);
   frameEl.appendChild(overlay);
+  viewport.appendChild(frameEl);
 
-  const swapPromise = setMediaContent(frameEl, { waitForReady: true });
+  const swapPromise = setMediaContent(viewport, { waitForReady: true });
   if (swapPromise && typeof swapPromise.then === "function") {
     swapPromise.then(() => markSlideVisible(item));
   } else {
