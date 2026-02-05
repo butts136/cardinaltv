@@ -58,6 +58,7 @@ const normalizeSingleSlideType = (value) => {
 };
 const singleSlideType = normalizeSingleSlideType(previewSlideType);
 const isSingleSlideMode = Boolean(singleSlideType);
+const freezeSingleSlideAdvance = isSingleSlideMode && isPreviewMode;
 const preloadParam = (urlParams.get("preload") || "").trim().toLowerCase();
 const PRELOAD_ENABLED = preloadParam === "1" || preloadParam === "true" || preloadParam === "yes";
 const videoDebugParam = (urlParams.get("video_debug") || urlParams.get("birthday_debug") || urlParams.get("debug") || "")
@@ -2076,6 +2077,9 @@ const setMediaContent = (element, { waitForReady = false, immediateSwap = false 
 };
 
 const scheduleSlideAdvance = (durationSeconds, swapPromise, slideId = null) => {
+  if (freezeSingleSlideAdvance) {
+    return;
+  }
   const targetId = slideId || currentId;
   const schedule = () => {
     if (targetId && currentId !== targetId) return;
@@ -2680,8 +2684,25 @@ const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
     return buildChristmasSlideItem(christmas || christmasInfo || null);
   }
   if (type === "birthday") {
-    const entries = await ensureBirthdayEmployeesData();
     const forcedVariant = previewBirthdayVariant || "before";
+    if (isEditorPreview) {
+      const previewConfig = await loadBirthdayVariantConfig(forcedVariant);
+      const previewDays = getBirthdayDaysBefore();
+      const previewDate = new Date();
+      previewDate.setUTCDate(previewDate.getUTCDate() + Math.max(0, previewDays));
+      const meta = formatBirthdayMeta(previewDate);
+      return buildBirthdaySlideItem({
+        variant: forcedVariant,
+        daysUntilBirthday: previewDays,
+        daysUntilAnnounce: previewDays,
+        birthday_weekday: meta.weekday,
+        birthday_date: meta.fullDate,
+        employees: [{ id: "preview", name: "Prénom Nom" }],
+        config: previewConfig,
+        idSuffix: `preview_${forcedVariant}`,
+      });
+    }
+    const entries = await ensureBirthdayEmployeesData();
     if (Array.isArray(entries) && entries.length) {
       if (previewBirthdayVariant) {
         const match = entries.find((entry) => entry?.variant === previewBirthdayVariant);

@@ -778,14 +778,20 @@
     uploadTestBackgroundFile(files[0]);
   };
 
+  const isSlideshowPreviewMode = previewFrame?.dataset?.previewMode === "slideshow";
+
   const clearTestPreview = () => {
     if (!testPreviewMedia) return;
     testPreviewMedia.innerHTML = "";
   };
 
-    const setPreviewFallback = () => {
+  const setPreviewFallback = () => {
     if (!testPreviewMedia) return;
     clearTestPreview();
+    if (isSlideshowPreviewMode) {
+      testPreviewMedia.classList.remove("preview-frame-media--fallback");
+      return;
+    }
     testPreviewMedia.classList.add("preview-frame-media--fallback");
   };
 
@@ -793,6 +799,10 @@
     if (!testPreviewMedia) return;
     clearTestPreview();
     testPreviewMedia.classList.remove("preview-frame-media--fallback");
+    if (isSlideshowPreviewMode) {
+      scheduleSlideshowPreviewRefresh();
+      return;
+    }
     if (!entry) {
       setPreviewFallback();
       scheduleSlideshowPreviewRefresh();
