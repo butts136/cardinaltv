@@ -176,6 +176,8 @@ DEFAULT_SETTINGS = {
         "duration": 10.0,
         # Minimum duration each employee card group should be visible.
         "card_min_duration": 10.0,
+        # Avatar size in pixels (base before slide scaling).
+        "avatar_size": 96.0,
         # Relative filename (under TEAM_SLIDE_ASSETS_DIR) for the background media.
         "background_path": None,
         # Mimetype of the background media (image/* ou video/*).
@@ -2563,6 +2565,16 @@ class MediaStore:
                 if card_duration > 600.0:
                     card_duration = 600.0
                 result["card_min_duration"] = card_duration
+            elif key == "avatar_size":
+                try:
+                    size = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if size < 48.0:
+                    size = 48.0
+                if size > 200.0:
+                    size = 200.0
+                result["avatar_size"] = size
             elif key == "title_enabled":
                 result["title_enabled"] = bool(value)
             elif key == "title_text":

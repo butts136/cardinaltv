@@ -169,6 +169,7 @@ const teamBackgroundStatus = document.querySelector("#team-background-status");
 // Liste des arrière-plans disponibles (ajoutée dans le template)
 const teamBackgroundList = document.querySelector("#team-background-list");
 const teamCardDurationInput = document.querySelector("#team-card-duration");
+const teamAvatarSizeInput = document.querySelector("#team-avatar-size");
 const teamTitleEnabledInput = document.querySelector("#team-title-enabled");
 const teamTitleOptions = document.querySelector("#team-title-options");
 const teamTitleOptionsToggle = document.querySelector("#team-title-options-toggle");
@@ -253,6 +254,7 @@ const DEFAULT_TEAM_SLIDE_SETTINGS = {
   order_index: 0,
   duration: 10,
   card_min_duration: 6,
+  avatar_size: 96,
   background_path: null,
   background_url: null,
   background_mimetype: null,
@@ -906,6 +908,12 @@ const normalizeTeamSlideSettings = (raw) => {
     const cd = Number(raw.card_min_duration);
     if (Number.isFinite(cd) && cd >= 0.5 && cd <= 600) {
       result.card_min_duration = cd;
+    }
+  }
+  if ("avatar_size" in raw) {
+    const size = Number(raw.avatar_size);
+    if (Number.isFinite(size) && size >= 48 && size <= 200) {
+      result.avatar_size = size;
     }
   }
   if (typeof raw.background_path === "string") {
@@ -5478,6 +5486,11 @@ const populateTeamForm = (settings) => {
   const durationVal =
     Number(settings.card_min_duration) || DEFAULT_TEAM_SLIDE_SETTINGS.card_min_duration;
   teamCardDurationInput.value = String(durationVal);
+  if (teamAvatarSizeInput) {
+    const sizeVal =
+      Number(settings.avatar_size) || DEFAULT_TEAM_SLIDE_SETTINGS.avatar_size;
+    teamAvatarSizeInput.value = String(sizeVal);
+  }
 
   if (teamTitleEnabledInput) {
     teamTitleEnabledInput.checked = Boolean(settings.title_enabled);
@@ -5520,6 +5533,12 @@ const serializeTeamForm = () => {
     const d = Number(teamCardDurationInput.value);
     if (Number.isFinite(d) && d >= 0.5 && d <= 120) {
       settings.card_min_duration = d;
+    }
+  }
+  if (teamAvatarSizeInput) {
+    const val = Number(teamAvatarSizeInput.value);
+    if (Number.isFinite(val) && val >= 48 && val <= 200) {
+      settings.avatar_size = val;
     }
   }
   if (teamTitleEnabledInput) {
@@ -5567,6 +5586,23 @@ const initialsFromName = (name = "") => {
     return parts[0][0].toUpperCase();
   }
   return (parts[0][0] + parts[1][0]).toUpperCase();
+};
+
+const TEAM_AVATAR_OFFSET_RATIO = 0.6 / 5.3;
+const TEAM_AVATAR_FONT_RATIO = 1.6 / 5.3;
+
+const applyTeamAvatarSizing = (root, settings) => {
+  if (!root || !settings) return;
+  const raw = Number(settings.avatar_size);
+  if (!Number.isFinite(raw) || raw <= 0) return;
+  const scaled = raw * TEAM_SLIDE_SCALE;
+  const offset = Math.max(1, scaled * TEAM_AVATAR_OFFSET_RATIO);
+  const paddingLeft = scaled + offset * 2;
+  const fontSize = scaled * TEAM_AVATAR_FONT_RATIO;
+  root.style.setProperty("--team-avatar-size", `${scaled}px`);
+  root.style.setProperty("--team-avatar-offset", `${offset}px`);
+  root.style.setProperty("--team-card-padding-left", `${paddingLeft}px`);
+  root.style.setProperty("--team-avatar-font", `${fontSize}px`);
 };
 
 const computeServiceDuration = (hireDate) => {
@@ -5701,6 +5737,7 @@ const renderTeamPreview = () => {
 
   const root = document.createElement("div");
   root.className = "team-slide-frame";
+  applyTeamAvatarSizing(root, settings);
 
   const bgUrl = settings.background_url || null;
   const bgMime = (settings.background_mimetype || "").toLowerCase();

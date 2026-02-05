@@ -3488,6 +3488,23 @@ const initialsFromName = (name = "") => {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 };
 
+const TEAM_AVATAR_OFFSET_RATIO = 0.6 / 5.3;
+const TEAM_AVATAR_FONT_RATIO = 1.6 / 5.3;
+
+const applyTeamAvatarSizing = (root, settings) => {
+  if (!root || !settings) return;
+  const raw = Number(settings.avatar_size);
+  if (!Number.isFinite(raw) || raw <= 0) return;
+  const scaled = raw * TEAM_SLIDE_SCALE;
+  const offset = Math.max(1, scaled * TEAM_AVATAR_OFFSET_RATIO);
+  const paddingLeft = scaled + offset * 2;
+  const fontSize = scaled * TEAM_AVATAR_FONT_RATIO;
+  root.style.setProperty("--team-avatar-size", `${scaled}px`);
+  root.style.setProperty("--team-avatar-offset", `${offset}px`);
+  root.style.setProperty("--team-card-padding-left", `${paddingLeft}px`);
+  root.style.setProperty("--team-avatar-font", `${fontSize}px`);
+};
+
 const computeServiceDuration = (hireDate) => {
   if (!hireDate) return null;
   const start = new Date(hireDate);
@@ -3734,6 +3751,7 @@ const renderTeamSlide = (item, employeesList = []) => {
 
   const root = document.createElement("div");
   root.className = "team-slide-frame";
+  applyTeamAvatarSizing(root, teamSlideSettings);
 
   const backgroundUrl = teamSlideSettings.background_url;
   const backgroundMime = (teamSlideSettings.background_mimetype || "").toLowerCase();

@@ -14,6 +14,7 @@
     order_index: 0,
     duration: 10,
     card_min_duration: 6,
+    avatar_size: 96,
   };
 
   const DEFAULT_OPEN_DAYS = {

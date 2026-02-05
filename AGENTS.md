@@ -62,6 +62,19 @@ Si une diapo ne supporte pas ces champs côté serveur, **ne pas** activer `show
 - Les nouvelles diapositives personnalisées utilisent `editor_kind="custom"` et les endpoints `/api/custom-slides/*` (ne pas étendre `/api/test/*`).
 - Garder l’éditeur **moderne et robuste** : inputs optionnels, fallback sûrs, pas de collision d’IDs.
 - Toute amélioration doit conserver la réutilisabilité (préfixes, `editor_kind`, endpoints génériques).
+
+---
+
+## Anniversaire — Priorité vidéo & compatibilité TV
+
+### Principes
+- **Priorité vidéo** : pour l’arrière‑plan Anniversaire, la sélection doit privilégier la **vidéo** quand elle existe, sans casser l’ordre de priorité (variante → item → settings).
+- **Compatibilité TV** : sur Fire TV / Android WebView, **éviter `contain: paint` et les coins arrondis** pour les backgrounds vidéo (source fréquente d’écran noir).
+
+### Règles d’implémentation
+- Utiliser le résolveur « video‑first » (variante → item → settings), puis fallback image.
+- Appliquer les variables CSS `--team-*`/classes **sans** créer un second rendu.
+- Sur TV (`.slideshow-tv`) : désactiver `border-radius`/`box-shadow` pour les frames vidéo Anniversaire.
 ---
 
 ## Bandes informatives — système de layout slideshow
