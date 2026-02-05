@@ -1338,6 +1338,7 @@ input[type="datetime-local"]:focus {
 .birthday-slide-backdrop--video {
   overflow: visible;
   border-radius: inherit;
+  background: transparent;
 }
 
 .birthday-slide-backdrop--fallback {
@@ -1356,6 +1357,17 @@ input[type="datetime-local"]:focus {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   will-change: transform;
+}
+
+.slideshow-tv .birthday-slide-frame--video {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.slideshow-tv .birthday-slide-backdrop--video,
+.slideshow-tv .birthday-slide-frame--video .birthday-slide-media,
+.slideshow-tv .birthday-slide-frame--video .birthday-slide-overlay {
+  border-radius: 0;
 }
 
 .birthday-slide-frame--video .birthday-slide-media,

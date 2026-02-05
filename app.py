@@ -940,6 +940,10 @@ def _read_birthday_config(variant: str) -> Dict[str, Any]:
             merged["background_path"] = data["background_path"] or None
         if isinstance(data.get("background_mimetype"), str):
             merged["background_mimetype"] = data["background_mimetype"] or None
+        if isinstance(data.get("background_video_path"), str):
+            merged["background_video_path"] = data["background_video_path"] or None
+        if isinstance(data.get("background_video_mimetype"), str):
+            merged["background_video_mimetype"] = data["background_video_mimetype"] or None
         merged["lines"] = normalize_lines(data.get("lines"), merged)
         # Aligner les anciens champs text1/2/3 avec la première série de lignes pour compatibilité.
         if merged["lines"]:
@@ -1098,6 +1102,16 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
             normalized["background_mimetype"] = None
         elif isinstance(config["background_mimetype"], str):
             normalized["background_mimetype"] = config["background_mimetype"] or None
+    if "background_video_path" in config:
+        if config["background_video_path"] is None:
+            normalized["background_video_path"] = None
+        elif isinstance(config["background_video_path"], str):
+            normalized["background_video_path"] = config["background_video_path"] or None
+    if "background_video_mimetype" in config:
+        if config["background_video_mimetype"] is None:
+            normalized["background_video_mimetype"] = None
+        elif isinstance(config["background_video_mimetype"], str):
+            normalized["background_video_mimetype"] = config["background_video_mimetype"] or None
     config_path = BIRTHDAY_SLIDE_CONFIG_DIR / f"{variant}.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     stored_config: Dict[str, Any] = {"lines": normalized.get("lines", [])}
@@ -1105,6 +1119,10 @@ def _write_birthday_config(variant: str, config: Dict[str, Any]) -> Dict[str, An
         stored_config["background_path"] = normalized.get("background_path")
     if normalized.get("background_mimetype") is not None:
         stored_config["background_mimetype"] = normalized.get("background_mimetype")
+    if normalized.get("background_video_path") is not None:
+        stored_config["background_video_path"] = normalized.get("background_video_path")
+    if normalized.get("background_video_mimetype") is not None:
+        stored_config["background_video_mimetype"] = normalized.get("background_video_mimetype")
     with config_path.open("w", encoding="utf-8") as handle:
         json.dump(stored_config, handle, ensure_ascii=True, indent=2)
     return normalized
@@ -5493,6 +5511,13 @@ def get_birthday_slide_config(variant: str) -> Any:
             )
         else:
             config["background_url"] = None
+        video_path = config.get("background_video_path")
+        if video_path:
+            config["background_video_url"] = url_for(
+                "main.serve_birthday_slide_asset", filename=video_path, _external=False
+            )
+        else:
+            config["background_video_url"] = None
     except ValueError as exc:
         abort(400, description=str(exc))
     return jsonify({"variant": variant, "config": config})
