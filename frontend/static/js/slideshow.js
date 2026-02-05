@@ -619,6 +619,7 @@ const resolveBirthdayBackgroundSource = (variantCfg, item, settings) => {
 };
 
 const cachedMediaObjectUrls = new Map();
+const cachedBackgroundVideoRequests = new Set();
 
 const getCachedMediaObjectUrl = async (url) => {
   if (!url || !("caches" in window)) return null;
@@ -638,6 +639,20 @@ const getCachedMediaObjectUrl = async (url) => {
   }
 };
 
+const ensureBackgroundVideoCached = async (url, { timeoutMs = 12000 } = {}) => {
+  if (!url || cachedBackgroundVideoRequests.has(url)) return false;
+  cachedBackgroundVideoRequests.add(url);
+  if (!slideshowCache?.precacheUrls) {
+    return false;
+  }
+  try {
+    await slideshowCache.precacheUrls([url], { timeoutMs, concurrency: 1 });
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 const maybeSwapVideoToCached = async (video, url, slideId = null) => {
   if (!video || !url) return;
   const cachedUrl = await getCachedMediaObjectUrl(url);
@@ -646,6 +661,8 @@ const maybeSwapVideoToCached = async (video, url, slideId = null) => {
   if (slideId && currentId !== slideId) return;
   if (video.src === cachedUrl) return;
   video.src = cachedUrl;
+  video.preload = "auto";
+  video.setAttribute("preload", "auto");
   video.load?.();
   const attempt = video.play?.();
   if (attempt && typeof attempt.catch === "function") {
@@ -1973,6 +1990,8 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
   const preload = getBackgroundVideoPreload();
   video.preload = preload;
   video.setAttribute("preload", preload);
+  video.autoplay = true;
+  video.setAttribute("autoplay", "");
   video.playsInline = true;
   video.setAttribute("playsinline", "");
   video.setAttribute("webkit-playsinline", "");
@@ -2026,6 +2045,8 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
     }
   };
   video.addEventListener("loadeddata", () => finalizeFallback(false), { once: true });
+  video.addEventListener("canplay", () => finalizeFallback(false), { once: true });
+  video.addEventListener("playing", () => finalizeFallback(false), { once: true });
   video.addEventListener("error", () => finalizeFallback(true), { once: true });
   if (video.readyState >= 2) {
     finalizeFallback(false);
@@ -2035,6 +2056,10 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
       playHandler();
       return;
     }
+    if (!video.isConnected) {
+      requestAnimationFrame(attemptPlay);
+      return;
+    }
     const playPromise = video.play();
     if (playPromise && typeof playPromise.catch === "function") {
       playPromise.catch(() => {});
@@ -2042,6 +2067,71 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
   };
   video.addEventListener("canplay", attemptPlay, { once: true });
   attemptPlay();
+};
+
+const createBackgroundVideoPlayHandler = (video, { slideId = null, maxRetries = 3, retryDelay = 350 } = {}) => {
+  if (!video) {
+    return () => {};
+  }
+  let retries = 0;
+  let retryTimer = null;
+  const canAttempt = () =>
+    video.isConnected && (!slideId || !currentId || currentId === slideId);
+  const clearRetry = () => {
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+  const attemptPlay = () => {
+    if (!video.isConnected) {
+      requestAnimationFrame(attemptPlay);
+      return;
+    }
+    if (!canAttempt()) return;
+    const promise = video.play?.();
+    if (promise && typeof promise.catch === "function") {
+      promise.catch(() => {});
+    }
+    if (retries >= maxRetries) {
+      return;
+    }
+    clearRetry();
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (!canAttempt()) return;
+      if (video.paused || video.readyState < 2) {
+        retries += 1;
+        try {
+          video.load?.();
+        } catch (error) {
+          // ignore
+        }
+        attemptPlay();
+      }
+    }, retryDelay * Math.max(1, retries + 1));
+  };
+  const recover = () => {
+    if (!canAttempt()) return;
+    if (retries >= maxRetries) return;
+    retries += 1;
+    try {
+      video.load?.();
+    } catch (error) {
+      // ignore
+    }
+    attemptPlay();
+  };
+  const resetRetries = () => {
+    retries = 0;
+    clearRetry();
+  };
+  video.addEventListener("playing", resetRetries);
+  video.addEventListener("stalled", recover);
+  video.addEventListener("waiting", recover);
+  video.addEventListener("suspend", recover);
+  video.addEventListener("error", recover);
+  return attemptPlay;
 };
 
 const resolveItemBackground = (item) => {
@@ -3692,13 +3782,22 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     video.muted = true;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
+    backdrop.appendChild(video);
+    currentVideo = video;
+    const playHandler = createBackgroundVideoPlayHandler(video, {
+      slideId: item.id,
+      maxRetries: performanceProfile.lowPower ? 4 : 3,
+    });
     setupBackgroundVideo(video, {
       fallbackEl: backdrop,
       fallbackClass: "birthday-slide-backdrop--fallback",
+      playHandler,
     });
-    backdrop.appendChild(video);
-    currentVideo = video;
-    void maybeSwapVideoToCached(video, bgUrl, item.id);
+    const resolvedUrl = resolveAssetUrl(bgUrl);
+    void maybeSwapVideoToCached(video, resolvedUrl, item.id);
+    void ensureBackgroundVideoCached(resolvedUrl).then(() =>
+      maybeSwapVideoToCached(video, resolvedUrl, item.id),
+    );
   } else if (bgUrl) {
     const img = document.createElement("img");
     img.className = "birthday-slide-media birthday-slide-image";
