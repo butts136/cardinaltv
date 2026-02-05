@@ -30,6 +30,8 @@
     const testBackgroundList = byPrefixId("background-list");
     const previewFrame = editorRoot.querySelector(".preview-frame") || document.querySelector(".preview-frame");
     const previewStage = byPrefixId("preview-stage");
+    const slideshowPreviewFrame = byPrefixId("slideshow-preview");
+    const editorSlideId = editorRoot?.dataset?.editorSlideId || "";
     const testPreviewMedia = byPrefixId("preview-media");
     const testPreviewTextOverlay = byPrefixId("preview-texts");
     const testTextAddButton = byPrefixId("text-add");
@@ -705,6 +707,10 @@
     if (editorRoot) {
       editorRoot.dataset.editorVariant = variant;
     }
+    if (slideshowPreviewFrame) {
+      slideshowPreviewFrame.dataset.previewVariant = variant;
+      syncSlideshowPreviewSrc(variant);
+    }
     editorAdapter = createEditorAdapter(editorKind, editorVariant);
     currentSelectedTextName = null;
     hideSelectedTextPanel();
@@ -789,6 +795,7 @@
     testPreviewMedia.classList.remove("preview-frame-media--fallback");
     if (!entry) {
       setPreviewFallback();
+      scheduleSlideshowPreviewRefresh();
       return;
     }
     let mediaElement;
@@ -806,6 +813,7 @@
     }
     mediaElement.src = entry.url;
     testPreviewMedia.appendChild(mediaElement);
+    scheduleSlideshowPreviewRefresh();
   };
 
   const measureCanvas = document.createElement("canvas");
@@ -860,6 +868,67 @@
       window.addEventListener("resize", updatePreviewStageScale);
     }
     updatePreviewStageScale();
+  };
+
+  const resolvePreviewKind = (kind) => {
+    if (!kind) return "test";
+    if (kind === "time_change") return "time_change";
+    return kind;
+  };
+
+  const buildSlideshowPreviewUrl = (variantOverride) => {
+    if (!slideshowPreviewFrame) return "";
+    const base = slideshowPreviewFrame.dataset.previewBase || "";
+    if (!base) return "";
+    const params = new URLSearchParams();
+    params.set("preview", "1");
+    params.set("slide", resolvePreviewKind(editorKind));
+    if (editorKind === "custom" && editorSlideId) {
+      params.set("slideId", editorSlideId);
+    }
+    const variant =
+      variantOverride ||
+      slideshowPreviewFrame.dataset.previewVariant ||
+      editorVariant ||
+      "";
+    if (variant) {
+      params.set("variant", variant);
+    }
+    params.set("editor", "1");
+    return `${base}?${params.toString()}`;
+  };
+
+  const syncSlideshowPreviewSrc = (variantOverride) => {
+    if (!slideshowPreviewFrame) return;
+    const url = buildSlideshowPreviewUrl(variantOverride);
+    if (!url) return;
+    slideshowPreviewFrame.dataset.previewSrc = url;
+    const current = slideshowPreviewFrame.getAttribute("src");
+    if (!current || current !== url) {
+      slideshowPreviewFrame.setAttribute("src", url);
+    }
+  };
+
+  let slideshowPreviewTimer = null;
+  const postSlideshowPreviewRefresh = () => {
+    if (!slideshowPreviewFrame) return;
+    const target = slideshowPreviewFrame.contentWindow;
+    if (target) {
+      target.postMessage({ type: "slide:refresh" }, "*");
+      return;
+    }
+    syncSlideshowPreviewSrc();
+  };
+
+  const scheduleSlideshowPreviewRefresh = () => {
+    if (!slideshowPreviewFrame) return;
+    if (slideshowPreviewTimer) {
+      clearTimeout(slideshowPreviewTimer);
+    }
+    slideshowPreviewTimer = setTimeout(() => {
+      slideshowPreviewTimer = null;
+      postSlideshowPreviewRefresh();
+    }, 250);
   };
 
   const isValidHexColor = (value) => HEX_COLOR_PATTERN.test((value || "").trim());
@@ -1013,6 +1082,7 @@
         ...raw,
       });
       updateTestSlideToggleUI();
+      scheduleSlideshowPreviewRefresh();
       return currentTestSlideSettings;
     } catch (error) {
       console.error("Erreur lors de la mise à jour de la diapo personnalisée:", error);
@@ -1450,6 +1520,7 @@
         selectedTextPlaceholder.style.display = "";
       }
     }
+    scheduleSlideshowPreviewRefresh();
   };
 
   const hideSelectedTextPanel = () => {
@@ -3035,6 +3106,7 @@
 
   const init = () => {
     setupPreviewStageScaling();
+    syncSlideshowPreviewSrc();
     hideSelectedTextPanel();
     bindDropZoneEvents();
     void refreshTestSlideSettings();

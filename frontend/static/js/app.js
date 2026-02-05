@@ -5606,7 +5606,7 @@ const applyTeamPreviewScale = () => {
 
 const renderTeamPreview = () => {
   stopTeamPreviewRotation();
-  if (!teamPreviewStage) return;
+  if (!teamPreviewStage || teamPreviewStage.dataset.previewMode === "slideshow") return;
   const settings = teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS;
   teamPreviewStage.innerHTML = "";
 
@@ -7192,6 +7192,7 @@ teamBackgroundUploadButton?.addEventListener("click", () => {
 });
 
 teamPreviewRefreshButton?.addEventListener("click", () => {
+  if (teamPreviewStage?.dataset?.previewMode === "slideshow") return;
   renderTeamPreview();
   void loadEmployees();
 });

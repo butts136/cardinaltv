@@ -82,8 +82,20 @@
 
           <div class="section-content preview-layout">
             <div class="preview-column">
-              <div class="preview-frame slideshow-frame">
+              <div class="preview-frame slideshow-frame" data-preview-mode="slideshow">
                 <div class="preview-frame-inner">
+                  {% set preview_slide_kind = editor_kind %}
+                  <iframe
+                    id="{{ id_prefix }}-slideshow-preview"
+                    class="slideshow-preview-iframe live-editor-preview-iframe"
+                    title="Aperçu diapositive"
+                    loading="lazy"
+                    data-preview-base="{{ url_for('main.slideshow') }}"
+                    data-preview-kind="{{ preview_slide_kind }}"
+                    data-preview-slide-id="{{ editor_slide_id }}"
+                    data-preview-variant="{{ editor_variant }}"
+                    src="{{ url_for('main.slideshow') }}?preview=1&slide={{ preview_slide_kind }}{% if editor_slide_id %}&slideId={{ editor_slide_id }}{% endif %}{% if editor_variant %}&variant={{ editor_variant }}{% endif %}&editor=1"
+                  ></iframe>
                   <div
 	                    id="{{ id_prefix }}-preview-stage"
 	                    class="preview-frame-content slideshow-canvas"

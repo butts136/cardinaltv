@@ -70,11 +70,18 @@
   const weatherForecast = document.getElementById('weather-forecast');
   const weatherPreview = document.getElementById('weather-preview');
   const weatherLocationLabel = document.getElementById('weather-location');
+  const slidePreviewFrame = document.getElementById('weather-slide-preview');
 
   // Seasonal backgrounds toggle
   const useSeasonalBg = document.getElementById('use-seasonal-bg');
 
   let citySearchTimer = null;
+
+  function postSlidePreviewRefresh() {
+    if (!slidePreviewFrame?.contentWindow) return false;
+    slidePreviewFrame.contentWindow.postMessage({ type: 'weather:refresh' }, '*');
+    return true;
+  }
 
   function showStatus(message, isError = false) {
     if (!statusEl) return;
@@ -92,6 +99,7 @@
       weatherData = data.weather || null;
       updateUI();
       updateWeatherPreview();
+      postSlidePreviewRefresh();
     } catch (error) {
       console.error('Erreur lors du chargement de la config:', error);
       showStatus('Erreur de chargement', true);
@@ -366,6 +374,7 @@
       updateWeatherPreview();
       await loadBackgrounds();
       showStatus('Météo actualisée');
+      postSlidePreviewRefresh();
     } catch (error) {
       console.error('Erreur lors du rafraîchissement:', error);
       showStatus('Erreur de rafraîchissement', true);

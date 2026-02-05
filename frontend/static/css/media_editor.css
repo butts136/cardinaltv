@@ -651,6 +651,16 @@
   background: transparent;
 }
 
+.live-editor-preview-iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .preview-frame-content {
   position: absolute;
   top: 50%;
@@ -659,6 +669,7 @@
   height: var(--slideshow-base-height, var(--preview-base-height, 1080px));
   transform-origin: center;
   transform: translate(-50%, -50%) scale(var(--slideshow-scale, var(--preview-scale, 1)));
+  z-index: 1;
 }
 
 .preview-frame-media {
@@ -671,6 +682,25 @@
   justify-content: center;
   z-index: 1;
   pointer-events: none;
+}
+
+.preview-frame[data-preview-mode="slideshow"] .preview-frame-media {
+  display: none;
+}
+
+.preview-frame[data-preview-mode="slideshow"] .preview-text-card {
+  color: transparent;
+  text-shadow: none;
+  background-color: transparent !important;
+}
+
+.preview-frame[data-preview-mode="slideshow"] .preview-text-content {
+  color: transparent;
+}
+
+.preview-frame[data-preview-mode="slideshow"] .preview-text-card.preview-placeholder {
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: none;
 }
 
 .preview-frame-media img,
@@ -4446,6 +4476,11 @@ details.collapsible:not([open]) .birthday-text-footer {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+#team-preview-stage .slideshow-frame {
+  width: 100%;
+  height: 100%;
 }
 
 #team-preview-stage video,

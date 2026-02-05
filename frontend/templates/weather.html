@@ -151,7 +151,7 @@
     <div class="section-header">
       <div>
         <h2>Aperçu météo actuelle</h2>
-        <p class="playlist-subtitle">Données météo en temps réel.</p>
+        <p class="playlist-subtitle">Données météo en temps réel (utilisées dans la diapo).</p>
       </div>
       <button type="button" class="secondary-button" id="refresh-weather-btn">Rafraîchir</button>
     </div>
@@ -199,6 +199,28 @@
             <!-- Prévisions chargées dynamiquement -->
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card weather-slide-preview-section" id="weather-slide-preview-section">
+    <div class="section-header">
+      <div>
+        <h2>Aperçu de la diapositive</h2>
+        <p class="playlist-subtitle">Visualisez la diapositive Météo telle qu'elle sera affichée.</p>
+      </div>
+      <button type="button" class="secondary-button" data-preview-iframe="weather-slide-preview">Rafraîchir l'aperçu</button>
+    </div>
+
+    <div class="section-content">
+      <div class="slideshow-frame weather-slide-preview-frame">
+        <iframe
+          id="weather-slide-preview"
+          class="slideshow-preview-iframe"
+          title="Aperçu diapositive météo"
+          loading="lazy"
+          src="{{ url_for('main.slideshow') }}?slide=weather&preview=1"
+        ></iframe>
       </div>
     </div>
   </section>

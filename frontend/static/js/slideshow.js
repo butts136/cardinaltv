@@ -25,7 +25,39 @@ const rootElement = document.documentElement;
 const urlParams = new URLSearchParams(window.location.search);
 const isPreviewMode = urlParams.has("preview");
 const previewSlideType = (urlParams.get("slide") || "").trim().toLowerCase();
-const isSingleSlideMode = previewSlideType === "news" || previewSlideType === "weather";
+const previewSlideId = (urlParams.get("slideId") || urlParams.get("id") || urlParams.get("custom") || "")
+  .trim();
+const previewVariantRaw = (urlParams.get("variant") || "").trim().toLowerCase();
+const isEditorPreview =
+  (urlParams.get("editor") || "").trim().toLowerCase() === "1" ||
+  (urlParams.get("editor") || "").trim().toLowerCase() === "true";
+const normalizeSingleSlideType = (value) => {
+  switch ((value || "").trim().toLowerCase()) {
+    case "team":
+      return "team";
+    case "birthday":
+      return "birthday";
+    case "time-change":
+    case "time_change":
+    case "timechange":
+      return "time-change";
+    case "christmas":
+    case "noel":
+      return "christmas";
+    case "custom":
+      return "custom";
+    case "test":
+      return "test";
+    case "news":
+      return "news";
+    case "weather":
+      return "weather";
+    default:
+      return "";
+  }
+};
+const singleSlideType = normalizeSingleSlideType(previewSlideType);
+const isSingleSlideMode = Boolean(singleSlideType);
 const preloadParam = (urlParams.get("preload") || "").trim().toLowerCase();
 const PRELOAD_ENABLED = preloadParam === "1" || preloadParam === "true" || preloadParam === "yes";
 const sharedRenderers = window.CardinalSlideRenderers || null;
@@ -108,6 +140,11 @@ const {
   WEEKDAY_KEYS,
   WEEKDAY_LABELS_FR,
 } = defaults;
+const resolvePreviewVariant = (value) => {
+  if (!value) return "";
+  return Array.isArray(BIRTHDAY_VARIANTS) && BIRTHDAY_VARIANTS.includes(value) ? value : "";
+};
+const previewBirthdayVariant = resolvePreviewVariant(previewVariantRaw);
 const clampPercent = (value) => Math.min(100, Math.max(0, value));
 const clamp01 = (value) => Math.min(1, Math.max(0, Number(value) || 0));
 const hexToRgb = (value) => {
@@ -134,11 +171,12 @@ const BASE_CANVAS_HEIGHT = Number(canvas?.dataset.baseHeight) || 1080;
 // Info bands configuration
 let infoBandsConfig = null;
 let lastInfoBandsFetch = 0;
-const INFO_BANDS_REFRESH_MS = 30 * 1000; // 30 seconds
+const INFO_BANDS_REFRESH_MS = performanceProfile.lowPower ? 60 * 1000 : 30 * 1000; // 30-60 seconds
 const DEFAULT_INFO_BANDS_TICKER = DEFAULT_OVERLAY?.ticker_text || "Bienvenue sur Cardinal TV";
 const INFO_BANDS_PROGRESS_STYLES = ["numeric", "dots", "bars", "steps", "bar"];
 const normalizeInfoBandProgressStyle = (value) =>
   INFO_BANDS_PROGRESS_STYLES.includes(value) ? value : "numeric";
+const PLAYLIST_REFRESH_MS = performanceProfile.lowPower ? 60 * 1000 : 30 * 1000;
 let infoBandsSignature = "";
 let infoBandWidgetTokenEntries = [];
 let infoBandWidgetProgressNodes = [];
@@ -189,11 +227,11 @@ const CHRISTMAS_REFRESH_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 let newsSlideSettings = { ...DEFAULT_NEWS_SLIDE };
 let newsItems = [];
 let lastNewsFetch = 0;
-const NEWS_REFRESH_MS = 60 * 1000; // 1 minute
+const NEWS_REFRESH_MS = performanceProfile.lowPower ? 90 * 1000 : 60 * 1000; // 1-1.5 minutes
 let weatherSlideSettings = { ...DEFAULT_WEATHER_SLIDE };
 let weatherData = null;
 let lastWeatherFetch = 0;
-const WEATHER_REFRESH_MS = 60 * 1000; // 1 minute
+const WEATHER_REFRESH_MS = performanceProfile.lowPower ? 90 * 1000 : 60 * 1000; // 1-1.5 minutes
 let testSlideSettings = { ...DEFAULT_CUSTOM_SLIDE };
 let testSlidePayload = null;
 let lastTestSlideFetch = 0;
@@ -214,6 +252,9 @@ let keepAwakeAnimationFrame = null;
 let teamScrollFrame = null;
 let teamScrollEndTimer = null;
 let teamScrollStartTimer = null;
+let newsScrollTimer = null;
+let newsScrollFrame = null;
+let newsScrollAnimation = null;
 let birthdayEmployeesData = null;
 const loadBirthdayCustomFonts = async () => birthdayConfig?.loadCustomFonts?.(fetchJSON);
 
@@ -1422,7 +1463,7 @@ const refreshInfoBandsLayout = async () => {
 };
 
 const initInfoBands = async () => {
-  if (isPreviewMode) {
+  if (isEditorPreview || isPreviewMode) {
     applyInfoBandsLayout({ enabled: false, frame: { size: 100 } });
     renderInfoBandWidgets({ enabled: false, widgets: [] });
     return;
@@ -1673,7 +1714,7 @@ const runInitialCacheWarmup = async (items, extraUrls = [], startIndex = 0) => {
   return initialCacheWarmupPromise;
 };
 
-const MEDIA_SWAP_FADE_MS = 300;
+const MEDIA_SWAP_FADE_MS = performanceProfile.lowPower ? 150 : 300;
 const MEDIA_READY_TIMEOUT_MS = 1800;
 let activeMediaLayer = null;
 let idleMediaLayer = null;
@@ -2075,7 +2116,8 @@ const ensureItemMediaCached = async (item, { timeoutMs = 6000, showStatus = fals
     }, 200);
   }
   try {
-    await slideshowCache.precacheUrls(urls, { timeoutMs, concurrency: 2 });
+    const concurrency = performanceProfile.lowPower ? 1 : 2;
+    await slideshowCache.precacheUrls(urls, { timeoutMs, concurrency });
   } finally {
     if (statusTimer) {
       clearTimeout(statusTimer);
@@ -2229,7 +2271,7 @@ const detectMediaKind = (item) => {
   return "other";
 };
 
-const buildSingleSlideItem = (type) => {
+const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
   if (type === "news") {
     return {
       id: NEWS_SLIDE_ID,
@@ -2247,6 +2289,54 @@ const buildSingleSlideItem = (type) => {
       filename: "weather_slide",
       mimetype: "application/x-weather-slide",
     };
+  }
+  if (type === "team") {
+    await ensureTeamEmployeesData();
+    return buildTeamSlideItem();
+  }
+  if (type === "time-change") {
+    const change = await fetchTimeChangeInfo(true);
+    return buildTimeChangeSlideItem(change || timeChangeInfo || null);
+  }
+  if (type === "christmas") {
+    const christmas = await fetchChristmasInfo(true);
+    return buildChristmasSlideItem(christmas || christmasInfo || null);
+  }
+  if (type === "birthday") {
+    const entries = await ensureBirthdayEmployeesData();
+    const forcedVariant = previewBirthdayVariant || "before";
+    if (Array.isArray(entries) && entries.length) {
+      if (previewBirthdayVariant) {
+        const match = entries.find((entry) => entry?.variant === previewBirthdayVariant);
+        if (match) {
+          return buildBirthdaySlideItem(match);
+        }
+      }
+      return buildBirthdaySlideItem(entries[0]);
+    }
+    const previewConfig = await loadBirthdayVariantConfig(forcedVariant);
+    const previewDays = getBirthdayDaysBefore();
+    const previewDate = new Date();
+    previewDate.setUTCDate(previewDate.getUTCDate() + Math.max(0, previewDays));
+    const meta = formatBirthdayMeta(previewDate);
+    return buildBirthdaySlideItem({
+      variant: forcedVariant,
+      daysUntilBirthday: previewDays,
+      daysUntilAnnounce: previewDays,
+      birthday_weekday: meta.weekday,
+      birthday_date: meta.fullDate,
+      employees: [{ id: "preview", name: "Prénom Nom" }],
+      config: previewConfig,
+    });
+  }
+  if (type === "custom") {
+    const list = await fetchCustomSlidesList(true);
+    const target = (Array.isArray(list) ? list : []).find((entry) => entry?.id === slideId) || list?.[0];
+    return target ? buildCustomSlideItem(target) : null;
+  }
+  if (type === "test") {
+    const testData = await fetchTestSlide(true);
+    return testData ? buildTestSlideItem(testData) : null;
   }
   return null;
 };
@@ -2594,6 +2684,25 @@ const clearTeamSlideTimers = () => {
   }
 };
 
+const clearNewsSlideTimers = () => {
+  if (newsScrollFrame) {
+    cancelAnimationFrame(newsScrollFrame);
+    newsScrollFrame = null;
+  }
+  if (newsScrollTimer) {
+    clearTimeout(newsScrollTimer);
+    newsScrollTimer = null;
+  }
+  if (newsScrollAnimation) {
+    try {
+      newsScrollAnimation.cancel();
+    } catch (error) {
+      // ignore
+    }
+    newsScrollAnimation = null;
+  }
+};
+
 const clearDocumentPlayback = () => {
   if (documentTimer) {
     clearTimeout(documentTimer);
@@ -2621,6 +2730,7 @@ const clearPlaybackTimer = ({ holdVideoFrame = false, keepVideo = false } = {}) 
   }
   clearDocumentPlayback();
   clearTeamSlideTimers();
+  clearNewsSlideTimers();
   if (keepVideo) {
     return;
   }
@@ -4004,6 +4114,7 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
     clearPlaybackTimer({ holdVideoFrame: shouldHoldVideoFrame() });
   }
   currentVideo = null;
+  clearNewsSlideTimers();
 
   const { settings, items } = await fetchNewsData();
   const durationSeconds = Math.max(1, Math.round(Number(item.duration) || settings.duration || 20));
@@ -4069,6 +4180,7 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
     noItems.textContent = "Aucune nouvelle disponible";
     cardsContainer.appendChild(noItems);
   } else {
+    const cardsFragment = document.createDocumentFragment();
     items.slice(0, effectiveMaxItems).forEach((newsItem) => {
       const card = document.createElement("div");
       card.className = "news-slide-card";
@@ -4125,8 +4237,9 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
       }
 
       card.appendChild(content);
-      cardsContainer.appendChild(card);
+      cardsFragment.appendChild(card);
     });
+    cardsContainer.appendChild(cardsFragment);
   }
 
   const slideId = item.id;
@@ -4151,8 +4264,6 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
   // Setup scrolling animation
   const scrollDelay = (settings.scroll_delay || 3) * 1000;
   const scrollSpeed = settings.scroll_speed || 50;
-  let scrollFrame = null;
-  let scrollY = 0;
 
   const startScroll = () => {
     if (slideId && currentId !== slideId) return;
@@ -4166,6 +4277,23 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
 
     const scrollDistance = containerHeight;
     const scrollDuration = (scrollDistance / scrollSpeed) * 1000;
+
+    if (cardsContainer.animate && !performanceProfile.prefersReducedMotion) {
+      const from = "translate3d(0, 0, 0)";
+      const to = `translate3d(0, -${scrollDistance}px, 0)`;
+      newsScrollAnimation = cardsContainer.animate(
+        [{ transform: from }, { transform: to }],
+        { duration: scrollDuration, easing: "linear", fill: "forwards" },
+      );
+      newsScrollAnimation.onfinish = () => {
+        newsScrollAnimation = null;
+        if (slideId && currentId !== slideId) return;
+        void advanceSlide().catch((error) => console.error(error));
+      };
+      return;
+    }
+
+    let scrollY = 0;
     let startTime = null;
     let lastFrameTime = 0;
     const frameInterval = performanceProfile.maxAnimationFps > 0
@@ -4174,14 +4302,15 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
 
     const animateScroll = (timestamp) => {
       if (slideId && currentId !== slideId) {
-        cancelAnimationFrame(scrollFrame);
+        cancelAnimationFrame(newsScrollFrame);
+        newsScrollFrame = null;
         return;
       }
       if (startTime == null) {
         startTime = timestamp;
       }
       if (frameInterval > 0 && timestamp - lastFrameTime < frameInterval) {
-        scrollFrame = requestAnimationFrame(animateScroll);
+        newsScrollFrame = requestAnimationFrame(animateScroll);
         return;
       }
       lastFrameTime = timestamp;
@@ -4190,19 +4319,19 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
       scrollY = scrollDistance * progress;
       cardsContainer.style.transform = `translate3d(0, -${scrollY}px, 0)`;
       if (progress >= 1) {
-        cancelAnimationFrame(scrollFrame);
+        newsScrollFrame = null;
         void advanceSlide().catch((error) => console.error(error));
         return;
       }
-      scrollFrame = requestAnimationFrame(animateScroll);
+      newsScrollFrame = requestAnimationFrame(animateScroll);
     };
 
-    scrollFrame = requestAnimationFrame(animateScroll);
+    newsScrollFrame = requestAnimationFrame(animateScroll);
   };
 
   const startScrollTimer = () => {
     if (slideId && currentId !== slideId) return;
-    setTimeout(startScroll, scrollDelay);
+    newsScrollTimer = setTimeout(startScroll, scrollDelay);
   };
   if (swapPromise && typeof swapPromise.then === "function") {
     swapPromise.then(startScrollTimer);
@@ -4217,7 +4346,7 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
   }
   currentVideo = null;
 
-  const { settings, data } = await fetchWeatherData(previewSlideType === "weather");
+  const { settings, data } = await fetchWeatherData(singleSlideType === "weather");
   const durationSeconds = Math.max(1, Math.round(Number(item.duration) || settings.duration || 15));
 
   const viewport = document.createElement("div");
@@ -5024,7 +5153,8 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
 
   const showPreloadStatus = PRELOAD_ENABLED && !initialCacheWarmupDone;
   const preloadTimeoutMs = showPreloadStatus ? 15000 : 6000;
-  const shouldBlockPreload = PRELOAD_ENABLED && !initialCacheWarmupDone;
+  const shouldBlockPreload =
+    PRELOAD_ENABLED && !initialCacheWarmupDone && !performanceProfile.lowPower;
   const preloadPromise = ensureItemMediaCached(item, {
     timeoutMs: preloadTimeoutMs,
     showStatus: showPreloadStatus && shouldBlockPreload,
@@ -5109,9 +5239,40 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   }
 };
 
+const handleSlideRefresh = async () => {
+  try {
+    if (!isEditorPreview) {
+      await refreshOverlaySettings();
+    } else {
+      applyOverlaySettings({ enabled: false, logo_path: "", ticker_text: "" });
+    }
+    if (!isSingleSlideMode) {
+      return;
+    }
+    const item = await buildSingleSlideItem(singleSlideType, { slideId: previewSlideId });
+    if (!item) return;
+    playlist = [item];
+    playlistSignature = computeSignature(playlist);
+    currentIndex = 0;
+    currentId = item.id;
+    if (stage) {
+      stage.hidden = false;
+      updateCanvasScale();
+    }
+    await showMedia(item, { maintainSkip: true });
+    preloadNextBackground();
+  } catch (error) {
+    console.warn("Impossible d'actualiser la diapositive:", error);
+  }
+};
+
 window.addEventListener("message", (event) => {
   const data = event.data;
   if (!data || typeof data !== "object") return;
+  if (data.type === "slide:refresh" || data.type === "editor:refresh") {
+    void handleSlideRefresh();
+    return;
+  }
   if (data.type === "news:preview") {
     if (data.settings && typeof data.settings === "object") {
       newsSlideSettings = { ...newsSlideSettings, ...data.settings };
@@ -5120,7 +5281,7 @@ window.addEventListener("message", (event) => {
       newsItems = data.items;
       lastNewsFetch = Date.now();
     }
-    if (previewSlideType === "news") {
+    if (singleSlideType === "news") {
       const previewItem = currentItem && detectMediaKind(currentItem) === "news"
         ? currentItem
         : {
@@ -5134,7 +5295,7 @@ window.addEventListener("message", (event) => {
     return;
   }
   if (data.type === "weather:refresh") {
-    if (previewSlideType === "weather") {
+    if (singleSlideType === "weather") {
       void renderWeatherSlide({
         weather_slide: true,
         duration: weatherSlideSettings.duration || DEFAULT_WEATHER_SLIDE.duration || 15,
@@ -5241,7 +5402,7 @@ const startPlaylistRefresh = () => {
       void refreshOverlaySettings();
       void refreshInfoBandsLayout();
     }
-  }, 30000);
+  }, PLAYLIST_REFRESH_MS);
 };
 
 const startSlideshow = async () => {
@@ -5255,8 +5416,11 @@ const startSlideshow = async () => {
   await loadBirthdayCustomFonts();
   if (!isPreviewMode || isSingleSlideMode) {
     await refreshOverlaySettings();
+    if (isEditorPreview) {
+      applyOverlaySettings({ enabled: false, logo_path: "", ticker_text: "" });
+    }
     await refreshWeatherBackgroundUrls();
-    if (infoBandsConfig) {
+    if (!isEditorPreview && infoBandsConfig) {
       renderInfoBandWidgets(infoBandsConfig);
     }
   } else {
@@ -5264,7 +5428,7 @@ const startSlideshow = async () => {
   }
 
   if (isSingleSlideMode) {
-    const item = buildSingleSlideItem(previewSlideType);
+    const item = await buildSingleSlideItem(singleSlideType, { slideId: previewSlideId });
     if (!item) {
       handleEmptyPlaylist();
       return false;
@@ -5275,6 +5439,7 @@ const startSlideshow = async () => {
     currentId = item.id;
     if (stage) {
       stage.hidden = false;
+      updateCanvasScale();
     }
     await showMedia(item);
     preloadNextBackground();

@@ -147,7 +147,7 @@
     <div class="section-header">
       <div>
         <h2>Aperçu des nouvelles</h2>
-        <p class="playlist-subtitle">Prévisualisez les nouvelles qui seront affichées.</p>
+        <p class="playlist-subtitle">Liste des nouvelles (données) utilisées dans la diapositive.</p>
       </div>
       <button type="button" class="secondary-button" id="refresh-news-btn">Rafraîchir</button>
     </div>
@@ -165,15 +165,17 @@
         <h2>Aperçu de la diapositive</h2>
         <p class="playlist-subtitle">Visualisez la diapositive Nouvelles telle qu'elle sera affichée.</p>
       </div>
+      <button type="button" class="secondary-button" data-preview-iframe="news-slide-preview">Rafraîchir l'aperçu</button>
     </div>
 
     <div class="section-content">
       <div class="slideshow-frame news-slide-preview-frame">
         <iframe
-          class="news-slide-preview-iframe"
+          id="news-slide-preview"
+          class="news-slide-preview-iframe slideshow-preview-iframe"
           title="Aperçu diapositive nouvelles"
           loading="lazy"
-          src="{{ url_for('main.slideshow') }}?slide=news"
+          src="{{ url_for('main.slideshow') }}?slide=news&preview=1"
         ></iframe>
       </div>
     </div>

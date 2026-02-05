@@ -162,17 +162,25 @@
             </div>
 
       <div class="team-preview">
-        <h3>Aper&ccedil;u en direct</h3>
+        <h3>Aper&ccedil;u de la diapositive</h3>
         <p class="playlist-subtitle">
-          Aper&ccedil;u de la diapositive &laquo; Notre &Eacute;quipe &raquo; telle qu'elle appara&icirc;tra dans le diaporama.
+          Aper&ccedil;u r&eacute;el rendu par le moteur du slideshow.
         </p>
         <div class="team-preview-actions">
-          <button type="button" class="secondary-button" id="team-preview-refresh">
+          <button type="button" class="secondary-button" id="team-preview-refresh" data-preview-iframe="team-slide-preview">
             Rafra&icirc;chir l'aper&ccedil;u
           </button>
         </div>
-        <div class="team-preview-stage" id="team-preview-stage">
-          <!-- Aper&ccedil;u g&eacute;n&eacute;r&eacute; par JavaScript -->
+        <div class="team-preview-stage" id="team-preview-stage" data-preview-mode="slideshow">
+          <div class="slideshow-frame team-slide-preview-frame">
+            <iframe
+              id="team-slide-preview"
+              class="slideshow-preview-iframe"
+              title="Aperçu diapositive Notre Équipe"
+              loading="lazy"
+              src="{{ url_for('main.slideshow') }}?slide=team&preview=1"
+            ></iframe>
+          </div>
         </div>
         <div class="team-actions">
           <button type="button" class="primary-button" id="team-save-button">
