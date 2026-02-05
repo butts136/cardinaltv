@@ -101,6 +101,9 @@ const isTvDevice =
   /AFT|Fire TV|Android TV|SmartTV|SMART-TV|HbbTV|NetCast|Viera|BRAVIA|CrKey|Roku|Tizen|WebOS/i.test(
     userAgent,
   );
+if (document.body) {
+  document.body.classList.toggle("slideshow-tv", isTvDevice);
+}
 
 const defaults = window.CardinalSlideshowDefaults || {};
 const birthdayConfig = window.CardinalBirthdayConfig || null;
@@ -2027,8 +2030,10 @@ const isSlowBackgroundConnection = () => {
   const type = String(connection.effectiveType || "").toLowerCase();
   return BACKGROUND_VIDEO_SLOW_TYPES.has(type);
 };
-const getBackgroundVideoPreload = () =>
-  isSlowBackgroundConnection() || performanceProfile.lowPower ? "metadata" : "auto";
+const getBackgroundVideoPreload = () => {
+  if (isTvDevice) return "auto";
+  return isSlowBackgroundConnection() || performanceProfile.lowPower ? "metadata" : "auto";
+};
 const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", playHandler = null } = {}) => {
   if (!video) return;
   const preload = getBackgroundVideoPreload();
@@ -3867,16 +3872,22 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     const video = document.createElement("video");
     video.className = "birthday-slide-media birthday-slide-video";
     video.autoplay = true;
+    video.setAttribute("autoplay", "");
     video.loop = true;
     video.muted = true;
     video.defaultMuted = true;
     video.volume = 0;
+    video.setAttribute("muted", "muted");
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     video.src = bgUrl;
+    const playHandler = isTvDevice
+      ? createBackgroundVideoPlayHandler(video, { slideId: item.id, maxRetries: 6, retryDelay: 500 })
+      : null;
     setupBackgroundVideo(video, {
       fallbackEl: backdrop,
       fallbackClass: "birthday-slide-backdrop--fallback",
+      playHandler,
     });
     backdrop.appendChild(video);
     currentVideo = video;

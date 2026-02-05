@@ -4566,11 +4566,19 @@ def serve_birthday_slide_asset(filename: str) -> Any:
     target = BIRTHDAY_SLIDE_ASSETS_DIR / filename
     if not target.exists():
         abort(404, description="Fichier introuvable.")
-    return send_from_directory(
+    mimetype = _guess_mimetype(filename) or "application/octet-stream"
+    resp = send_from_directory(
         BIRTHDAY_SLIDE_ASSETS_DIR,
         filename,
         as_attachment=False,
+        mimetype=mimetype,
     )
+    try:
+        resp.headers["Cache-Control"] = "public, max-age=604800, immutable"
+        resp.headers["Accept-Ranges"] = "bytes"
+    except Exception:
+        pass
+    return resp
 
 
 @bp.route("/time-change-slide-assets/<path:filename>")
