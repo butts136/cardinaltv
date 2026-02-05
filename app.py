@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import calendar
 import copy
 import html
@@ -11,6 +12,7 @@ import mimetypes
 import os
 import re
 import shutil
+import zlib
 import subprocess
 import sys
 import urllib.parse
@@ -6227,18 +6229,39 @@ def _fetch_html(url: str, timeout: int = 15) -> str:
         request_obj = urllib.request.Request(
             url,
             headers={
-                "User-Agent": "CardinalTV/1.0 (+https://cardinaltv.local)",
-                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "fr-CA,fr;q=0.9,en;q=0.8",
+                "Accept-Encoding": "gzip, deflate",
+                "Connection": "close",
             },
         )
         with urllib.request.urlopen(request_obj, timeout=timeout) as response:
             raw = response.read(NEWS_SCRAPER_MAX_HTML_BYTES + 1)
             content_type = response.headers.get("Content-Type", "")
+            encoding = response.headers.get("Content-Encoding", "")
     except Exception:
         return ""
 
     if len(raw) > NEWS_SCRAPER_MAX_HTML_BYTES:
         raw = raw[:NEWS_SCRAPER_MAX_HTML_BYTES]
+
+    if encoding:
+        lowered = encoding.lower()
+        try:
+            if "gzip" in lowered:
+                raw = gzip.decompress(raw)
+            elif "deflate" in lowered:
+                try:
+                    raw = zlib.decompress(raw)
+                except Exception:
+                    raw = zlib.decompress(raw, -zlib.MAX_WBITS)
+        except Exception:
+            pass
 
     charset_match = re.search(r"charset=([^\s;]+)", content_type, re.IGNORECASE)
     charset = charset_match.group(1).strip() if charset_match else "utf-8"
