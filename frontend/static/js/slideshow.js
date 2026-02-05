@@ -277,6 +277,7 @@ let newsScrollAnimation = null;
 let newsScrollCleanup = null;
 let newsScrollStartToken = 0;
 let birthdayEmployeesData = null;
+let lastSlideStartAt = 0;
 const loadBirthdayCustomFonts = async () => birthdayConfig?.loadCustomFonts?.(fetchJSON);
 
 const normalizeBirthdayLines = (config = {}) =>
@@ -5610,6 +5611,7 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
 
   currentItem = item;
   currentId = item.id;
+  lastSlideStartAt = Date.now();
   const index = playlist.findIndex((candidate) => candidate.id === item.id);
   if (index >= 0) {
     currentIndex = index;
@@ -5856,6 +5858,11 @@ const handlePlaylistRefresh = async () => {
   if (result.changed) {
     const current = playlist[currentIndex];
     if (current && detectMediaKind(current) !== "video") {
+      const elapsed = Date.now() - lastSlideStartAt;
+      if (elapsed < 3500) {
+        preloadNextBackground();
+        return;
+      }
       await showMedia(current, { maintainSkip: true });
       preloadNextBackground();
       if (!isPreviewMode) {
