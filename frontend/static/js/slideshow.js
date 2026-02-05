@@ -60,6 +60,17 @@ const singleSlideType = normalizeSingleSlideType(previewSlideType);
 const isSingleSlideMode = Boolean(singleSlideType);
 const preloadParam = (urlParams.get("preload") || "").trim().toLowerCase();
 const PRELOAD_ENABLED = preloadParam === "1" || preloadParam === "true" || preloadParam === "yes";
+const videoDebugParam = (urlParams.get("video_debug") || urlParams.get("birthday_debug") || urlParams.get("debug") || "")
+  .trim()
+  .toLowerCase();
+const VIDEO_DEBUG_ENABLED =
+  urlParams.has("video_debug") ||
+  urlParams.has("birthday_debug") ||
+  urlParams.has("debug") ||
+  videoDebugParam === "1" ||
+  videoDebugParam === "true" ||
+  videoDebugParam === "yes" ||
+  videoDebugParam === "on";
 const sharedRenderers = window.CardinalSlideRenderers || null;
 const slideshowCache = window.CardinalSlideshowCache || null;
 let weatherBackgroundUrls = [];
@@ -2221,6 +2232,63 @@ const createBackgroundVideoPlayHandler = (video, { slideId = null, maxRetries = 
   return attemptPlay;
 };
 
+const attachVideoDebugOverlay = (container, video, { label = "" } = {}) => {
+  if (!container || !video || !VIDEO_DEBUG_ENABLED) return null;
+  const panel = document.createElement("div");
+  panel.className = "video-debug-overlay";
+  panel.textContent = "video debug…";
+  container.appendChild(panel);
+
+  const formatTime = (value) => (Number.isFinite(value) ? value.toFixed(2) : "--");
+  const formatBool = (value) => (value ? "true" : "false");
+  const formatSrc = (value) => {
+    if (!value) return "";
+    const str = String(value);
+    return str.length > 140 ? `${str.slice(0, 90)}…${str.slice(-40)}` : str;
+  };
+
+  const update = () => {
+    if (!video.isConnected) {
+      return false;
+    }
+    const error = video.error;
+    const lines = [
+      `label: ${label || "video"}`,
+      `src: ${formatSrc(video.currentSrc || video.src)}`,
+      `readyState: ${video.readyState} | networkState: ${video.networkState}`,
+      `currentTime: ${formatTime(video.currentTime)} / ${formatTime(video.duration)}`,
+      `paused: ${formatBool(video.paused)} | ended: ${formatBool(video.ended)}`,
+      `muted: ${formatBool(video.muted)} | volume: ${formatTime(video.volume)}`,
+      `videoSize: ${video.videoWidth || 0}x${video.videoHeight || 0}`,
+      `error.code: ${error ? error.code : 0}`,
+      `visibility: ${document.visibilityState || "unknown"}`,
+      `tv: ${formatBool(isTvDevice)}`,
+    ];
+    panel.textContent = lines.join("\n");
+    return true;
+  };
+
+  const tick = () => {
+    if (!update()) {
+      clearInterval(timer);
+      panel.remove();
+    }
+  };
+
+  const timer = setInterval(tick, 500);
+  const fastUpdate = () => update();
+  video.addEventListener("loadedmetadata", fastUpdate);
+  video.addEventListener("loadeddata", fastUpdate);
+  video.addEventListener("canplay", fastUpdate);
+  video.addEventListener("playing", fastUpdate);
+  video.addEventListener("pause", fastUpdate);
+  video.addEventListener("stalled", fastUpdate);
+  video.addEventListener("waiting", fastUpdate);
+  video.addEventListener("error", fastUpdate);
+  update();
+  return panel;
+};
+
 const resolveItemBackground = (item) => {
   if (!item || typeof item !== "object") {
     return null;
@@ -3891,6 +3959,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     });
     backdrop.appendChild(video);
     currentVideo = video;
+    attachVideoDebugOverlay(frameEl, video, { label: "birthday" });
   } else if (bgUrl) {
     const img = document.createElement("img");
     img.className = "birthday-slide-media birthday-slide-image";
