@@ -1182,7 +1182,20 @@ const applyInfoBandWidgetTextFitAll = () => {
 
 const resolveVisibleIndex = () => {
   const total = Array.isArray(playlist) ? playlist.length : 0;
-  if (visibleId && total > 0) {
+  if (total <= 0) {
+    return -1;
+  }
+  if (Number.isFinite(currentIndex) && currentIndex >= 0 && currentIndex < total) {
+    const currentEntry = playlist[currentIndex];
+    if (!currentId || currentEntry?.id === currentId) {
+      return currentIndex;
+    }
+  }
+  if (currentId) {
+    const idx = playlist.findIndex((entry) => entry && entry.id === currentId);
+    if (idx >= 0) return idx;
+  }
+  if (visibleId) {
     const idx = playlist.findIndex((entry) => entry && entry.id === visibleId);
     if (idx >= 0) return idx;
   }
@@ -5145,6 +5158,11 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   if (index >= 0) {
     currentIndex = index;
   }
+  visibleId = currentId;
+  if (Number.isFinite(currentIndex) && currentIndex >= 0) {
+    visibleIndex = currentIndex;
+  }
+  updateInfoBandWidgetProgress();
 
   noteItemDisplayed(item, { maintainSkip });
 
