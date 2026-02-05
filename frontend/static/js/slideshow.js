@@ -253,8 +253,9 @@ let teamScrollFrame = null;
 let teamScrollEndTimer = null;
 let teamScrollStartTimer = null;
 let newsScrollTimer = null;
-let newsScrollFrame = null;
 let newsScrollAnimation = null;
+let newsScrollCleanup = null;
+let newsScrollStartToken = 0;
 let birthdayEmployeesData = null;
 const loadBirthdayCustomFonts = async () => birthdayConfig?.loadCustomFonts?.(fetchJSON);
 
@@ -2698,10 +2699,6 @@ const clearTeamSlideTimers = () => {
 };
 
 const clearNewsSlideTimers = () => {
-  if (newsScrollFrame) {
-    cancelAnimationFrame(newsScrollFrame);
-    newsScrollFrame = null;
-  }
   if (newsScrollTimer) {
     clearTimeout(newsScrollTimer);
     newsScrollTimer = null;
@@ -2714,6 +2711,15 @@ const clearNewsSlideTimers = () => {
     }
     newsScrollAnimation = null;
   }
+  if (newsScrollCleanup) {
+    try {
+      newsScrollCleanup();
+    } catch (error) {
+      // ignore
+    }
+    newsScrollCleanup = null;
+  }
+  newsScrollStartToken += 1;
 };
 
 const clearDocumentPlayback = () => {
@@ -4186,6 +4192,7 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
   const cardsContainer = document.createElement("div");
   cardsContainer.className = "news-slide-cards";
   cardsContainer.style.willChange = "transform";
+  cardsContainer.style.transform = "translate3d(0, 0, 0)";
 
   if (!items.length) {
     const noItems = document.createElement("div");
@@ -4278,6 +4285,34 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
   const scrollDelay = (settings.scroll_delay || 3) * 1000;
   const scrollSpeed = settings.scroll_speed || 50;
 
+  const waitForNewsImages = async (container, timeoutMs) => {
+    if (!container) return;
+    const images = Array.from(container.querySelectorAll("img"));
+    if (!images.length) return;
+    const decodePromises = images.map((img) => {
+      if (img.complete && img.naturalWidth > 0) {
+        return Promise.resolve();
+      }
+      if (typeof img.decode === "function") {
+        return img.decode().catch(() => {});
+      }
+      return new Promise((resolve) => {
+        img.addEventListener("load", resolve, { once: true });
+        img.addEventListener("error", resolve, { once: true });
+      });
+    });
+    if (!decodePromises.length) return;
+    const timeout = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 0;
+    if (!timeout) {
+      await Promise.allSettled(decodePromises);
+      return;
+    }
+    await Promise.race([
+      Promise.allSettled(decodePromises),
+      new Promise((resolve) => setTimeout(resolve, timeout)),
+    ]);
+  };
+
   const startScroll = () => {
     if (slideId && currentId !== slideId) return;
     const containerHeight = cardsContainer.scrollHeight;
@@ -4291,7 +4326,19 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
     const scrollDistance = containerHeight;
     const scrollDuration = (scrollDistance / scrollSpeed) * 1000;
 
-    if (cardsContainer.animate && !performanceProfile.prefersReducedMotion) {
+    const scheduleScrollFallbackAdvance = () => {
+      if (newsScrollTimer) {
+        clearTimeout(newsScrollTimer);
+      }
+      newsScrollTimer = setTimeout(() => {
+        if (slideId && currentId !== slideId) return;
+        void advanceSlide().catch((error) => console.error(error));
+      }, scrollDuration + 120);
+    };
+
+    const useWaapi =
+      cardsContainer.animate && !performanceProfile.prefersReducedMotion && !performanceProfile.lowPower;
+    if (useWaapi) {
       const from = "translate3d(0, 0, 0)";
       const to = `translate3d(0, -${scrollDistance}px, 0)`;
       newsScrollAnimation = cardsContainer.animate(
@@ -4300,51 +4347,56 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
       );
       newsScrollAnimation.onfinish = () => {
         newsScrollAnimation = null;
+        if (newsScrollTimer) {
+          clearTimeout(newsScrollTimer);
+          newsScrollTimer = null;
+        }
         if (slideId && currentId !== slideId) return;
         void advanceSlide().catch((error) => console.error(error));
       };
+      scheduleScrollFallbackAdvance();
       return;
     }
 
-    let scrollY = 0;
-    let startTime = null;
-    let lastFrameTime = 0;
-    const frameInterval = performanceProfile.maxAnimationFps > 0
-      ? 1000 / performanceProfile.maxAnimationFps
-      : 0;
-
-    const animateScroll = (timestamp) => {
-      if (slideId && currentId !== slideId) {
-        cancelAnimationFrame(newsScrollFrame);
-        newsScrollFrame = null;
-        return;
-      }
-      if (startTime == null) {
-        startTime = timestamp;
-      }
-      if (frameInterval > 0 && timestamp - lastFrameTime < frameInterval) {
-        newsScrollFrame = requestAnimationFrame(animateScroll);
-        return;
-      }
-      lastFrameTime = timestamp;
-      const elapsed = timestamp - startTime;
-      const progress = scrollDuration > 0 ? Math.min(1, elapsed / scrollDuration) : 1;
-      scrollY = scrollDistance * progress;
-      cardsContainer.style.transform = `translate3d(0, -${scrollY}px, 0)`;
-      if (progress >= 1) {
-        newsScrollFrame = null;
+    cardsContainer.style.transition = "none";
+    cardsContainer.style.transform = "translate3d(0, 0, 0)";
+    const applyTransition = () => {
+      if (slideId && currentId !== slideId) return;
+      const onEnd = (event) => {
+        if (event.propertyName !== "transform") return;
+        if (newsScrollTimer) {
+          clearTimeout(newsScrollTimer);
+          newsScrollTimer = null;
+        }
+        if (slideId && currentId !== slideId) return;
         void advanceSlide().catch((error) => console.error(error));
-        return;
-      }
-      newsScrollFrame = requestAnimationFrame(animateScroll);
+      };
+      newsScrollCleanup = () => {
+        cardsContainer.removeEventListener("transitionend", onEnd);
+        cardsContainer.style.transition = "";
+      };
+      cardsContainer.addEventListener("transitionend", onEnd, { once: true });
+      cardsContainer.style.transition = `transform ${scrollDuration}ms linear`;
+      cardsContainer.style.transform = `translate3d(0, -${scrollDistance}px, 0)`;
+      scheduleScrollFallbackAdvance();
     };
-
-    newsScrollFrame = requestAnimationFrame(animateScroll);
+    requestAnimationFrame(applyTransition);
+    return;
   };
 
   const startScrollTimer = () => {
     if (slideId && currentId !== slideId) return;
-    newsScrollTimer = setTimeout(startScroll, scrollDelay);
+    const token = ++newsScrollStartToken;
+    const waitTimeout = performanceProfile.lowPower ? 1600 : 900;
+    const waitPromise = waitForNewsImages(cardsContainer, waitTimeout);
+    const delayPromise = new Promise((resolve) => {
+      newsScrollTimer = setTimeout(resolve, scrollDelay);
+    });
+    void Promise.all([waitPromise, delayPromise]).then(() => {
+      if (token !== newsScrollStartToken) return;
+      if (slideId && currentId !== slideId) return;
+      startScroll();
+    });
   };
   if (swapPromise && typeof swapPromise.then === "function") {
     swapPromise.then(startScrollTimer);
