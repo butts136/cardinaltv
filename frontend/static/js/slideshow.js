@@ -63,7 +63,7 @@ const PRELOAD_ENABLED = preloadParam === "1" || preloadParam === "true" || prelo
 const videoDebugParam = (urlParams.get("video_debug") || urlParams.get("birthday_debug") || urlParams.get("debug") || "")
   .trim()
   .toLowerCase();
-const VIDEO_DEBUG_ENABLED =
+let VIDEO_DEBUG_ENABLED =
   urlParams.has("video_debug") ||
   urlParams.has("birthday_debug") ||
   urlParams.has("debug") ||
@@ -115,6 +115,7 @@ const isTvDevice =
 if (document.body) {
   document.body.classList.toggle("slideshow-tv", isTvDevice);
 }
+VIDEO_DEBUG_ENABLED = VIDEO_DEBUG_ENABLED || isTvDevice;
 
 const defaults = window.CardinalSlideshowDefaults || {};
 const birthdayConfig = window.CardinalBirthdayConfig || null;
@@ -2289,6 +2290,23 @@ const attachVideoDebugOverlay = (container, video, { label = "" } = {}) => {
   return panel;
 };
 
+const attachBirthdayDebugOverlay = (container, { bgUrl = "", bgMime = "", isVideo = false } = {}) => {
+  if (!container || !VIDEO_DEBUG_ENABLED) return null;
+  const panel = document.createElement("div");
+  panel.className = "video-debug-overlay video-debug-overlay--static";
+  const safeUrl = bgUrl ? String(bgUrl) : "";
+  panel.textContent = [
+    "birthday debug",
+    `bgUrl: ${safeUrl}`,
+    `mime: ${bgMime || ""}`,
+    `isVideo: ${isVideo ? "true" : "false"}`,
+    `visibility: ${document.visibilityState || "unknown"}`,
+    `tv: ${isTvDevice ? "true" : "false"}`,
+  ].join("\n");
+  container.appendChild(panel);
+  return panel;
+};
+
 const resolveItemBackground = (item) => {
   if (!item || typeof item !== "object") {
     return null;
@@ -3966,8 +3984,10 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     img.src = bgUrl;
     img.alt = "Arrière-plan anniversaire";
     backdrop.appendChild(img);
+    attachBirthdayDebugOverlay(frameEl, { bgUrl, bgMime, isVideo });
   } else {
     backdrop.classList.add("birthday-slide-backdrop--fallback");
+    attachBirthdayDebugOverlay(frameEl, { bgUrl, bgMime, isVideo });
   }
   frameEl.appendChild(backdrop);
 

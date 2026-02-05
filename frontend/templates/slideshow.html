@@ -27,9 +27,9 @@
 {% block body_scripts %}
     {{ super() }}
     <!-- Performance Manager : DOIT être chargé AVANT slideshow.js -->
-    <script src="{{ url_for('static', filename='js/performance_manager.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/slideshow/constants.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/slideshow_cache.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/slideshow.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/performance_manager.js') }}?v=20260205-2"></script>
+    <script src="{{ url_for('static', filename='js/slideshow/constants.js') }}?v=20260205-2"></script>
+    <script src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}?v=20260205-2"></script>
+    <script src="{{ url_for('static', filename='js/slideshow_cache.js') }}?v=20260205-2"></script>
+    <script src="{{ url_for('static', filename='js/slideshow.js') }}?v=20260205-2"></script>
 {% endblock %}

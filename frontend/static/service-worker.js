@@ -3,19 +3,29 @@
  * tout en laissant les appels API se rafraîchir depuis le réseau.
  */
 
-const CACHE_VERSION = "v7";
+const CACHE_VERSION = "v8";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 
+const BASE_PATH = (() => {
+  try {
+    const scope = self.registration?.scope || self.location.origin + "/";
+    const path = new URL(scope).pathname.replace(/\/$/, "");
+    return path === "/" ? "" : path;
+  } catch (e) {
+    return "";
+  }
+})();
+
 const CORE_ASSETS = [
-  "/",
-  "/slideshow",
-  "/static/css/styles.css",
-  "/static/js/slideshow/constants.js",
-  "/static/js/slideshow/birthday_config.js",
-  "/static/js/slideshow_cache.js",
-  "/static/js/slideshow.js",
-  "/static/img/favicon.png",
+  `${BASE_PATH}/`,
+  `${BASE_PATH}/slideshow`,
+  `${BASE_PATH}/static/css/styles.css`,
+  `${BASE_PATH}/static/js/slideshow/constants.js`,
+  `${BASE_PATH}/static/js/slideshow/birthday_config.js`,
+  `${BASE_PATH}/static/js/slideshow_cache.js`,
+  `${BASE_PATH}/static/js/slideshow.js`,
+  `${BASE_PATH}/static/img/favicon.png`,
 ];
 
 const MEDIA_EXTENSIONS = [
