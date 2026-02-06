@@ -13,6 +13,7 @@ import mimetypes
 import os
 import re
 import shutil
+import tempfile
 import zlib
 import subprocess
 import sys
@@ -3259,10 +3260,14 @@ class EmployeeStore:
         try:
             with self._json_path.open("r", encoding="utf-8") as handle:
                 data = json.load(handle)
-        except Exception:
+        except FileNotFoundError:
             data = []
+        except (json.JSONDecodeError, OSError) as exc:
+            app_logger.warning("[employees] Lecture impossible de %s: %s", self._json_path, exc)
+            return
         if not isinstance(data, list):
-            data = []
+            app_logger.warning("[employees] Format invalide dans %s.", self._json_path)
+            return
         dirty = False
         normalized: List[Dict[str, Any]] = []
         for idx, entry in enumerate(data):
@@ -3275,11 +3280,27 @@ class EmployeeStore:
             self._save()
 
     def _save(self) -> None:
+        tmp_path: Optional[Path] = None
         try:
-            with self._json_path.open("w", encoding="utf-8") as handle:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=self._json_path.parent,
+                delete=False,
+            ) as handle:
                 json.dump(self._employees, handle, ensure_ascii=False, indent=2)
+                handle.flush()
+                os.fsync(handle.fileno())
+                tmp_path = Path(handle.name)
+            os.replace(tmp_path, self._json_path)
         except Exception as exc:  # pragma: no cover
             app_logger.error("[employees] Impossible d'écrire %s: %s", self._json_path, exc)
+        finally:
+            if tmp_path and tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
 
     def _maybe_reload_from_disk(self) -> None:
         # Recharge systématiquement pour refléter le JSON actuel.
