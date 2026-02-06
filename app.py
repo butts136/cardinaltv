@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import gzip
 import calendar
+import concurrent.futures
 import copy
 import html
 import json
@@ -18,6 +19,7 @@ import sys
 import urllib.parse
 import urllib.request
 import uuid
+import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
@@ -4413,6 +4415,31 @@ def temporary() -> Any:
     return render_template("temporary.html")
 
 
+def _send_cached_directory_file(
+    directory: Path,
+    filename: str,
+    *,
+    mimetype: Optional[str] = None,
+    max_age: int = 604800,
+    immutable: bool = True,
+) -> Any:
+    resp = send_from_directory(
+        directory,
+        filename,
+        as_attachment=False,
+        mimetype=mimetype,
+    )
+    try:
+        cache_directive = f"public, max-age={max(0, int(max_age))}"
+        if immutable:
+            cache_directive = f"{cache_directive}, immutable"
+        resp.headers["Cache-Control"] = cache_directive
+        resp.headers["Accept-Ranges"] = "bytes"
+    except Exception:
+        pass
+    return resp
+
+
 @bp.route("/media/<path:filename>")
 def serve_media(filename: str) -> Any:
     file_path = MEDIA_DIR / filename
@@ -4438,27 +4465,12 @@ def serve_media(filename: str) -> Any:
         or _guess_mimetype(stored.get("original_name") if stored else None, filename)
         or "application/octet-stream"
     )
-    # Use send_from_directory to build the response, then set helpful caching
-    # headers to encourage the browser to reuse cached media between slideshow
-    # runs. Accept-Ranges is important for video playback (Range requests).
-    resp = send_from_directory(
+    # Use cached responses so slideshow loops re-use local browser data.
+    resp = _send_cached_directory_file(
         MEDIA_DIR,
         filename,
-        as_attachment=False,
         mimetype=mimetype,
     )
-    try:
-        # Cache media for 7 days and mark immutable when possible. This helps
-        # subsequent slideshow runs to read from browser cache instead of
-        # re-downloading. Server-side can adjust max-age as desired.
-        resp.headers['Cache-Control'] = 'public, max-age=604800, immutable'
-        # Indicate we support Range requests so browsers and players may
-        # request partial content.
-        resp.headers['Accept-Ranges'] = 'bytes'
-    except Exception:
-        # If headers cannot be modified for any reason, fall back to original
-        # response.
-        pass
     return resp
 
 
@@ -4484,17 +4496,11 @@ def serve_powerpoint(filename: str) -> Any:
         or _guess_mimetype(stored.get("original_name") if stored else None, filename)
         or "application/octet-stream"
     )
-    resp = send_from_directory(
+    resp = _send_cached_directory_file(
         POWERPOINT_DIR,
         filename,
-        as_attachment=False,
         mimetype=mimetype,
     )
-    try:
-        resp.headers["Cache-Control"] = "public, max-age=604800, immutable"
-        resp.headers["Accept-Ranges"] = "bytes"
-    except Exception:
-        pass
     return resp
 
 
@@ -4579,10 +4585,11 @@ def serve_temporary_asset(filename: str) -> Any:
     target = TEMP_SLIDE_ASSETS_DIR / filename
     if not target.exists():
         abort(404, description="Fichier introuvable.")
-    return send_from_directory(
+    mimetype = _guess_mimetype(filename) or "application/octet-stream"
+    return _send_cached_directory_file(
         TEMP_SLIDE_ASSETS_DIR,
         filename,
-        as_attachment=False,
+        mimetype=mimetype,
     )
 
 
@@ -4591,10 +4598,11 @@ def serve_team_slide_asset(filename: str) -> Any:
     target = TEAM_SLIDE_ASSETS_DIR / filename
     if not target.exists():
         abort(404, description="Fichier introuvable.")
-    return send_from_directory(
+    mimetype = _guess_mimetype(filename) or "application/octet-stream"
+    return _send_cached_directory_file(
         TEAM_SLIDE_ASSETS_DIR,
         filename,
-        as_attachment=False,
+        mimetype=mimetype,
     )
 
 
@@ -4604,17 +4612,11 @@ def serve_birthday_slide_asset(filename: str) -> Any:
     if not target.exists():
         abort(404, description="Fichier introuvable.")
     mimetype = _guess_mimetype(filename) or "application/octet-stream"
-    resp = send_from_directory(
+    resp = _send_cached_directory_file(
         BIRTHDAY_SLIDE_ASSETS_DIR,
         filename,
-        as_attachment=False,
         mimetype=mimetype,
     )
-    try:
-        resp.headers["Cache-Control"] = "public, max-age=604800, immutable"
-        resp.headers["Accept-Ranges"] = "bytes"
-    except Exception:
-        pass
     return resp
 
 
@@ -4623,10 +4625,11 @@ def serve_time_change_slide_asset(filename: str) -> Any:
     target = TIME_CHANGE_SLIDE_ASSETS_DIR / filename
     if not target.exists():
         abort(404, description="Fichier introuvable.")
-    return send_from_directory(
+    mimetype = _guess_mimetype(filename) or "application/octet-stream"
+    return _send_cached_directory_file(
         TIME_CHANGE_SLIDE_ASSETS_DIR,
         filename,
-        as_attachment=False,
+        mimetype=mimetype,
     )
 
 
@@ -6092,7 +6095,12 @@ def serve_christmas_slide_asset(filename: str) -> Any:
         abort(403, description="Chemin de fichier non autorisé.")
     if not target.exists() or not target.is_file():
         abort(404, description="Fichier introuvable.")
-    return send_from_directory(CHRISTMAS_SLIDE_ASSETS_DIR, filename)
+    mimetype = _guess_mimetype(filename) or "application/octet-stream"
+    return _send_cached_directory_file(
+        CHRISTMAS_SLIDE_ASSETS_DIR,
+        filename,
+        mimetype=mimetype,
+    )
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -6111,10 +6119,23 @@ NEWS_SCRAPER_MIN_INTERVAL_MINUTES = 1
 NEWS_SCRAPER_MAX_INTERVAL_MINUTES = 720
 NEWS_SCRAPER_MAX_HTML_BYTES = 2_000_000
 NEWS_SCRAPER_MAX_ITEMS_DEFAULT = 12
+NEWS_HTTP_TIMEOUT_SECONDS = 12
+NEWS_HTTP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "fr-CA,fr;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate",
+    "Connection": "close",
+}
 NEWS_SCRAPER_PATTERNS = (
     "ld_json",
     "article_tag",
     "headline_links",
+    "anchor_links",
 )
 
 DEFAULT_WEATHER_SECRETS = {
@@ -6204,6 +6225,8 @@ def _normalize_feed_url(url: str) -> str:
     except ValueError:
         return cleaned
     if parsed.scheme:
+        if parsed.scheme.lower() not in NEWS_FEED_SCHEMES:
+            return ""
         return cleaned
     if cleaned.startswith("//"):
         return f"https:{cleaned}"
@@ -6223,52 +6246,152 @@ def _normalize_scraper_url(url: str) -> str:
     return _normalize_feed_url(url)
 
 
-def _fetch_html(url: str, timeout: int = 15) -> str:
-    url = _normalize_scraper_url(url)
-    try:
-        request_obj = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                ),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "fr-CA,fr;q=0.9,en;q=0.8",
-                "Accept-Encoding": "gzip, deflate",
-                "Connection": "close",
-            },
-        )
-        with urllib.request.urlopen(request_obj, timeout=timeout) as response:
-            raw = response.read(NEWS_SCRAPER_MAX_HTML_BYTES + 1)
-            content_type = response.headers.get("Content-Type", "")
-            encoding = response.headers.get("Content-Encoding", "")
-    except Exception:
-        return ""
-
-    if len(raw) > NEWS_SCRAPER_MAX_HTML_BYTES:
-        raw = raw[:NEWS_SCRAPER_MAX_HTML_BYTES]
-
-    if encoding:
-        lowered = encoding.lower()
+def _decode_html_bytes(raw: bytes, content_type: str = "", content_encoding: str = "") -> str:
+    data = raw or b""
+    if content_encoding:
+        lowered = content_encoding.lower()
         try:
             if "gzip" in lowered:
-                raw = gzip.decompress(raw)
+                data = gzip.decompress(data)
             elif "deflate" in lowered:
                 try:
-                    raw = zlib.decompress(raw)
+                    data = zlib.decompress(data)
                 except Exception:
-                    raw = zlib.decompress(raw, -zlib.MAX_WBITS)
+                    data = zlib.decompress(data, -zlib.MAX_WBITS)
         except Exception:
             pass
 
-    charset_match = re.search(r"charset=([^\s;]+)", content_type, re.IGNORECASE)
-    charset = charset_match.group(1).strip() if charset_match else "utf-8"
+    if len(data) > NEWS_SCRAPER_MAX_HTML_BYTES:
+        data = data[:NEWS_SCRAPER_MAX_HTML_BYTES]
+
+    charset_candidates: List[str] = []
+    header_match = re.search(r"charset=([^\s;]+)", content_type or "", re.IGNORECASE)
+    if header_match:
+        charset_candidates.append(header_match.group(1).strip().strip("\"'"))
+    head_snippet = data[:4096].decode("ascii", errors="ignore")
+    meta_match = re.search(
+        r"<meta[^>]+charset=['\"]?\s*([a-zA-Z0-9_\-]+)\s*['\"]?",
+        head_snippet,
+        re.IGNORECASE,
+    )
+    if meta_match:
+        charset_candidates.append(meta_match.group(1).strip())
+
+    charset_candidates.extend(["utf-8", "latin-1", "cp1252"])
+    seen = set()
+    ordered = []
+    for charset in charset_candidates:
+        normalized = (charset or "").strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        ordered.append(normalized)
+
+    for charset in ordered:
+        try:
+            return data.decode(charset, errors="ignore")
+        except Exception:
+            continue
+    return data.decode("utf-8", errors="ignore")
+
+
+def _fetch_html_details(url: str, timeout: int = NEWS_HTTP_TIMEOUT_SECONDS) -> Dict[str, str]:
+    normalized = _normalize_scraper_url(url)
+    if not normalized:
+        return {"html": "", "url": ""}
+
+    attempts = [
+        NEWS_HTTP_HEADERS,
+        {
+            "User-Agent": NEWS_HTTP_HEADERS.get("User-Agent", ""),
+            "Accept": NEWS_HTTP_HEADERS.get("Accept", "*/*"),
+            "Accept-Language": NEWS_HTTP_HEADERS.get("Accept-Language", "fr-CA,fr;q=0.9,en;q=0.8"),
+            "Connection": "close",
+        },
+    ]
+    for headers in attempts:
+        try:
+            request_obj = urllib.request.Request(normalized, headers=headers)
+            with urllib.request.urlopen(request_obj, timeout=timeout) as response:
+                raw = response.read(NEWS_SCRAPER_MAX_HTML_BYTES + 1)
+                content_type = response.headers.get("Content-Type", "")
+                content_encoding = response.headers.get("Content-Encoding", "")
+                final_url = response.geturl() or normalized
+            html_text = _decode_html_bytes(raw, content_type, content_encoding)
+            if html_text and html_text.strip():
+                return {"html": html_text, "url": final_url}
+        except Exception:
+            continue
+    return {"html": "", "url": normalized}
+
+
+def _fetch_html(url: str, timeout: int = NEWS_HTTP_TIMEOUT_SECONDS) -> str:
+    return _fetch_html_details(url, timeout=timeout).get("html", "")
+
+
+def _normalize_scraper_link(link: str, base_url: str = "") -> str:
+    raw = html.unescape(str(link or "").strip())
+    if not raw:
+        return ""
+    resolved = urllib.parse.urljoin(base_url or "", raw)
     try:
-        return raw.decode(charset, errors="ignore")
-    except Exception:
-        return raw.decode("utf-8", errors="ignore")
+        parsed = urllib.parse.urlparse(resolved)
+    except ValueError:
+        return ""
+    if parsed.scheme not in NEWS_FEED_SCHEMES:
+        return ""
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    filtered = []
+    for key, value in query:
+        lowered = (key or "").lower()
+        if (
+            lowered.startswith("utm_")
+            or lowered in {"fbclid", "gclid", "mc_cid", "mc_eid", "igshid", "ref", "ref_src"}
+        ):
+            continue
+        filtered.append((key, value))
+    return urllib.parse.urlunparse(
+        parsed._replace(query=urllib.parse.urlencode(filtered, doseq=True), fragment="")
+    )
+
+
+def _is_probable_news_link(link: str, base_url: str) -> bool:
+    try:
+        parsed = urllib.parse.urlparse(link)
+        base_parsed = urllib.parse.urlparse(base_url)
+    except ValueError:
+        return False
+    if parsed.scheme not in NEWS_FEED_SCHEMES:
+        return False
+    if base_parsed.netloc and parsed.netloc and parsed.netloc != base_parsed.netloc:
+        # Allow same-site subdomains only.
+        if not parsed.netloc.endswith(f".{base_parsed.netloc}") and not base_parsed.netloc.endswith(
+            f".{parsed.netloc}"
+        ):
+            return False
+    path = (parsed.path or "").lower()
+    if not path or path in {"/", "/index.html"}:
+        return False
+    blocked_markers = (
+        "/tag/",
+        "/tags/",
+        "/categorie/",
+        "/category/",
+        "/auteur/",
+        "/author/",
+        "/search",
+        "/recherche",
+        "/contact",
+        "/about",
+        "/privacy",
+        "/politique",
+    )
+    if any(marker in path for marker in blocked_markers):
+        return False
+    segments = [segment for segment in path.split("/") if segment]
+    if len(segments) >= 2:
+        return True
+    return bool(re.search(r"\d{4}|-", path))
 
 
 def _parse_datetime_value(raw: Any) -> Optional[datetime]:
@@ -6307,8 +6430,8 @@ def _normalize_scraper_item(
     source: str,
 ) -> Dict[str, Any]:
     title = _strip_html(title)[:200]
-    link = link.strip()
-    image = image.strip()
+    link = _normalize_scraper_link(link)
+    image = _normalize_rss_image_url(_normalize_scraper_link(image))
     dt = _parse_datetime_value(published)
     ts = dt.timestamp() if dt else 0.0
     time_label = dt.strftime("%H:%M") if dt else ""
@@ -6360,12 +6483,13 @@ def _extract_ld_json_articles(html_text: str, base_url: str) -> List[Dict[str, A
             if isinstance(link, dict):
                 link = link.get("@id") or link.get("url") or ""
             if link:
-                link = urllib.parse.urljoin(base_url, link)
+                link = _normalize_scraper_link(link, base_url)
             image = node.get("image") or ""
             if isinstance(image, dict):
                 image = image.get("url") or ""
             if isinstance(image, list) and image:
                 image = image[0]
+            image = _normalize_scraper_link(str(image or ""), base_url)
             published = node.get("datePublished") or node.get("dateModified") or ""
             if title and link:
                 items.append(_normalize_scraper_item(
@@ -6429,10 +6553,10 @@ def _extract_article_tag_items(html_text: str, base_url: str) -> List[Dict[str, 
             if link_match:
                 link = link_match.group(1)
         if link:
-            link = urllib.parse.urljoin(base_url, link)
+            link = _normalize_scraper_link(link, base_url)
         img_match = img_pattern.search(block)
         if img_match:
-            image = urllib.parse.urljoin(base_url, img_match.group(1))
+            image = _normalize_scraper_link(img_match.group(1), base_url)
         time_match = time_pattern.search(block)
         if time_match:
             published = time_match.group(1) or time_match.group(2) or ""
@@ -6459,7 +6583,7 @@ def _extract_headline_links(html_text: str, base_url: str) -> List[Dict[str, Any
         link_match = link_pattern.search(block)
         if not link_match:
             continue
-        link = urllib.parse.urljoin(base_url, link_match.group(1))
+        link = _normalize_scraper_link(link_match.group(1), base_url)
         items.append(_normalize_scraper_item(
             title=title,
             link=link,
@@ -6470,6 +6594,51 @@ def _extract_headline_links(html_text: str, base_url: str) -> List[Dict[str, Any
     return items
 
 
+def _extract_anchor_link_items(html_text: str, base_url: str) -> List[Dict[str, Any]]:
+    anchor_pattern = re.compile(
+        r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    items: List[Dict[str, Any]] = []
+    seen_links = set()
+    generic_titles = {
+        "lire plus",
+        "lire la suite",
+        "en savoir plus",
+        "read more",
+        "details",
+        "voir plus",
+    }
+    for match in anchor_pattern.finditer(html_text):
+        link = _normalize_scraper_link(match.group(1), base_url)
+        if not link or link in seen_links:
+            continue
+        if not _is_probable_news_link(link, base_url):
+            continue
+        title = _strip_html(match.group(2))
+        if not title:
+            continue
+        title = re.sub(r"\s+", " ", title).strip()
+        lowered = title.lower()
+        if lowered in generic_titles:
+            continue
+        if len(title) < 18 or len(title) > 240:
+            continue
+        seen_links.add(link)
+        items.append(
+            _normalize_scraper_item(
+                title=title,
+                link=link,
+                image="",
+                published="",
+                source="",
+            )
+        )
+        if len(items) >= 80:
+            break
+    return items
+
+
 def _extract_scraper_items(html_text: str, base_url: str, pattern: str) -> List[Dict[str, Any]]:
     if pattern == "ld_json":
         return _extract_ld_json_articles(html_text, base_url)
@@ -6477,6 +6646,8 @@ def _extract_scraper_items(html_text: str, base_url: str, pattern: str) -> List[
         return _extract_article_tag_items(html_text, base_url)
     if pattern == "headline_links":
         return _extract_headline_links(html_text, base_url)
+    if pattern == "anchor_links":
+        return _extract_anchor_link_items(html_text, base_url)
     return []
 
 
@@ -6496,17 +6667,149 @@ def _analyze_scraper_patterns(html_text: str, base_url: str) -> Dict[str, Any]:
     return {"detected_patterns": detected, "sample_articles": samples}
 
 
+def _xml_local_name(tag: Any) -> str:
+    if not isinstance(tag, str):
+        return ""
+    if "}" in tag:
+        return tag.split("}", 1)[1].lower()
+    return tag.lower()
+
+
 def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
     """Parse un flux RSS et retourne les items."""
     items: List[Dict[str, Any]] = []
     url = _normalize_feed_url(url)
+    if not url:
+        return items
     try:
-        with urllib.request.urlopen(url, timeout=15) as response:
-            content = response.read().decode("utf-8", errors="ignore")
+        request_obj = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": NEWS_HTTP_HEADERS.get("User-Agent", "Mozilla/5.0"),
+                "Accept": "application/rss+xml,application/atom+xml,application/xml,text/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": NEWS_HTTP_HEADERS.get("Accept-Language", "fr-CA,fr;q=0.9,en;q=0.8"),
+                "Accept-Encoding": NEWS_HTTP_HEADERS.get("Accept-Encoding", "gzip, deflate"),
+                "Connection": "close",
+            },
+        )
+        with urllib.request.urlopen(request_obj, timeout=NEWS_HTTP_TIMEOUT_SECONDS) as response:
+            raw = response.read(NEWS_SCRAPER_MAX_HTML_BYTES + 1)
+            content_type = response.headers.get("Content-Type", "")
+            content_encoding = response.headers.get("Content-Encoding", "")
+            feed_base_url = response.geturl() or url
     except OSError:
         return items
 
-    # Parse simple XML pour RSS
+    content = _decode_html_bytes(raw, content_type, content_encoding)
+    if not content:
+        return items
+
+    def first_text(node: ET.Element, names: List[str]) -> str:
+        wanted = {name.lower() for name in names}
+        for child in node.iter():
+            local = _xml_local_name(child.tag)
+            if local not in wanted:
+                continue
+            text = (child.text or "").strip()
+            if text:
+                return text
+        return ""
+
+    def first_link(node: ET.Element) -> str:
+        # Atom links: <link href="..."/>.
+        for child in node.iter():
+            local = _xml_local_name(child.tag)
+            if local != "link":
+                continue
+            href = (child.attrib.get("href") or "").strip()
+            rel = (child.attrib.get("rel") or "").strip().lower()
+            if href and rel in {"", "alternate"}:
+                return href
+        # RSS links: <link>https://...</link>.
+        return first_text(node, ["link"])
+
+    def first_image(node: ET.Element, description_html: str = "") -> str:
+        for child in node.iter():
+            local = _xml_local_name(child.tag)
+            if local in {"enclosure", "content", "thumbnail"}:
+                candidate = (
+                    child.attrib.get("url")
+                    or child.attrib.get("href")
+                    or child.attrib.get("src")
+                    or ""
+                ).strip()
+                media_type = (child.attrib.get("type") or "").lower()
+                if candidate and (not media_type or media_type.startswith("image/")):
+                    return candidate
+            if local in {"image", "icon", "logo"}:
+                text = (child.text or "").strip()
+                if text:
+                    return text
+        if description_html:
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', description_html, re.IGNORECASE)
+            if img_match:
+                return img_match.group(1)
+        return ""
+
+    parsed_root: Optional[ET.Element] = None
+    try:
+        parsed_root = ET.fromstring(content)
+    except ET.ParseError:
+        parsed_root = None
+
+    if parsed_root is not None:
+        entries = list(parsed_root.findall(".//item"))
+        is_atom = False
+        if not entries:
+            entries = list(parsed_root.findall(".//{*}entry"))
+            is_atom = True
+
+        seen_keys = set()
+        for entry in entries:
+            if len(items) >= max_items:
+                break
+            title = _strip_html(first_text(entry, ["title"]))[:200]
+            link = _normalize_scraper_link(first_link(entry), feed_base_url)
+            if not title or not link:
+                continue
+            key = link or title
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            raw_description = first_text(entry, ["description", "summary", "encoded", "content"])
+            description = _strip_html(raw_description)[:200] if raw_description else ""
+            pubdate = first_text(entry, ["pubdate", "published", "updated", "date"])
+            if not pubdate and is_atom:
+                pubdate = first_text(entry, ["updated"])
+            image_url = first_image(entry, raw_description)
+            if image_url:
+                image_url = _normalize_rss_image_url(_normalize_scraper_link(image_url, feed_base_url))
+
+            parsed_time = ""
+            parsed_ts = 0.0
+            dt = _parse_datetime_value(pubdate) if pubdate else None
+            if dt:
+                parsed_ts = dt.timestamp()
+                parsed_time = dt.strftime("%H:%M")
+            elif pubdate:
+                parsed_time = pubdate[:16] if len(pubdate) > 16 else pubdate
+
+            items.append(
+                {
+                    "title": title,
+                    "link": link,
+                    "description": description,
+                    "image": image_url,
+                    "time": parsed_time,
+                    "pubdate": pubdate,
+                    "pubdate_ts": parsed_ts,
+                    "type": "rss",
+                }
+            )
+        if items:
+            return items
+
+    # Fallback regex parser for malformed XML feeds.
     item_pattern = re.compile(r"<item>(.*?)</item>", re.DOTALL | re.IGNORECASE)
     entry_pattern = re.compile(r"<entry>(.*?)</entry>", re.DOTALL | re.IGNORECASE)
     title_pattern = re.compile(r"<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>", re.DOTALL | re.IGNORECASE)
@@ -6526,13 +6829,14 @@ def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
         matches = list(entry_pattern.finditer(content))
         is_atom = True
 
+    seen_keys = set()
     for match in matches:
         if len(items) >= max_items:
             break
         item_content = match.group(1)
 
         title_match = title_pattern.search(item_content)
-        title = _strip_html(title_match.group(1)) if title_match else ""
+        title = _strip_html(title_match.group(1))[:200] if title_match else ""
 
         link = ""
         link_href_match = link_href_pattern.search(item_content)
@@ -6541,17 +6845,24 @@ def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
         if not link:
             link_match = link_pattern.search(item_content)
             link = link_match.group(1).strip() if link_match else ""
+        link = _normalize_scraper_link(link, feed_base_url)
+        if not title or not link:
+            continue
+        key = link or title
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
 
         desc_match = desc_pattern.search(item_content)
-        description = _strip_html(desc_match.group(1)) if desc_match else ""
+        description = _strip_html(desc_match.group(1))[:200] if desc_match else ""
         if not description and is_atom:
             summary_match = summary_pattern.search(item_content)
             if summary_match:
-                description = _strip_html(summary_match.group(1))
+                description = _strip_html(summary_match.group(1))[:200]
         if not description and is_atom:
             content_match = content_pattern.search(item_content)
             if content_match:
-                description = _strip_html(content_match.group(1))
+                description = _strip_html(content_match.group(1))[:200]
 
         pubdate_match = pubdate_pattern.search(item_content)
         pubdate = pubdate_match.group(1).strip() if pubdate_match else ""
@@ -6559,7 +6870,6 @@ def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
             updated_match = updated_pattern.search(item_content)
             pubdate = updated_match.group(1).strip() if updated_match else ""
 
-        # Chercher une image
         image_url = ""
         media_match = media_pattern.search(item_content)
         if media_match:
@@ -6573,30 +6883,29 @@ def _parse_rss_feed(url: str, max_items: int = 10) -> List[Dict[str, Any]]:
             if img_in_desc:
                 image_url = img_in_desc.group(1)
         if image_url:
-            image_url = _normalize_rss_image_url(image_url)
+            image_url = _normalize_rss_image_url(_normalize_scraper_link(image_url, feed_base_url))
 
-        # Parser la date
         parsed_time = ""
         parsed_ts = 0.0
-        if pubdate:
-            try:
-                from email.utils import parsedate_to_datetime
-                dt = parsedate_to_datetime(pubdate)
-                parsed_ts = dt.timestamp()
-                parsed_time = dt.astimezone(QUEBEC_TZ).strftime("%H:%M")
-            except Exception:
-                parsed_time = pubdate[:16] if len(pubdate) > 16 else pubdate
+        dt = _parse_datetime_value(pubdate) if pubdate else None
+        if dt:
+            parsed_ts = dt.timestamp()
+            parsed_time = dt.strftime("%H:%M")
+        elif pubdate:
+            parsed_time = pubdate[:16] if len(pubdate) > 16 else pubdate
 
-        items.append({
-            "title": title,
-            "link": link,
-            "description": description[:200] if description else "",
-            "image": image_url,
-            "time": parsed_time,
-            "pubdate": pubdate,
-            "pubdate_ts": parsed_ts,
-            "type": "rss",
-        })
+        items.append(
+            {
+                "title": title,
+                "link": link,
+                "description": description,
+                "image": image_url,
+                "time": parsed_time,
+                "pubdate": pubdate,
+                "pubdate_ts": parsed_ts,
+                "type": "rss",
+            }
+        )
 
     return items
 
@@ -6626,28 +6935,42 @@ def _fetch_scraper_items(scraper: Dict[str, Any], config: Dict[str, Any], force:
     url = scraper.get("url", "")
     if not url:
         return []
-    base_url = url
-    html_text = _fetch_html(url)
+    payload = _fetch_html_details(url)
+    base_url = payload.get("url") or url
+    html_text = payload.get("html") or ""
     if not html_text:
+        with NEWS_SCRAPER_CACHE_LOCK:
+            NEWS_SCRAPER_CACHE[scraper_id] = {"items": [], "fetched_at": now}
         return []
 
     pattern = scraper.get("pattern") or "ld_json"
     if pattern not in NEWS_SCRAPER_PATTERNS:
         pattern = "ld_json"
     items = _extract_scraper_items(html_text, base_url, pattern)
-    if not items and pattern != "ld_json":
-        # Fallback to JSON-LD if main pattern failed
-        items = _extract_scraper_items(html_text, base_url, "ld_json")
+    fallback_patterns = ["ld_json", "article_tag", "headline_links", "anchor_links"]
+    if not items:
+        for fallback_pattern in fallback_patterns:
+            if fallback_pattern == pattern:
+                continue
+            items = _extract_scraper_items(html_text, base_url, fallback_pattern)
+            if items:
+                break
 
     source_name = scraper.get("name") or url
     normalized: List[Dict[str, Any]] = []
+    seen_links = set()
     for idx, item in enumerate(items):
         if idx >= max_items:
             break
         if not item.get("title") or not item.get("link"):
             continue
+        link = _normalize_scraper_link(item.get("link") or "", base_url)
+        if not link or link in seen_links:
+            continue
+        seen_links.add(link)
         entry = {
             **item,
+            "link": link,
             "source": source_name,
         }
         if not entry.get("pubdate_ts"):
@@ -6762,26 +7085,61 @@ def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
     config = _load_news_config()
     feeds = config.get("rss_feeds", [])
     scrapers = config.get("scrapers", [])
-    max_items = config.get("max_items", 10)
+    try:
+        max_items = max(1, min(50, int(config.get("max_items", 10))))
+    except (TypeError, ValueError):
+        max_items = 10
     all_items: List[Dict[str, Any]] = []
 
-    for feed in feeds:
-        if not feed.get("enabled", True):
+    feed_jobs: List[Dict[str, Any]] = []
+    for feed in feeds if isinstance(feeds, list) else []:
+        if not isinstance(feed, dict) or not feed.get("enabled", True):
             continue
-        url = feed.get("url", "")
+        url = _normalize_feed_url(feed.get("url", ""))
         if not url:
             continue
-        items = _parse_rss_feed(url, max_items)
-        for item in items:
-            item["source"] = feed.get("name", "RSS")
-        all_items.extend(items)
+        feed_jobs.append({"url": url, "name": feed.get("name", "RSS")})
 
-    if isinstance(scrapers, list):
-        for scraper in scrapers:
-            if not isinstance(scraper, dict):
-                continue
-            scraped_items = _fetch_scraper_items(scraper, config, force=force)
-            all_items.extend(scraped_items)
+    scraper_jobs = [
+        scraper
+        for scraper in (scrapers if isinstance(scrapers, list) else [])
+        if isinstance(scraper, dict)
+    ]
+
+    jobs_count = len(feed_jobs) + len(scraper_jobs)
+    max_workers = max(1, min(6, jobs_count))
+    if jobs_count <= 1:
+        for feed_job in feed_jobs:
+            items = _parse_rss_feed(feed_job["url"], max_items)
+            for item in items:
+                item["source"] = feed_job["name"]
+            all_items.extend(items)
+        for scraper in scraper_jobs:
+            all_items.extend(_fetch_scraper_items(scraper, config, force=force))
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures: Dict[concurrent.futures.Future, Dict[str, Any]] = {}
+            for feed_job in feed_jobs:
+                future = executor.submit(_parse_rss_feed, feed_job["url"], max_items)
+                futures[future] = {"kind": "feed", "name": feed_job["name"]}
+            for scraper in scraper_jobs:
+                future = executor.submit(_fetch_scraper_items, scraper, config, force)
+                futures[future] = {"kind": "scraper"}
+
+            for future in concurrent.futures.as_completed(futures):
+                meta = futures.get(future, {})
+                kind = meta.get("kind")
+                try:
+                    result_items = future.result()
+                except Exception:
+                    continue
+                if not isinstance(result_items, list) or not result_items:
+                    continue
+                if kind == "feed":
+                    source_name = meta.get("name", "RSS")
+                    for item in result_items:
+                        item["source"] = source_name
+                all_items.extend(result_items)
 
     # Deduplicate by link or title
     seen_keys = set()
@@ -6919,6 +7277,8 @@ def api_news_add_feed() -> Any:
     if not url:
         abort(400, description="L'URL du flux est requise.")
     url = _normalize_feed_url(url)
+    if not url:
+        abort(400, description="L'URL du flux est invalide.")
 
     config = _load_news_config()
     feeds = config.get("rss_feeds", [])
@@ -6957,11 +7317,15 @@ def api_news_scraper_analyze() -> Any:
     if not url:
         abort(400, description="L'URL du site est requise.")
     url = _normalize_scraper_url(url)
-    html_text = _fetch_html(url)
+    if not url:
+        abort(400, description="L'URL du site est invalide.")
+    payload_details = _fetch_html_details(url)
+    html_text = payload_details.get("html") or ""
+    final_url = payload_details.get("url") or url
     if not html_text:
         return jsonify({
             "success": False,
-            "url": url,
+            "url": final_url,
             "error": "Impossible de récupérer le contenu.",
             "detected_patterns": [],
             "sample_articles": [],
@@ -6971,12 +7335,12 @@ def api_news_scraper_analyze() -> Any:
         title_match = re.search(r"<title[^>]*>(.*?)</title>", html_text, re.IGNORECASE | re.DOTALL)
         if title_match:
             title = _strip_html(title_match.group(1))
-    analysis = _analyze_scraper_patterns(html_text, url)
+    analysis = _analyze_scraper_patterns(html_text, final_url)
     success = bool(analysis.get("sample_articles"))
     return jsonify({
         "success": success,
-        "url": url,
-        "site_name": title or url,
+        "url": final_url,
+        "site_name": title or final_url,
         "detected_patterns": analysis.get("detected_patterns", []),
         "sample_articles": analysis.get("sample_articles", []),
     })
@@ -6992,6 +7356,8 @@ def api_news_add_scraper() -> Any:
     if not url:
         abort(400, description="L'URL du site est requise.")
     url = _normalize_scraper_url(url)
+    if not url:
+        abort(400, description="L'URL du site est invalide.")
     config = _load_news_config()
     defaults = config.get("scraper_defaults", {})
     interval = _normalize_scraper_interval(
@@ -7018,6 +7384,12 @@ def api_news_add_scraper() -> Any:
     scrapers = config.get("scrapers", [])
     if not isinstance(scrapers, list):
         scrapers = []
+    existing = next(
+        (entry for entry in scrapers if isinstance(entry, dict) and entry.get("url") == url),
+        None,
+    )
+    if existing:
+        return jsonify({"scraper": existing, "config": config})
     scrapers.append(new_scraper)
     config["scrapers"] = scrapers
     _save_news_config(config)
@@ -7045,7 +7417,10 @@ def api_news_update_scraper(scraper_id: str) -> Any:
         if "name" in payload:
             scraper["name"] = str(payload.get("name") or scraper.get("name") or "")
         if "url" in payload:
-            scraper["url"] = _normalize_scraper_url(payload.get("url") or scraper.get("url") or "")
+            updated_url = _normalize_scraper_url(payload.get("url") or scraper.get("url") or "")
+            if not updated_url:
+                abort(400, description="URL de source invalide.")
+            scraper["url"] = updated_url
         if "pattern" in payload:
             pattern = payload.get("pattern") or scraper.get("pattern") or "ld_json"
             if pattern not in NEWS_SCRAPER_PATTERNS:
@@ -7063,6 +7438,8 @@ def api_news_update_scraper(scraper_id: str) -> Any:
                 pass
         updated = scraper
         break
+    if not updated:
+        abort(404, description="Source introuvable.")
     config["scrapers"] = scrapers
     _save_news_config(config)
     _invalidate_news_cache()
@@ -7076,7 +7453,10 @@ def api_news_delete_scraper(scraper_id: str) -> Any:
     scrapers = config.get("scrapers", [])
     if not isinstance(scrapers, list):
         scrapers = []
-    config["scrapers"] = [s for s in scrapers if s.get("id") != scraper_id]
+    next_scrapers = [s for s in scrapers if s.get("id") != scraper_id]
+    if len(next_scrapers) == len(scrapers):
+        abort(404, description="Source introuvable.")
+    config["scrapers"] = next_scrapers
     _save_news_config(config)
     _invalidate_news_cache()
     return jsonify({"removed": scraper_id, "config": config})
@@ -7598,7 +7978,12 @@ def serve_weather_asset(filename: str) -> Any:
         abort(403, description="Chemin de fichier non autorisé.")
     if not target.exists() or not target.is_file():
         abort(404, description="Fichier introuvable.")
-    return send_from_directory(WEATHER_BACKGROUNDS_DIR, filename)
+    mimetype = _guess_mimetype(filename) or "application/octet-stream"
+    return _send_cached_directory_file(
+        WEATHER_BACKGROUNDS_DIR,
+        filename,
+        mimetype=mimetype,
+    )
 
 
 @bp.post('/api/powerpoint/upload')

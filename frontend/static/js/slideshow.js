@@ -1983,11 +1983,41 @@ const waitForVideoReady = (video) =>
     video.addEventListener("error", onError, { once: true });
   });
 
+const waitForImageReady = (img) =>
+  new Promise((resolve) => {
+    if (!img) {
+      resolve();
+      return;
+    }
+    if (img.complete) {
+      if (img.naturalWidth > 0 && typeof img.decode === "function") {
+        img.decode().catch(() => {}).finally(resolve);
+      } else {
+        resolve();
+      }
+      return;
+    }
+    const onLoad = () => {
+      if (typeof img.decode === "function") {
+        img.decode().catch(() => {}).finally(resolve);
+      } else {
+        resolve();
+      }
+    };
+    const onError = () => resolve();
+    img.addEventListener("load", onLoad, { once: true });
+    img.addEventListener("error", onError, { once: true });
+  });
+
 const waitForMediaReady = (element, { timeoutMs = MEDIA_READY_TIMEOUT_MS } = {}) => {
   if (!element) return Promise.resolve();
   const videos = Array.from(element.querySelectorAll("video"));
-  if (!videos.length) return Promise.resolve();
-  const readyPromise = Promise.all(videos.map((video) => waitForVideoReady(video)));
+  const images = Array.from(element.querySelectorAll("img"));
+  if (!videos.length && !images.length) return Promise.resolve();
+  const readyPromise = Promise.all([
+    ...videos.map((video) => waitForVideoReady(video)),
+    ...images.map((img) => waitForImageReady(img)),
+  ]);
   if (!timeoutMs || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return readyPromise;
   }
@@ -2129,7 +2159,19 @@ const getBackgroundVideoPreload = () => {
   if (isTvDevice) return "auto";
   return isSlowBackgroundConnection() || performanceProfile.lowPower ? "metadata" : "auto";
 };
-const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", playHandler = null } = {}) => {
+const setupBackgroundImage = (img, { priority = "high" } = {}) => {
+  if (!img) return;
+  img.loading = "eager";
+  img.decoding = "async";
+  if ("fetchPriority" in img) {
+    img.fetchPriority = performanceProfile.lowPower ? "low" : priority;
+  }
+};
+
+const setupBackgroundVideo = (
+  video,
+  { fallbackEl = null, fallbackClass = "", playHandler = null, cacheUrl = "", slideId = null } = {},
+) => {
   if (!video) return;
   const preload = getBackgroundVideoPreload();
   video.preload = preload;
@@ -2260,6 +2302,12 @@ const setupBackgroundVideo = (video, { fallbackEl = null, fallbackClass = "", pl
   };
   video.addEventListener("canplay", attemptPlay, { once: true });
   attemptPlay();
+  if (cacheUrl) {
+    const timeoutMs = performanceProfile.lowPower ? 9000 : 12000;
+    void ensureBackgroundVideoCached(cacheUrl, { timeoutMs }).finally(() => {
+      void maybeSwapVideoToCached(video, cacheUrl, slideId, { fallbackUrl: cacheUrl });
+    });
+  }
 };
 
 const createBackgroundVideoPlayHandler = (video, { slideId = null, maxRetries = 3, retryDelay = 350 } = {}) => {
@@ -2415,11 +2463,10 @@ const resolveItemBackground = (item) => {
   if (!item || typeof item !== "object") {
     return null;
   }
-  const birthdayVariantConfig = item.birthday_variant_config;
-  if (birthdayVariantConfig && typeof birthdayVariantConfig === "object") {
-    const url = birthdayVariantConfig.background_url;
-    if (url) {
-      return { url, mimetype: birthdayVariantConfig.background_mimetype || "" };
+  if (item.birthday_slide) {
+    const selected = selectBirthdayBackground(item.birthday_variant_config || null, item, birthdaySlideSettings);
+    if (selected?.url) {
+      return { url: selected.url, mimetype: selected.mimetype || "" };
     }
   }
   if (item.background_url) {
@@ -2452,25 +2499,41 @@ const resolveItemBackground = (item) => {
   return null;
 };
 
+const isCacheableMediaUrl = (value) => {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("//")
+  ) {
+    return true;
+  }
+  return /\.[a-z0-9]{2,5}(\?|#|$)/i.test(trimmed);
+};
+
 const collectItemMediaUrls = (item) => {
   if (!item || typeof item !== "object") return [];
   const urls = new Set();
   const primary = item.display_url || item.url || item.preview_url;
-  if (primary) {
+  if (primary && isCacheableMediaUrl(primary)) {
     urls.add(primary);
   }
+  const pageLimit = performanceProfile.lowPower ? 3 : 8;
   if (Array.isArray(item.page_urls)) {
-    item.page_urls.forEach((url) => {
-      if (url) urls.add(url);
+    item.page_urls.slice(0, pageLimit).forEach((url) => {
+      if (isCacheableMediaUrl(url)) urls.add(url);
     });
   }
   if (Array.isArray(item.text_pages)) {
-    item.text_pages.forEach((url) => {
-      if (url) urls.add(url);
+    item.text_pages.slice(0, pageLimit).forEach((url) => {
+      if (isCacheableMediaUrl(url)) urls.add(url);
     });
   }
   const background = resolveItemBackground(item);
-  if (background?.url) {
+  if (background?.url && isCacheableMediaUrl(background.url)) {
     urls.add(background.url);
   }
   return Array.from(urls);
@@ -2578,6 +2641,10 @@ const preloadNextBackground = () => {
   }
   const isVideo = isVideoBackground(resolvedUrl, background.mimetype);
   if (isVideo) {
+    if (PRELOAD_ENABLED && slideshowCache?.precacheUrls) {
+      const timeoutMs = performanceProfile.lowPower ? 9000 : 12000;
+      void ensureBackgroundVideoCached(resolvedUrl, { timeoutMs });
+    }
     clearPreloadLinkHref();
     lastPreloadedBackground = "";
     return;
@@ -3398,6 +3465,7 @@ const createMediaElement = (item, kind) => {
     const img = document.createElement("img");
     img.src = item.display_url || item.url;
     img.alt = item.original_name || item.filename;
+    setupBackgroundImage(img, { priority: "high" });
     return img;
   }
 
@@ -3483,7 +3551,11 @@ const createMediaElement = (item, kind) => {
         });
       }
     };
-    setupBackgroundVideo(video, { playHandler: attemptPlay });
+    setupBackgroundVideo(video, {
+      playHandler: attemptPlay,
+      cacheUrl: item.display_url || item.url,
+      slideId: item.id || null,
+    });
     currentVideo = video;
     return video;
   }
@@ -3792,7 +3864,10 @@ const renderTeamSlide = (item, employeesList = []) => {
       video.muted = true;
       video.playsInline = true;
       video.setAttribute("playsinline", "");
-      setupBackgroundVideo(video);
+      setupBackgroundVideo(video, {
+        cacheUrl: backgroundUrl,
+        slideId: item.id || null,
+      });
       root.appendChild(video);
       currentVideo = video;
     } else {
@@ -3800,6 +3875,7 @@ const renderTeamSlide = (item, employeesList = []) => {
       img.className = "team-slide-image";
       img.src = backgroundUrl;
       img.alt = "Arrière-plan Notre Équipe";
+      setupBackgroundImage(img, { priority: "high" });
       root.appendChild(img);
     }
   } else {
@@ -4118,6 +4194,8 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
       fallbackEl: backdrop,
       fallbackClass: "birthday-slide-backdrop--fallback",
       playHandler,
+      cacheUrl: bgUrl,
+      slideId: item.id || null,
     });
     backdrop.appendChild(video);
     currentVideo = video;
@@ -4131,6 +4209,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     img.className = "birthday-slide-media birthday-slide-image";
     img.src = bgUrl;
     img.alt = "Arrière-plan anniversaire";
+    setupBackgroundImage(img, { priority: "high" });
     backdrop.appendChild(img);
     attachBirthdayDebugOverlay(frameEl, { bgUrl, bgMime, isVideo, source: bgSource });
   } else {
@@ -4324,6 +4403,8 @@ const renderChristmasSlide = (item) => {
     setupBackgroundVideo(video, {
       fallbackEl: backdrop,
       fallbackClass: "christmas-slide-backdrop--fallback",
+      cacheUrl: bgUrl,
+      slideId: item.id || null,
     });
     backdrop.appendChild(video);
     currentVideo = video;
@@ -4332,6 +4413,7 @@ const renderChristmasSlide = (item) => {
     img.className = "christmas-slide-media christmas-slide-image";
     img.src = bgUrl;
     img.alt = "Arrière-plan Noël";
+    setupBackgroundImage(img, { priority: "high" });
     backdrop.appendChild(img);
   } else {
     backdrop.classList.add("christmas-slide-backdrop--fallback");
@@ -4435,6 +4517,8 @@ const renderCustomSlide = (item) => {
       setupBackgroundVideo(video, {
         fallbackEl: backgroundLayer,
         fallbackClass: "custom-slide-background--fallback",
+        cacheUrl: background.url,
+        slideId: item.id || null,
       });
       backgroundLayer.appendChild(video);
       currentVideo = video;
@@ -4443,6 +4527,7 @@ const renderCustomSlide = (item) => {
       img.src = background.url;
       img.alt = "Fond Custom";
       img.className = "custom-slide-media custom-slide-image";
+      setupBackgroundImage(img, { priority: "high" });
       backgroundLayer.appendChild(img);
     }
   } else {
@@ -4498,7 +4583,8 @@ const fetchNewsData = async (force = false) => {
     return { settings: newsSlideSettings, items: newsItems };
   }
   try {
-    const data = await fetchJSON("api/news-slide/items");
+    const endpoint = force ? "api/news-slide/items?force=true" : "api/news-slide/items";
+    const data = await fetchJSON(endpoint);
     newsItems = data.items || [];
     newsSlideSettings = { ...DEFAULT_NEWS_SLIDE, ...data.settings };
     lastNewsFetch = now;
@@ -4631,7 +4717,7 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
     cardsContainer.appendChild(noItems);
   } else {
     const cardsFragment = document.createDocumentFragment();
-    items.slice(0, effectiveMaxItems).forEach((newsItem) => {
+    items.slice(0, effectiveMaxItems).forEach((newsItem, index) => {
       const card = document.createElement("div");
       card.className = "news-slide-card";
 
@@ -4641,9 +4727,11 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
         const img = document.createElement("img");
         img.src = newsItem.image;
         img.alt = "";
-        img.loading = performanceProfile.lowPower ? "lazy" : "eager";
+        img.loading = index < 3 ? "eager" : "lazy";
         img.decoding = "async";
-        img.fetchPriority = performanceProfile.lowPower ? "low" : "high";
+        if ("fetchPriority" in img) {
+          img.fetchPriority = index < 2 ? "high" : "low";
+        }
         imgWrap.appendChild(img);
         card.appendChild(imgWrap);
       }
@@ -4873,6 +4961,8 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
       setupBackgroundVideo(video, {
         fallbackEl: backdrop,
         fallbackClass: "weather-slide-backdrop--fallback",
+        cacheUrl: url,
+        slideId: item.id || null,
       });
       backdrop.appendChild(video);
       currentVideo = video;
@@ -4881,6 +4971,7 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
       img.className = "weather-slide-media weather-slide-image";
       img.src = url;
       img.alt = "Arrière-plan météo";
+      setupBackgroundImage(img, { priority: "high" });
       backdrop.appendChild(img);
     }
   } else {
@@ -5067,6 +5158,11 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
   frame.append(backdrop, overlay);
   viewport.appendChild(frame);
   const swapPromise = setMediaContent(viewport, { waitForReady: true });
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => markSlideVisible(item));
+  } else {
+    markSlideVisible(item);
+  }
   scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
@@ -5102,6 +5198,8 @@ const renderTimeChangeSlide = (item) => {
     setupBackgroundVideo(video, {
       fallbackEl: backdrop,
       fallbackClass: "time-change-slide-backdrop--fallback",
+      cacheUrl: bgUrl,
+      slideId: item.id || null,
     });
     backdrop.appendChild(video);
     currentVideo = video;
@@ -5110,6 +5208,7 @@ const renderTimeChangeSlide = (item) => {
     img.className = "time-change-slide-media time-change-slide-image";
     img.src = bgUrl;
     img.alt = "Arrière-plan changement d'heure";
+    setupBackgroundImage(img, { priority: "high" });
     backdrop.appendChild(img);
   } else {
     backdrop.classList.add("time-change-slide-backdrop--fallback");

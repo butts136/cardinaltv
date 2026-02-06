@@ -14,7 +14,27 @@
     }
   };
 
+  const isPotentialMediaUrl = (value) => {
+    if (typeof value !== "string") return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (
+      trimmed.startsWith("/") ||
+      trimmed.startsWith("//") ||
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://")
+    ) {
+      return true;
+    }
+    return /\.(jpe?g|png|gif|webp|avif|bmp|svg|mp4|m4v|mov|webm|mkv|avi|pdf|html?)(\?|#|$)/i.test(
+      trimmed,
+    );
+  };
+
   const pushUrl = (set, value) => {
+    if (!isPotentialMediaUrl(value)) {
+      return;
+    }
     const normalized = normalizeUrl(value);
     if (normalized) {
       set.add(normalized);
@@ -24,6 +44,8 @@
   const collectMediaFromItem = (item) => {
     const urls = new Set();
     if (!item || typeof item !== "object") return urls;
+    const pageLimit =
+      Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2 ? 3 : 8;
 
     pushUrl(urls, item.url || item.display_url || item.preview_url);
     pushUrl(urls, item.background_url);
@@ -47,10 +69,10 @@
     }
 
     if (Array.isArray(item.page_urls)) {
-      item.page_urls.forEach((url) => pushUrl(urls, url));
+      item.page_urls.slice(0, pageLimit).forEach((url) => pushUrl(urls, url));
     }
     if (Array.isArray(item.text_pages)) {
-      item.text_pages.forEach((url) => pushUrl(urls, url));
+      item.text_pages.slice(0, pageLimit).forEach((url) => pushUrl(urls, url));
     }
 
     const background = item.background || item?.custom_payload?.background;
