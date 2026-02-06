@@ -860,6 +860,10 @@
     isDragging: false,
     isResizing: false,
     resizeHandle: null,
+    startCardX: null,
+    startCardY: null,
+    dragOffsetX: 0,
+    dragOffsetY: 0,
     startCenterX: null,
     startCenterY: null,
     startWidth: null,
@@ -892,6 +896,9 @@
   let tokenPreview = { tokens: {}, withinWindow: null, mode: "live", updatedAt: 0 };
   let tokenRefreshTimer = null;
   let tokenRefreshInFlight = null;
+  let pendingCardLayoutFrame = null;
+  const pendingCardLayoutSet = new Set();
+  const DRAG_SNAP_THRESHOLD_PX = 10;
   const EMPLOYEES_REFRESH_MS = 60_000;
   let employeesCache = { items: null, fetchedAt: 0, promise: null };
   const BIRTHDAY_WEEKDAY_KEYS = [
@@ -1167,6 +1174,11 @@
       slideshowPreviewTimer = null;
       postSlideshowPreviewRefresh();
     }, 250);
+  };
+
+  const setOverlayEditingMode = (active) => {
+    if (!previewFrame || previewFrame.dataset.previewMode !== "slideshow") return;
+    previewFrame.classList.toggle("is-editing-overlay", Boolean(active));
   };
 
   const isValidHexColor = (value) => HEX_COLOR_PATTERN.test((value || "").trim());
@@ -1693,6 +1705,36 @@
     }
   };
 
+  const snapPositionToGuides = (x, y, { card = null } = {}) => {
+    if (!testPreviewTextOverlay) return { x, y };
+    const rect = testPreviewTextOverlay.getBoundingClientRect();
+    if (!rect.width || !rect.height) return { x, y };
+    const thresholdX = (DRAG_SNAP_THRESHOLD_PX / rect.width) * 100;
+    const thresholdY = (DRAG_SNAP_THRESHOLD_PX / rect.height) * 100;
+    let snappedX = x;
+    let snappedY = y;
+
+    if (Math.abs(x - 50) <= thresholdX) {
+      snappedX = 50;
+    }
+    if (Math.abs(y - 50) <= thresholdY) {
+      snappedY = 50;
+    }
+
+    const cards = Array.from(testPreviewTextOverlay.querySelectorAll(".preview-text-card"));
+    cards.forEach((otherCard) => {
+      if (!otherCard || otherCard === card) return;
+      const center = getCardCenterPercent(otherCard);
+      if (center.x != null && Math.abs(center.x - snappedX) <= thresholdX) {
+        snappedX = center.x;
+      }
+      if (center.y != null && Math.abs(center.y - snappedY) <= thresholdY) {
+        snappedY = center.y;
+      }
+    });
+    return { x: snappedX, y: snappedY };
+  };
+
   const OVERLAY_LAYOUT_KINDS = new Set(["birthday", "time_change", "christmas"]);
 
   const getOverlayLayoutOptions = (card) => ({
@@ -1820,6 +1862,24 @@
     }
   };
 
+  const flushPendingCardLayouts = () => {
+    pendingCardLayoutFrame = null;
+    if (!pendingCardLayoutSet.size) return;
+    pendingCardLayoutSet.forEach((card) => {
+      if (card?.isConnected) {
+        applyTextCardFontSizing(card);
+      }
+    });
+    pendingCardLayoutSet.clear();
+  };
+
+  const requestCardLayout = (card) => {
+    if (!card) return;
+    pendingCardLayoutSet.add(card);
+    if (pendingCardLayoutFrame) return;
+    pendingCardLayoutFrame = requestAnimationFrame(flushPendingCardLayouts);
+  };
+
   const createPreviewTextCard = (entry) => {
     if (!entry) return null;
     const rawValue = entry.value || "";
@@ -1849,8 +1909,6 @@
     card.style.transform = "translate(-50%, -50%)";
     applyTextCardFontSizing(card);
     card.addEventListener("pointerdown", handleTextPointerDown);
-    card.addEventListener("pointerup", handleTextPointerUp);
-    card.addEventListener("pointerleave", handleTextPointerUp);
     Object.keys(resizeHandles).forEach((direction) => {
       const handle = document.createElement("span");
       handle.className = `resize-handle resize-handle--${direction}`;
@@ -1892,12 +1950,14 @@
       if (selectedTextPlaceholder) {
         selectedTextPlaceholder.style.display = "";
       }
+      setOverlayEditingMode(false);
     }
     scheduleSlideshowPreviewRefresh();
   };
 
   const hideSelectedTextPanel = () => {
     currentSelectedTextName = null;
+    setOverlayEditingMode(false);
     if (!selectedTextPanel) return;
     selectedTextPanel.classList.remove("is-active");
     if (selectedTextPlaceholder) {
@@ -2109,6 +2169,7 @@
       currentSelectedTextName = null;
       hideSelectedTextPanel();
     }
+    setOverlayEditingMode(Boolean(card));
   };
   const clearSelection = () => {
     const current = testPreviewTextOverlay?.querySelector(".preview-text-card.is-selected");
@@ -2117,24 +2178,45 @@
     }
     currentSelectedTextName = null;
     hideSelectedTextPanel();
+    setOverlayEditingMode(false);
   };
 
   const handleTextPointerDown = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
     const card = event.currentTarget;
     if (!card) return;
+    if (event.target?.closest?.(".resize-handle")) return;
     selectPreviewTextCard(card);
     ensureGuideElements();
     hideGuides();
+    const rect = testPreviewTextOverlay?.getBoundingClientRect();
+    const startCardX = Number.parseFloat(card.style.left);
+    const startCardY = Number.parseFloat(card.style.top);
+    const currentX = Number.isFinite(startCardX) ? startCardX : 50;
+    const currentY = Number.isFinite(startCardY) ? startCardY : 50;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    if (rect?.width && rect?.height) {
+      const pointerX = ((event.clientX - rect.left) / rect.width) * 100;
+      const pointerY = ((event.clientY - rect.top) / rect.height) * 100;
+      dragOffsetX = pointerX - currentX;
+      dragOffsetY = pointerY - currentY;
+    }
     dragState.card = card;
     dragState.name = card.dataset.name;
     dragState.pointerId = event.pointerId;
     dragState.position = null;
     dragState.startX = event.clientX;
     dragState.startY = event.clientY;
+    dragState.startCardX = currentX;
+    dragState.startCardY = currentY;
+    dragState.dragOffsetX = dragOffsetX;
+    dragState.dragOffsetY = dragOffsetY;
     dragState.isDragging = false;
     dragState.isResizing = false;
     dragState.resizeHandle = null;
     dragState.resizeSize = null;
+    setOverlayEditingMode(true);
     event.preventDefault();
     // Ne pas stopPropagation pour autoriser les clics à remonter sur l'overlay si nécessaire.
     if (card.setPointerCapture) {
@@ -2145,6 +2227,7 @@
   const handleResizePointerDown = (event) => {
     event.stopPropagation();
     event.preventDefault();
+    if (event.button !== undefined && event.button !== 0) return;
     const direction = event.currentTarget.dataset.direction;
     if (!direction) return;
     const card = event.currentTarget.closest(".preview-text-card");
@@ -2161,12 +2244,15 @@
     dragState.position = null;
     dragState.startWidth = width;
     dragState.startHeight = height;
+    dragState.startCardX = Number.isFinite(startCenterX) ? startCenterX : 50;
+    dragState.startCardY = Number.isFinite(startCenterY) ? startCenterY : 50;
     dragState.startCenterX = Number.isFinite(startCenterX) ? startCenterX : 50;
     dragState.startCenterY = Number.isFinite(startCenterY) ? startCenterY : 50;
     dragState.aspectRatio = width / (height || 1);
     dragState.resizeSize = { width, height };
     dragState.startX = event.clientX;
     dragState.startY = event.clientY;
+    setOverlayEditingMode(true);
     selectPreviewTextCard(card);
     ensureGuideElements();
     hideGuides();
@@ -2175,17 +2261,27 @@
     }
   };
 
-  const updateCardSize = (card, width, height) => {
+  const updateCardSize = (card, width, height, { deferLayout = false } = {}) => {
     const resolvedWidth = clamp(width, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
     const resolvedHeight = clamp(height, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
     card.dataset.width = resolvedWidth;
     card.dataset.height = resolvedHeight;
-    applyTextCardFontSizing(card);
+    card.style.width = `${resolvedWidth}%`;
+    card.style.height = `${resolvedHeight}%`;
+    if (deferLayout) {
+      requestCardLayout(card);
+    } else {
+      applyTextCardFontSizing(card);
+    }
     dragState.resizeSize = { width: resolvedWidth, height: resolvedHeight };
   };
 
   const handleTextPointerMove = (event) => {
     if (!dragState.card || !testPreviewTextOverlay) return;
+    if (!dragState.card.isConnected) {
+      handleTextPointerUp(event);
+      return;
+    }
     if (dragState.pointerId && event.pointerId !== dragState.pointerId) return;
     const rect = testPreviewTextOverlay.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
@@ -2227,10 +2323,14 @@
         nextCenterY = (Number(dragState.startCenterY) || 50) + (heightDelta / 2) * verticalDirection;
         nextCenterY = clamp(nextCenterY, newHeight / 2, 100 - newHeight / 2);
       }
+      const snapped = snapPositionToGuides(nextCenterX, nextCenterY, { card: dragState.card });
+      nextCenterX = snapped.x;
+      nextCenterY = snapped.y;
       dragState.card.style.left = `${nextCenterX}%`;
       dragState.card.style.top = `${nextCenterY}%`;
       dragState.position = { x: nextCenterX, y: nextCenterY };
-      updateCardSize(dragState.card, newWidth, newHeight);
+      updateCardSize(dragState.card, newWidth, newHeight, { deferLayout: true });
+      updateAlignmentGuides(nextCenterX, nextCenterY);
       return;
     }
     const deltaX = Math.abs(event.clientX - (dragState.startX || 0));
@@ -2241,8 +2341,17 @@
     if (!dragState.isDragging) {
       dragState.isDragging = true;
     }
-    const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
-    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+    const pointerX = ((event.clientX - rect.left) / rect.width) * 100;
+    const pointerY = ((event.clientY - rect.top) / rect.height) * 100;
+    const width = clamp(parseFloat(dragState.card.dataset.width) || DEFAULT_TEXT_SIZE.width, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+    const height = clamp(parseFloat(dragState.card.dataset.height) || DEFAULT_TEXT_SIZE.height, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+    const maxX = 100 - width / 2;
+    const maxY = 100 - height / 2;
+    let x = clamp(pointerX - (Number(dragState.dragOffsetX) || 0), width / 2, maxX);
+    let y = clamp(pointerY - (Number(dragState.dragOffsetY) || 0), height / 2, maxY);
+    const snapped = snapPositionToGuides(x, y, { card: dragState.card });
+    x = snapped.x;
+    y = snapped.y;
     dragState.card.style.left = `${x}%`;
     dragState.card.style.top = `${y}%`;
     dragState.position = { x, y };
@@ -2251,14 +2360,36 @@
 
   const handleTextPointerUp = (event) => {
     if (!dragState.card) return;
-    if (dragState.card.hasPointerCapture && event.pointerId === dragState.pointerId) {
-      dragState.card.releasePointerCapture(event.pointerId);
+    if (dragState.pointerId != null && event.pointerId != null && event.pointerId !== dragState.pointerId) {
+      return;
     }
-    if (dragState.position) {
-      void updateTestTextPosition(dragState.name, dragState.position);
+    if (dragState.card.hasPointerCapture && dragState.pointerId != null) {
+      try {
+        dragState.card.releasePointerCapture(dragState.pointerId);
+      } catch (error) {
+        // ignore
+      }
     }
+    flushPendingCardLayouts();
+    const hasPositionChange =
+      dragState.position &&
+      (Math.abs((dragState.position.x ?? 50) - (dragState.startCardX ?? 50)) > 0.01 ||
+        Math.abs((dragState.position.y ?? 50) - (dragState.startCardY ?? 50)) > 0.01);
     if (dragState.isResizing && dragState.resizeSize) {
-      void updateTestTextSize(dragState.name, dragState.resizeSize);
+      const sizeChanged =
+        Math.abs((dragState.resizeSize.width ?? 0) - (dragState.startWidth ?? 0)) > 0.01 ||
+        Math.abs((dragState.resizeSize.height ?? 0) - (dragState.startHeight ?? 0)) > 0.01;
+      if (sizeChanged || hasPositionChange) {
+        void updateTestText(
+          dragState.name,
+          {
+            ...(hasPositionChange ? { position: dragState.position } : {}),
+            ...(sizeChanged ? { size: dragState.resizeSize } : {}),
+          },
+        );
+      }
+    } else if (hasPositionChange) {
+      void updateTestTextPosition(dragState.name, dragState.position);
     }
     dragState.card = null;
     dragState.name = null;
@@ -2267,9 +2398,18 @@
     dragState.isDragging = false;
     dragState.isResizing = false;
     dragState.resizeHandle = null;
+    dragState.startCardX = null;
+    dragState.startCardY = null;
+    dragState.dragOffsetX = 0;
+    dragState.dragOffsetY = 0;
     dragState.startCenterX = null;
     dragState.startCenterY = null;
+    dragState.startWidth = null;
+    dragState.startHeight = null;
     dragState.resizeSize = null;
+    if (!currentSelectedTextName) {
+      setOverlayEditingMode(false);
+    }
     hideGuides();
   };
 

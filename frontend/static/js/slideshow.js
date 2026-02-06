@@ -60,7 +60,11 @@ const singleSlideType = normalizeSingleSlideType(previewSlideType);
 const isSingleSlideMode = Boolean(singleSlideType);
 const freezeSingleSlideAdvance = isSingleSlideMode && isPreviewMode;
 const preloadParam = (urlParams.get("preload") || "").trim().toLowerCase();
-const PRELOAD_ENABLED = preloadParam === "1" || preloadParam === "true" || preloadParam === "yes";
+const PRELOAD_DISABLED_VALUES = new Set(["0", "false", "no", "off", "disable", "disabled"]);
+const PRELOAD_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enable", "enabled"]);
+const PRELOAD_ENABLED = PRELOAD_DISABLED_VALUES.has(preloadParam)
+  ? false
+  : PRELOAD_ENABLED_VALUES.has(preloadParam) || !preloadParam;
 const videoDebugParam = (urlParams.get("video_debug") || urlParams.get("birthday_debug") || urlParams.get("debug") || "")
   .trim()
   .toLowerCase();
@@ -210,7 +214,10 @@ let infoBandClockEntries = [];
 let lastInfoBandFitKey = "";
 const INFO_BANDS_WEATHER_REFRESH_MS = 10 * 60 * 1000;
 const INITIAL_CACHE_WARMUP_TIMEOUT_MS = 20000;
-const INITIAL_CACHE_WARMUP_STATUS_DELAY_MS = 300;
+const UPCOMING_PRELOAD_LOOKAHEAD = performanceProfile.lowPower ? 1 : 3;
+const UPCOMING_PRELOAD_TIMEOUT_MS = performanceProfile.lowPower ? 8000 : 12000;
+const UPCOMING_PRELOAD_CONCURRENCY = performanceProfile.lowPower ? 1 : 3;
+const UPCOMING_PRELOAD_DEBOUNCE_MS = performanceProfile.lowPower ? 180 : 90;
 
 const skipState = new Map();
 let playlist = [];
@@ -229,6 +236,8 @@ let isStarting = false;
 let initialCacheWarmupDone = false;
 let initialCacheWarmupPromise = null;
 let playlistWarmupToken = 0;
+let upcomingPreloadTimer = null;
+let upcomingPreloadSignature = "";
 let clockTimer = null;
 let currentVideo = null;
 let currentItem = null;
@@ -1321,38 +1330,60 @@ const renderInfoBandProgressTrack = (track, widget, current, total) => {
   track.classList.toggle("is-vertical", direction === "vertical");
   track.classList.toggle("is-horizontal", direction !== "vertical");
   track.dataset.style = style;
-  track.style.removeProperty("--progress-ratio");
   if (style === "bar") {
-    track.textContent = "";
-    const bar = document.createElement("div");
-    bar.className = "info-band-progress-bar";
-    const fill = document.createElement("div");
-    fill.className = "info-band-progress-bar-fill";
-    bar.appendChild(fill);
-    track.appendChild(bar);
+    track.dataset.progressRenderKey = "";
+    if (!track.firstElementChild || !track.firstElementChild.classList.contains("info-band-progress-bar")) {
+      track.textContent = "";
+      const bar = document.createElement("div");
+      bar.className = "info-band-progress-bar";
+      const fill = document.createElement("div");
+      fill.className = "info-band-progress-bar-fill";
+      bar.appendChild(fill);
+      track.appendChild(bar);
+    }
     track.style.setProperty(
       "--progress-ratio",
       total > 0 ? Math.min(Math.max(1, current), total) / total : 0,
     );
     return;
   }
+  track.style.removeProperty("--progress-ratio");
   if (total <= 0) {
-    track.textContent = style === "numeric" ? "0/0" : "";
+    const emptyLabel = style === "numeric" ? "0/0" : "";
+    if (track.textContent !== emptyLabel) {
+      track.textContent = emptyLabel;
+    }
+    track.dataset.progressRenderKey = `${style}|${direction}|0|0`;
     return;
   }
   const clampedCurrent = Math.min(Math.max(1, current), total);
-  if (style === "numeric") {
-    track.textContent = `${clampedCurrent}/${total}`;
+  const renderKey = `${style}|${direction}|${total}|${clampedCurrent}`;
+  if (track.dataset.progressRenderKey === renderKey) {
     return;
   }
-  track.textContent = "";
-  const count = Math.max(1, total);
-  for (let i = 1; i <= count; i += 1) {
-    const dot = document.createElement("span");
-    dot.className = `info-band-progress-dot${i === clampedCurrent ? " is-active" : ""}`;
-    dot.setAttribute("aria-hidden", "true");
-    track.appendChild(dot);
+  track.dataset.progressRenderKey = renderKey;
+  if (style === "numeric") {
+    const label = `${clampedCurrent}/${total}`;
+    if (track.textContent !== label) {
+      track.textContent = label;
+    }
+    return;
   }
+  const count = Math.max(1, total);
+  const existingDots = track.querySelectorAll(".info-band-progress-dot");
+  if (existingDots.length !== count) {
+    track.textContent = "";
+    for (let i = 1; i <= count; i += 1) {
+      const dot = document.createElement("span");
+      dot.className = `info-band-progress-dot${i === clampedCurrent ? " is-active" : ""}`;
+      dot.setAttribute("aria-hidden", "true");
+      track.appendChild(dot);
+    }
+    return;
+  }
+  existingDots.forEach((dot, index) => {
+    dot.classList.toggle("is-active", index + 1 === clampedCurrent);
+  });
 };
 
 const applyInfoBandWidgetTextFitAll = () => {
@@ -1405,7 +1436,11 @@ const updateInfoBandWidgetProgress = () => {
   infoBandWidgetProgressNodes.forEach(({ track, widget }) => {
     renderInfoBandProgressTrack(track, widget, current, total);
   });
-  applyInfoBandWidgetTextFitAll();
+  infoBandWidgetAutoFitEntries.forEach((entry) => {
+    if (entry?.type === "progress") {
+      applyInfoBandWidgetTextFit(entry);
+    }
+  });
 };
 
 const updateInfoBandWeather = () => {
@@ -1861,37 +1896,34 @@ const warmupPlaylistCache = async (items, extraUrls = []) => {
   }
   const token = ++playlistWarmupToken;
   const ordered = buildOrderedPlaylist(items, 0);
-  const preloadNext = async (urls) => {
-    if (!urls || !urls.length) return;
-    if (token !== playlistWarmupToken) return;
-    await slideshowCache.precacheUrls(urls, {
-      timeoutMs: INITIAL_CACHE_WARMUP_TIMEOUT_MS,
-      concurrency: 1,
+  const urlSet = new Set();
+  ordered.forEach((entry) => {
+    collectItemMediaUrls(entry).forEach((url) => urlSet.add(url));
+  });
+  if (Array.isArray(extraUrls)) {
+    extraUrls.forEach((url) => {
+      if (typeof url === "string" && url) {
+        urlSet.add(url);
+      }
     });
-  };
-
+  }
+  const allUrls = Array.from(urlSet);
+  if (!allUrls.length) {
+    return { ok: true, skipped: true };
+  }
   try {
-    for (const entry of ordered) {
-      if (token !== playlistWarmupToken) {
-        return { ok: false, skipped: true };
-      }
-      const urls = collectItemMediaUrls(entry);
-      await preloadNext(urls);
+    const concurrency = performanceProfile.lowPower ? 1 : 3;
+    const result = await slideshowCache.precacheUrls(allUrls, {
+      timeoutMs: INITIAL_CACHE_WARMUP_TIMEOUT_MS,
+      concurrency,
+    });
+    if (token !== playlistWarmupToken) {
+      return { ok: false, skipped: true };
     }
-
-    if (Array.isArray(extraUrls) && extraUrls.length) {
-      for (const url of extraUrls) {
-        if (token !== playlistWarmupToken) {
-          return { ok: false, skipped: true };
-        }
-        const normalized = typeof url === "string" && url ? [url] : [];
-        await preloadNext(normalized);
-      }
-    }
+    return result;
   } catch (error) {
     return { ok: false, error };
   }
-  return { ok: true };
 };
 
 const shouldShowPreloadStatus = () => PRELOAD_ENABLED && Boolean(slideshowCache?.isEnabled?.());
@@ -1906,7 +1938,61 @@ const runInitialCacheWarmup = async (items, extraUrls = [], startIndex = 0) => {
   return initialCacheWarmupPromise;
 };
 
-const MEDIA_SWAP_FADE_MS = performanceProfile.lowPower ? 150 : 300;
+const collectUpcomingMediaUrls = (startIndex = currentIndex, lookahead = UPCOMING_PRELOAD_LOOKAHEAD) => {
+  if (!Array.isArray(playlist) || !playlist.length) return [];
+  const total = playlist.length;
+  if (total <= 1) return [];
+  const baseIndex = Number.isFinite(Number(startIndex))
+    ? Math.max(0, Math.min(total - 1, Number(startIndex)))
+    : currentIndex >= 0
+      ? currentIndex
+      : 0;
+  const count = Math.max(0, Math.min(total, lookahead));
+  const urls = new Set();
+  for (let step = 1; step <= count; step += 1) {
+    const idx = (baseIndex + step) % total;
+    const nextItem = playlist[idx];
+    collectItemMediaUrls(nextItem).forEach((url) => urls.add(url));
+    if (nextItem?.weather_slide && Array.isArray(weatherBackgroundUrls)) {
+      weatherBackgroundUrls.forEach((url) => {
+        if (typeof url === "string" && url) {
+          urls.add(url);
+        }
+      });
+    }
+  }
+  return Array.from(urls);
+};
+
+const queueUpcomingSlidePreload = (startIndex = currentIndex) => {
+  if (!PRELOAD_ENABLED || !slideshowCache?.precacheUrls) return;
+  const urls = collectUpcomingMediaUrls(startIndex);
+  if (!urls.length) {
+    if (upcomingPreloadTimer) {
+      clearTimeout(upcomingPreloadTimer);
+      upcomingPreloadTimer = null;
+    }
+    upcomingPreloadSignature = "";
+    return;
+  }
+  const signature = urls.slice().sort().join("|");
+  if (signature && signature === upcomingPreloadSignature) {
+    return;
+  }
+  upcomingPreloadSignature = signature;
+  if (upcomingPreloadTimer) {
+    clearTimeout(upcomingPreloadTimer);
+  }
+  upcomingPreloadTimer = setTimeout(() => {
+    upcomingPreloadTimer = null;
+    void slideshowCache.precacheUrls(urls, {
+      timeoutMs: UPCOMING_PRELOAD_TIMEOUT_MS,
+      concurrency: UPCOMING_PRELOAD_CONCURRENCY,
+    });
+  }, UPCOMING_PRELOAD_DEBOUNCE_MS);
+};
+
+const MEDIA_SWAP_FADE_MS = performanceProfile.lowPower || isTvDevice ? 0 : 220;
 const MEDIA_READY_TIMEOUT_MS = 1800;
 let activeMediaLayer = null;
 let idleMediaLayer = null;
@@ -2064,7 +2150,7 @@ const setMediaContent = (element, { waitForReady = false, immediateSwap = false 
   idle.replaceChildren(element);
   const hasVideo = hasVideoContent(element);
   const shouldImmediate =
-    immediateSwap || (performanceProfile.disableVideoCrossfade && hasVideo);
+    immediateSwap || performanceProfile.lowPower || isTvDevice || (performanceProfile.disableVideoCrossfade && hasVideo);
 
   if (shouldImmediate) {
     const { active } = layers;
@@ -2081,12 +2167,21 @@ const setMediaContent = (element, { waitForReady = false, immediateSwap = false 
           resolve();
           return;
         }
+        const oldTransition = oldLayer.style.transition;
+        const newTransition = newLayer.style.transition;
+        oldLayer.style.transition = "none";
+        newLayer.style.transition = "none";
         newLayer.classList.add("media-layer--active");
         oldLayer.classList.remove("media-layer--active");
+        void newLayer.offsetWidth;
         activeMediaLayer = newLayer;
         idleMediaLayer = oldLayer;
         stopVideosInLayer(oldLayer);
         oldLayer.replaceChildren();
+        requestAnimationFrame(() => {
+          oldLayer.style.transition = oldTransition;
+          newLayer.style.transition = newTransition;
+        });
         resolve();
       };
       if (waitForReady) {
@@ -5690,6 +5785,11 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
 const handleEmptyPlaylist = () => {
   clearPlaybackTimer();
   clearMediaLayers();
+  if (upcomingPreloadTimer) {
+    clearTimeout(upcomingPreloadTimer);
+    upcomingPreloadTimer = null;
+  }
+  upcomingPreloadSignature = "";
   visibleIndex = -1;
   visibleId = null;
   updateInfoBandWidgetProgress();
@@ -5793,18 +5893,14 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   const durationSeconds = Math.max(1, Math.round(Number(item.duration) || 10));
   const kind = detectMediaKind(item);
 
-  const showPreloadStatus = PRELOAD_ENABLED && !initialCacheWarmupDone;
-  const preloadTimeoutMs = showPreloadStatus ? 15000 : 6000;
-  const shouldBlockPreload =
-    PRELOAD_ENABLED && !initialCacheWarmupDone && !performanceProfile.lowPower;
+  const preloadTimeoutMs = PRELOAD_ENABLED && !initialCacheWarmupDone ? 15000 : 6000;
   const preloadPromise = ensureItemMediaCached(item, {
     timeoutMs: preloadTimeoutMs,
-    showStatus: showPreloadStatus && shouldBlockPreload,
+    showStatus: false,
   });
-  if (shouldBlockPreload) {
-    await preloadPromise;
-  }
+  void preloadPromise;
   initialCacheWarmupDone = true;
+  queueUpcomingSlidePreload(currentIndex);
   if (kind !== "video") {
     currentVideo = null;
   }
@@ -5949,28 +6045,21 @@ window.addEventListener("message", (event) => {
 });
 
 const advanceSlide = async () => {
-  const result = await refreshPlaylist();
-  if (result.empty) {
-    handleEmptyPlaylist();
-    return;
-  }
-
-  if (result.restart) {
-    const item = playlist[currentIndex] || playlist[0];
-    if (item) {
-      await showMedia(item);
-      preloadNextBackground();
-      if (!isPreviewMode) {
-        const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
-        void runInitialCacheWarmup(playlist, weatherBackgroundUrls, startIndex);
-      }
-    }
-    return;
-  }
-
   if (!playlist.length) {
-    handleEmptyPlaylist();
-    return;
+    const result = await refreshPlaylist();
+    if (result.empty || !playlist.length) {
+      handleEmptyPlaylist();
+      return;
+    }
+    if (result.restart) {
+      const item = playlist[currentIndex] || playlist[0];
+      if (item) {
+        await showMedia(item);
+        preloadNextBackground();
+        queueUpcomingSlidePreload(currentIndex);
+      }
+      return;
+    }
   }
 
   const attempts = playlist.length;
@@ -5986,6 +6075,7 @@ const advanceSlide = async () => {
       currentIndex = nextIndex;
       await showMedia(candidate);
       preloadNextBackground();
+      queueUpcomingSlidePreload(currentIndex);
       return;
     }
     tries += 1;
@@ -6001,6 +6091,7 @@ const advanceSlide = async () => {
     currentIndex = playlist.findIndex((entry) => entry.id === fallback.id);
     await showMedia(fallback);
     preloadNextBackground();
+    queueUpcomingSlidePreload(currentIndex);
   }
 };
 
@@ -6029,10 +6120,12 @@ const handlePlaylistRefresh = async () => {
       const remainingMs = durationSeconds * 1000 - elapsed;
       if (remainingMs > 1500) {
         preloadNextBackground();
+        queueUpcomingSlidePreload(currentIndex);
         return;
       }
       await showMedia(current, { maintainSkip: true });
       preloadNextBackground();
+      queueUpcomingSlidePreload(currentIndex);
       if (!isPreviewMode) {
         const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
         void runInitialCacheWarmup(playlist, weatherBackgroundUrls, startIndex);
