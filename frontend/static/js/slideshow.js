@@ -1144,9 +1144,26 @@ const resolveWidgetImageSrc = (value) => {
   return resolveAssetUrl(value);
 };
 
-const formatInfoBandWeatherLabel = (temp) => {
-  if (!Number.isFinite(temp)) return "Température";
-  return `${Math.round(temp)}°C`;
+const getInfoBandRoundedTemp = (value) => (Number.isFinite(value) ? Math.round(value) : "--");
+
+const renderInfoBandWeatherLabel = (labelEl, weather) => {
+  if (!labelEl) return;
+  const hasTemp = Number.isFinite(weather?.temperature);
+  if (!hasTemp) {
+    labelEl.textContent = "Température";
+    return;
+  }
+  const tempLabel = `${getInfoBandRoundedTemp(weather.temperature)}°C`;
+  const feelsLabel = getInfoBandRoundedTemp(weather?.feels_like);
+  labelEl.textContent = "";
+  const value = document.createElement("span");
+  value.className = "temp-value";
+  value.textContent = tempLabel;
+  const feels = document.createElement("span");
+  feels.className = "temp-feels";
+  feels.textContent = `(${feelsLabel})`;
+  labelEl.appendChild(value);
+  labelEl.appendChild(feels);
 };
 
 const fetchInfoBandWeatherForWidget = async (widget) => {
@@ -1154,7 +1171,7 @@ const fetchInfoBandWeatherForWidget = async (widget) => {
   let lat = Number.isFinite(Number(widget.weather_lat)) ? Number(widget.weather_lat) : null;
   let lon = Number.isFinite(Number(widget.weather_lon)) ? Number(widget.weather_lon) : null;
   const city = typeof widget.weather_city === "string" ? widget.weather_city.trim() : "";
-  if ((!lat || !lon) && city) {
+  if ((!Number.isFinite(lat) || !Number.isFinite(lon)) && city) {
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
       city,
     )}&count=1&language=fr&format=json`;
@@ -1168,9 +1185,14 @@ const fetchInfoBandWeatherForWidget = async (widget) => {
     }
   }
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&temperature_unit=celsius`;
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature&temperature_unit=celsius`;
   const weatherData = await fetchJSON(weatherUrl);
-  return weatherData?.current?.temperature_2m ?? null;
+  const current = weatherData?.current || null;
+  if (!current) return null;
+  return {
+    temperature: Number.isFinite(current.temperature_2m) ? current.temperature_2m : null,
+    feels_like: Number.isFinite(current.apparent_temperature) ? current.apparent_temperature : null,
+  };
 };
 
 const setWidgetVar = (node, name, value) => {
@@ -1393,16 +1415,16 @@ const updateInfoBandWeather = () => {
     if (!widget || widget.enabled === false) return;
     const city = typeof widget.weather_city === "string" ? widget.weather_city.trim() : "";
     if (!city) {
-      entry.labelEl.textContent = "Température";
+      renderInfoBandWeatherLabel(entry.labelEl, null);
       return;
     }
     fetchInfoBandWeatherForWidget(widget)
-      .then((temp) => {
-        entry.labelEl.textContent = formatInfoBandWeatherLabel(temp);
+      .then((weather) => {
+        renderInfoBandWeatherLabel(entry.labelEl, weather);
         applyInfoBandWidgetTextFitAll();
       })
       .catch(() => {
-        entry.labelEl.textContent = "Température";
+        renderInfoBandWeatherLabel(entry.labelEl, null);
       });
   });
 };
@@ -1583,7 +1605,7 @@ const renderInfoBandWidgets = (config) => {
     } else if (type === "weather") {
       const label = document.createElement("span");
       label.className = "info-band-widget-label";
-      label.textContent = "Température";
+      renderInfoBandWeatherLabel(label, null);
       node.appendChild(label);
       infoBandWidgetAutoFitEntries.push({ node, widget, type, labelEl: label });
       infoBandWeatherEntries.push({ widget, labelEl: label });

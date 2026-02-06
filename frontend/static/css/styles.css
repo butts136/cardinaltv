@@ -2474,6 +2474,21 @@ input[type="datetime-local"]:focus {
   transform-origin: center;
 }
 
+.info-band-widget--weather .info-band-widget-label {
+  gap: 0.35em;
+  font-variant-numeric: tabular-nums;
+}
+
+.info-band-widget--weather .temp-value {
+  color: currentColor;
+  font-weight: 700;
+}
+
+.info-band-widget--weather .temp-feels {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
 .info-band-widget-logo {
   height: 100%;
   width: auto;
