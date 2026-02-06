@@ -38,6 +38,8 @@
     const saveButton = byPrefixId("save");
     const slideNameInput = byPrefixId("slide-name");
     const slideDateInput = byPrefixId("slide-date");
+    const externalMetaNameInput = byPrefixId("meta-name");
+    const externalMetaDateInput = byPrefixId("meta-event-date");
     const variablesModal = byPrefixId("variables-modal");
     const variablesOpenButton = byPrefixId("variables-open");
     const variablesCloseButton = byPrefixId("variables-close");
@@ -74,7 +76,26 @@
     const testSlideToggle = byPrefixId("live-enabled");
     const testTextFeedback = byPrefixId("text-feedback");
     const testMetaFeedback = byPrefixId("meta-feedback");
+    const useCustomDateInput = byPrefixId("use-custom-date");
+    const customDateInput = byPrefixId("custom-date");
     const birthdayVariantButtons = document.querySelectorAll(".birthday-variant-pill");
+    const birthdayEnabledInput = document.querySelector("#birthday-enabled");
+    const birthdayDaysBeforeInput = document.querySelector("#birthday-days-before");
+    const birthdayOpenDayButtons = document.querySelectorAll("[data-open-day]");
+    const birthdayOpeningToggle = document.querySelector("#birthday-opening-toggle");
+    const birthdayOpeningBody = document.querySelector("#birthday-opening-body");
+    const timeChangeEnabledInput = document.querySelector("#time-change-enabled");
+    const timeChangeDaysBeforeInput = document.querySelector("#time-change-days-before");
+    const timeChangeDurationInput = document.querySelector("#time-change-duration");
+    const timeChangeSaveButton = document.querySelector("#time-change-save");
+    const timeChangeStatus = document.querySelector("#time-change-status");
+    const christmasEnabledInput = document.querySelector("#christmas-enabled");
+    const christmasDaysBeforeInput = document.querySelector("#christmas-days-before");
+    const christmasDurationInput = document.querySelector("#christmas-duration");
+    const christmasSaveButton = document.querySelector("#christmas-save");
+    const christmasStatus = document.querySelector("#christmas-status");
+    const metaNameInput = slideNameInput || externalMetaNameInput;
+    const metaDateInput = slideDateInput || externalMetaDateInput;
 
     const DEFAULT_TEXT_SIZE = { width: 30, height: 12 };
     const DEFAULT_TEXT_COLOR = "#E10505";
@@ -243,10 +264,58 @@
       birthday: "birthday_slide",
       time_change: "time_change_slide",
       christmas: "christmas_slide",
+      custom: "custom_slide",
     };
     const createEditorAdapter = (kind, variant) => {
       const settingsKey = SETTINGS_KEY_BY_KIND[kind] || "test_slide";
       const lineDefaults = getLineDefaultsForKind(kind);
+      const isCustom = kind === "custom";
+      const customSlideId = (editorSlideId || "").trim();
+      const customSlideApiPath = customSlideId
+        ? `api/custom-slides/${encodeURIComponent(customSlideId)}`
+        : "";
+      const customBackgroundsApiPath = customSlideId
+        ? `api/custom-slides/${encodeURIComponent(customSlideId)}/backgrounds`
+        : "";
+      const customBackgroundUploadApiPath = customSlideId
+        ? `api/custom-slides/${encodeURIComponent(customSlideId)}/background`
+        : "";
+      const assertCustomSlideId = () => {
+        if (!customSlideId) {
+          throw new Error("editor_slide_id manquant pour editor_kind=custom");
+        }
+      };
+      if (isCustom && !customSlideId) {
+        console.error("Live-editor custom: editor_slide_id est requis.");
+      }
+      const normalizeCustomTextEntries = (item) => {
+        const entries = Array.isArray(item?.texts) ? item.texts : [];
+        return entries
+          .filter((entry) => entry && typeof entry === "object")
+          .map((entry, index) => ({
+            name: entry.name || `text${index + 1}`,
+            value: entry.value || "",
+            resolved_value: entry.value || "",
+            position: entry.position || { x: 50, y: 50 },
+            size: entry.size || { ...DEFAULT_TEXT_SIZE },
+            color: entry.color || DEFAULT_TEXT_COLOR,
+            style: {
+              ...(entry.style || {}),
+            },
+            background: {
+              ...(entry.background || {}),
+            },
+          }));
+      };
+      const fetchCustomSlide = async () => {
+        assertCustomSlideId();
+        return fetchJSON(customSlideApiPath);
+      };
+      const customSettingsFromItem = (item) => ({
+        enabled: Boolean(item?.enabled),
+        order_index: Number.isFinite(Number(item?.order_index)) ? Number(item.order_index) : 0,
+        duration: Number.isFinite(Number(item?.duration)) ? Number(item.duration) : 12,
+      });
 
       const normalizeBirthdayConfig = (config) => {
         if (birthdayConfigShared?.normalizeVariantConfig) {
@@ -259,11 +328,23 @@
       };
 
       const fetchSettings = async () => {
+        if (isCustom) {
+          const item = await fetchCustomSlide();
+          return customSettingsFromItem(item);
+        }
         const data = await fetchJSON("api/settings");
         return (data && data[settingsKey]) || {};
       };
 
       const updateSettings = async (patch) => {
+        if (isCustom) {
+          const response = await fetchJSON(customSlideApiPath, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ settings: patch || {} }),
+          });
+          return customSettingsFromItem(response || {});
+        }
         const payload = { [settingsKey]: patch };
         const response = await fetchJSON("api/settings", {
           method: "PATCH",
@@ -289,6 +370,21 @@
                 return response || patch;
               },
             }
+          : kind === "custom"
+            ? {
+                async fetchMeta() {
+                  const item = await fetchCustomSlide();
+                  return item?.meta || {};
+                },
+                async updateMeta(patch) {
+                  const response = await fetchJSON(customSlideApiPath, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ meta: patch || {} }),
+                  });
+                  return response?.meta || patch || {};
+                },
+              }
           : {
               async fetchMeta() {
                 return {};
@@ -316,6 +412,40 @@
               return fetchJSON(`api/test/background/${encodeURIComponent(filename)}`, {
                 method: "DELETE",
               });
+            },
+            async currentSettings() {
+              return fetchSettings();
+            },
+          };
+        }
+        if (kind === "custom") {
+          return {
+            uploadUrl: customBackgroundUploadApiPath,
+            async list() {
+              const data = await fetchJSON(customBackgroundsApiPath);
+              const items = Array.isArray(data?.items) ? data.items : [];
+              return items.map((item) => ({
+                name: item.filename,
+                url: item.url,
+                mimetype: item.mimetype,
+                is_active: Boolean(item.is_active),
+              }));
+            },
+            async setActive(filename, mimetype) {
+              const response = await fetchJSON(customSlideApiPath, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  background: { name: filename, mimetype: mimetype || null },
+                }),
+              });
+              return response || {};
+            },
+            async remove(filename) {
+              return fetchJSON(
+                `api/custom-slides/${encodeURIComponent(customSlideId)}/background/${encodeURIComponent(filename)}`,
+                { method: "DELETE" },
+              );
             },
             async currentSettings() {
               return fetchSettings();
@@ -419,6 +549,100 @@
             },
             async remove(name) {
               return fetchJSON(`api/test/texts/${encodeURIComponent(name)}`, { method: "DELETE" });
+            },
+          };
+        }
+        if (kind === "custom") {
+          return {
+            async list() {
+              const item = await fetchCustomSlide();
+              return normalizeCustomTextEntries(item);
+            },
+            async add() {
+              const item = await fetchCustomSlide();
+              const texts = normalizeCustomTextEntries(item);
+              let index = 1;
+              while (texts.some((entry) => entry.name === `text${index}`)) {
+                index += 1;
+              }
+              const next = {
+                name: `text${index}`,
+                value: "[texte]",
+                position: { x: 50, y: 50 },
+                size: { ...DEFAULT_TEXT_SIZE },
+                color: DEFAULT_TEXT_COLOR,
+                style: { ...DEFAULT_LINE_OPTIONS },
+                background: { color: "#000000", opacity: 0 },
+              };
+              const payload = texts.map((entry) => ({ ...entry }));
+              payload.push(next);
+              const response = await fetchJSON(customSlideApiPath, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ texts: payload }),
+              });
+              const updated = normalizeCustomTextEntries(response);
+              return updated.find((entry) => entry.name === next.name) || updated[updated.length - 1] || next;
+            },
+            async update(name, payload) {
+              const item = await fetchCustomSlide();
+              const texts = normalizeCustomTextEntries(item);
+              let index = texts.findIndex((entry) => entry.name === name);
+              const deleting =
+                payload?.value !== undefined && !String(payload.value || "").trim();
+              if (index < 0 && deleting) {
+                return { deleted: name };
+              }
+              if (index < 0) {
+                texts.push({
+                  name: name || `text${texts.length + 1}`,
+                  value: typeof payload?.value === "string" ? payload.value : "[texte]",
+                  position: payload?.position || { x: 50, y: 50 },
+                  size: payload?.size || { ...DEFAULT_TEXT_SIZE },
+                  color: payload?.color || DEFAULT_TEXT_COLOR,
+                  style: { ...(payload?.style || {}) },
+                  background: { ...(payload?.background || {}) },
+                });
+                index = texts.length - 1;
+              } else {
+                const current = texts[index];
+                texts[index] = {
+                  ...current,
+                  ...(payload?.value !== undefined ? { value: payload.value } : {}),
+                  ...(payload?.position ? { position: payload.position } : {}),
+                  ...(payload?.size ? { size: payload.size } : {}),
+                  ...(payload?.color ? { color: payload.color } : {}),
+                  ...(payload?.style ? { style: payload.style } : {}),
+                  ...(payload?.background ? { background: payload.background } : {}),
+                };
+              }
+              if (deleting && index >= 0) {
+                texts.splice(index, 1);
+              }
+              const response = await fetchJSON(customSlideApiPath, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ texts }),
+              });
+              if (deleting) {
+                return { deleted: name };
+              }
+              const updated = normalizeCustomTextEntries(response);
+              return updated.find((entry) => entry.name === name) || updated[Math.min(index, updated.length - 1)];
+            },
+            async remove(name) {
+              const item = await fetchCustomSlide();
+              const texts = normalizeCustomTextEntries(item);
+              const next = texts.filter((entry) => entry.name !== name);
+              if (next.length === texts.length) {
+                throw new Error("Texte introuvable");
+              }
+              await fetchJSON(customSlideApiPath, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ texts: next }),
+              });
+              return { deleted: name };
             },
           };
         }
@@ -563,7 +787,7 @@
       return {
         kind,
         settingsKey,
-        supportsMeta: kind === "test",
+        supportsMeta: kind === "test" || kind === "custom",
         lineDefaults,
         fetchSettings,
         updateSettings,
@@ -660,6 +884,9 @@
   let currentTestMeta = { ...DEFAULT_TEST_META };
   let metaUpdateTimer = null;
   let pendingMetaChanges = {};
+  let externalSettingsTimer = null;
+  let pendingExternalSettingsPatch = {};
+  let customDateSettingsTimer = null;
   let lastFocusedModalTrigger = null;
   let editorAdapter = createEditorAdapter(editorKind, editorVariant);
   let tokenPreview = { tokens: {}, withinWindow: null, mode: "live", updatedAt: 0 };
@@ -720,6 +947,7 @@
     void refreshTestBackgroundList();
     void refreshTestTextsList();
     void refreshTokenPreview({ force: true });
+    scheduleSlideshowPreviewRefresh();
   };
 
   const setTestBackgroundFeedback = (message, status = "info") => {
@@ -1065,13 +1293,95 @@
         result.duration = val;
       }
     }
+    if ("days_before" in raw) {
+      const val = Number(raw.days_before);
+      if (Number.isFinite(val) && val >= 0 && val <= 365) {
+        result.days_before = Math.round(val);
+      }
+    }
+    if ("use_custom_date" in raw) {
+      result.use_custom_date = Boolean(raw.use_custom_date);
+    }
+    if ("custom_date" in raw && typeof raw.custom_date === "string") {
+      const value = raw.custom_date.trim();
+      result.custom_date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+    }
+    if ("open_days" in raw) {
+      result.open_days = raw.open_days;
+    }
     return result;
+  };
+
+  const applyBirthdayOpenDaysUI = (openDaysRaw) => {
+    if (!birthdayOpenDayButtons || !birthdayOpenDayButtons.length) return;
+    const openDays = normalizeOpenDays(openDaysRaw);
+    birthdayOpenDayButtons.forEach((button) => {
+      const key = button?.dataset?.openDay;
+      if (!key) return;
+      const isOpen = Boolean(openDays[key]);
+      button.dataset.state = isOpen ? "open" : "closed";
+      button.setAttribute("aria-pressed", isOpen ? "true" : "false");
+      button.setAttribute("aria-checked", isOpen ? "true" : "false");
+      const textNode = button.querySelector(".opening-state-text");
+      if (textNode) {
+        textNode.textContent = isOpen ? "Ouvert" : "Fermé";
+      }
+    });
+  };
+
+  const applyExternalSlideSettingsUI = () => {
+    if (editorKind === "birthday") {
+      if (birthdayEnabledInput) {
+        birthdayEnabledInput.checked = Boolean(currentTestSlideSettings.enabled);
+      }
+      if (birthdayDaysBeforeInput && Number.isFinite(Number(currentTestSlideSettings.days_before))) {
+        birthdayDaysBeforeInput.value = `${Math.round(Number(currentTestSlideSettings.days_before))}`;
+      }
+      applyBirthdayOpenDaysUI(currentTestSlideSettings.open_days);
+      return;
+    }
+    if (editorKind === "time_change") {
+      if (timeChangeEnabledInput) {
+        timeChangeEnabledInput.checked = Boolean(currentTestSlideSettings.enabled);
+      }
+      if (timeChangeDaysBeforeInput && Number.isFinite(Number(currentTestSlideSettings.days_before))) {
+        timeChangeDaysBeforeInput.value = `${Math.round(Number(currentTestSlideSettings.days_before))}`;
+      }
+      if (timeChangeDurationInput && Number.isFinite(Number(currentTestSlideSettings.duration))) {
+        timeChangeDurationInput.value = `${Math.round(Number(currentTestSlideSettings.duration))}`;
+      }
+      if (useCustomDateInput && customDateInput) {
+        const enabled = Boolean(currentTestSlideSettings.use_custom_date);
+        useCustomDateInput.checked = enabled;
+        customDateInput.disabled = !enabled;
+        customDateInput.value = currentTestSlideSettings.custom_date || "";
+      }
+      return;
+    }
+    if (editorKind === "christmas") {
+      if (christmasEnabledInput) {
+        christmasEnabledInput.checked = Boolean(currentTestSlideSettings.enabled);
+      }
+      if (christmasDaysBeforeInput && Number.isFinite(Number(currentTestSlideSettings.days_before))) {
+        christmasDaysBeforeInput.value = `${Math.round(Number(currentTestSlideSettings.days_before))}`;
+      }
+      if (christmasDurationInput && Number.isFinite(Number(currentTestSlideSettings.duration))) {
+        christmasDurationInput.value = `${Math.round(Number(currentTestSlideSettings.duration))}`;
+      }
+      return;
+    }
+    if (editorKind === "custom" && useCustomDateInput && customDateInput) {
+      useCustomDateInput.checked = false;
+      customDateInput.disabled = true;
+      customDateInput.value = "";
+    }
   };
 
   const updateTestSlideToggleUI = () => {
     if (testSlideToggle) {
       testSlideToggle.checked = Boolean(currentTestSlideSettings.enabled);
     }
+    applyExternalSlideSettingsUI();
   };
 
   const refreshTestSlideSettings = async () => {
@@ -1099,6 +1409,59 @@
       throw error;
     }
   };
+  const setExternalStatus = (node, message, status = "info") => {
+    if (!node) return;
+    node.textContent = message;
+    node.dataset.status = status;
+  };
+  const queueExternalSettingsPatch = (patch, statusNode = null) => {
+    if (!patch || typeof patch !== "object") return;
+    pendingExternalSettingsPatch = { ...pendingExternalSettingsPatch, ...patch };
+    if (externalSettingsTimer) {
+      clearTimeout(externalSettingsTimer);
+    }
+    externalSettingsTimer = setTimeout(() => {
+      externalSettingsTimer = null;
+      const mergedPatch = { ...pendingExternalSettingsPatch };
+      pendingExternalSettingsPatch = {};
+      persistTestSlideSettings(mergedPatch)
+        .then(() => {
+          setExternalStatus(statusNode, "Paramètres enregistrés.", "success");
+        })
+        .catch(() => {
+          setExternalStatus(statusNode, "Erreur lors de l'enregistrement.", "error");
+        });
+    }, 220);
+  };
+  const persistCustomDateControl = (forceImmediate = false) => {
+    if (editorKind !== "time_change" || !useCustomDateInput) return;
+    const enabled = Boolean(useCustomDateInput.checked);
+    const customDate = customDateInput?.value || "";
+    const patch = {
+      use_custom_date: enabled,
+      custom_date: enabled && /^\d{4}-\d{2}-\d{2}$/.test(customDate) ? customDate : "",
+    };
+    if (forceImmediate) {
+      if (customDateSettingsTimer) {
+        clearTimeout(customDateSettingsTimer);
+        customDateSettingsTimer = null;
+      }
+      persistTestSlideSettings(patch).catch(() => {});
+      return;
+    }
+    if (customDateSettingsTimer) {
+      clearTimeout(customDateSettingsTimer);
+    }
+    customDateSettingsTimer = setTimeout(() => {
+      customDateSettingsTimer = null;
+      persistTestSlideSettings(patch).catch(() => {});
+    }, 260);
+  };
+  const bindBirthdayOpenDays = () => {
+    // Les boutons "jours ouverts" restent gérés par app.js legacy pour éviter
+    // des doubles handlers tant que les deux scripts cohabitent sur la page.
+  };
+
   const normalizeBackgroundOptions = (raw) => {
     if (!raw || typeof raw !== "object") {
       return { ...DEFAULT_TEXT_BACKGROUND };
@@ -1923,11 +2286,11 @@
   };
 
   const applyMetaToInputs = () => {
-    if (slideNameInput) {
-      slideNameInput.value = currentTestMeta.name || "";
+    if (metaNameInput) {
+      metaNameInput.value = currentTestMeta.name || "";
     }
-    if (slideDateInput) {
-      slideDateInput.value = currentTestMeta.event_date || "";
+    if (metaDateInput) {
+      metaDateInput.value = currentTestMeta.event_date || "";
     }
     updateTestPreviewTexts(currentTestTexts);
   };
@@ -2117,7 +2480,7 @@
   };
 
   const getTokenMapSnapshot = () => {
-    if (editorKind === "test") {
+    if (editorKind === "test" || editorKind === "custom") {
       return computeTestTokenMap();
     }
     return tokenPreview?.tokens || {};
@@ -2140,7 +2503,7 @@
     if (!variablesHint) {
       return;
     }
-    if (editorKind === "test") {
+    if (editorKind === "test" || editorKind === "custom") {
       variablesHint.textContent = "Aperçu : valeur actuelle.";
       return;
     }
@@ -2414,8 +2777,17 @@
   const buildTimeChangeTokenContext = async () => {
     const settings = (await editorAdapter.fetchSettings().catch(() => ({}))) || {};
     const daysBefore = normalizeDaysBefore(settings?.days_before, 7, 60);
-    const query = Number.isFinite(daysBefore) ? `?days_before=${daysBefore}` : "";
-    const payload = await fetchJSON(`api/time-change-slide/next${query}`).catch(() => null);
+    const params = new URLSearchParams();
+    if (Number.isFinite(daysBefore)) {
+      params.set("days_before", String(daysBefore));
+    }
+    const customDate = typeof settings?.custom_date === "string" ? settings.custom_date.trim() : "";
+    if (settings?.use_custom_date && /^\d{4}-\d{2}-\d{2}$/.test(customDate)) {
+      params.set("use_custom_date", "1");
+      params.set("custom_date", customDate);
+    }
+    const query = params.toString();
+    const payload = await fetchJSON(`api/time-change-slide/next${query ? `?${query}` : ""}`).catch(() => null);
     const info = payload?.change || null;
     const withinWindow =
       typeof payload?.within_window === "boolean"
@@ -2492,7 +2864,7 @@
   };
 
   const refreshTokenPreview = async ({ force = false } = {}) => {
-    if (editorKind === "test") {
+    if (editorKind === "test" || editorKind === "custom") {
       tokenPreview = { ...tokenPreview, tokens: computeTestTokenMap(), withinWindow: true, mode: "live", updatedAt: Date.now() };
       updateVariablesHint();
       updateVariableSamples();
@@ -2534,7 +2906,7 @@
       clearInterval(tokenRefreshTimer);
       tokenRefreshTimer = null;
     }
-    const intervalMs = editorKind === "test" ? 1000 : 60_000;
+    const intervalMs = editorKind === "test" || editorKind === "custom" ? 1000 : 60_000;
     tokenRefreshTimer = setInterval(() => {
       void refreshTokenPreview();
     }, intervalMs);
@@ -3140,25 +3512,25 @@
       setActiveVariantUI(editorVariant || "before");
     }
     if (editorAdapter.supportsMeta) {
-      slideNameInput?.addEventListener("input", (event) => {
+      metaNameInput?.addEventListener("input", (event) => {
         const value = (event.target.value || "").slice(0, 120);
         currentTestMeta = { ...currentTestMeta, name: value };
         queueMetaUpdate({ name: value });
         updateTestPreviewTexts(currentTestTexts);
       });
-      slideDateInput?.addEventListener("input", (event) => {
+      metaDateInput?.addEventListener("input", (event) => {
         const value = event.target.value || "";
         currentTestMeta = { ...currentTestMeta, event_date: value };
         queueMetaUpdate({ event_date: value });
         updateTestPreviewTexts(currentTestTexts);
       });
     } else {
-      if (slideNameInput) {
-        slideNameInput.disabled = true;
-        slideNameInput.placeholder = "Non utilisé pour ce modèle";
+      if (metaNameInput) {
+        metaNameInput.disabled = true;
+        metaNameInput.placeholder = "Non utilisé pour ce modèle";
       }
-      if (slideDateInput) {
-        slideDateInput.disabled = true;
+      if (metaDateInput) {
+        metaDateInput.disabled = true;
       }
       const metaRow = editorRoot.querySelector(".custom-meta-row");
       if (metaRow) {
@@ -3291,6 +3663,117 @@
           event.target.disabled = false;
         });
     });
+    if (editorKind === "birthday") {
+      birthdayEnabledInput?.addEventListener("change", (event) => {
+        const enabled = Boolean(event.target.checked);
+        queueExternalSettingsPatch({ enabled });
+      });
+      birthdayDaysBeforeInput?.addEventListener("input", (event) => {
+        const raw = Number(event.target.value);
+        const value = Number.isFinite(raw) ? clamp(Math.round(raw), 0, 365) : 0;
+        event.target.value = `${value}`;
+        queueExternalSettingsPatch({ days_before: value });
+        void refreshTokenPreview({ force: true });
+      });
+      bindBirthdayOpenDays();
+    }
+    if (editorKind === "time_change") {
+      timeChangeEnabledInput?.addEventListener("change", (event) => {
+        queueExternalSettingsPatch({ enabled: Boolean(event.target.checked) }, timeChangeStatus);
+      });
+      timeChangeDaysBeforeInput?.addEventListener("input", (event) => {
+        const raw = Number(event.target.value);
+        const value = Number.isFinite(raw) ? clamp(Math.round(raw), 0, 365) : 0;
+        event.target.value = `${value}`;
+        queueExternalSettingsPatch({ days_before: value }, timeChangeStatus);
+        void refreshTokenPreview({ force: true });
+      });
+      timeChangeDurationInput?.addEventListener("input", (event) => {
+        const raw = Number(event.target.value);
+        const value = Number.isFinite(raw) ? clamp(Math.round(raw), 1, 600) : 12;
+        event.target.value = `${value}`;
+        queueExternalSettingsPatch({ duration: value }, timeChangeStatus);
+      });
+      timeChangeSaveButton?.addEventListener("click", () => {
+        const patch = {
+          enabled: Boolean(timeChangeEnabledInput?.checked),
+          days_before: Number.isFinite(Number(timeChangeDaysBeforeInput?.value))
+            ? clamp(Math.round(Number(timeChangeDaysBeforeInput.value)), 0, 365)
+            : 7,
+          duration: Number.isFinite(Number(timeChangeDurationInput?.value))
+            ? clamp(Math.round(Number(timeChangeDurationInput.value)), 1, 600)
+            : 12,
+          use_custom_date: Boolean(useCustomDateInput?.checked),
+          custom_date:
+            useCustomDateInput?.checked && /^\d{4}-\d{2}-\d{2}$/.test(customDateInput?.value || "")
+              ? customDateInput.value
+              : "",
+        };
+        persistTestSlideSettings(patch)
+          .then(() => {
+            setExternalStatus(timeChangeStatus, "Paramètres enregistrés.", "success");
+            void refreshTokenPreview({ force: true });
+          })
+          .catch(() => {
+            setExternalStatus(timeChangeStatus, "Erreur lors de l'enregistrement.", "error");
+          });
+      });
+    }
+    if (editorKind === "christmas") {
+      christmasEnabledInput?.addEventListener("change", (event) => {
+        queueExternalSettingsPatch({ enabled: Boolean(event.target.checked) }, christmasStatus);
+      });
+      christmasDaysBeforeInput?.addEventListener("input", (event) => {
+        const raw = Number(event.target.value);
+        const value = Number.isFinite(raw) ? clamp(Math.round(raw), 0, 365) : 0;
+        event.target.value = `${value}`;
+        queueExternalSettingsPatch({ days_before: value }, christmasStatus);
+        void refreshTokenPreview({ force: true });
+      });
+      christmasDurationInput?.addEventListener("input", (event) => {
+        const raw = Number(event.target.value);
+        const value = Number.isFinite(raw) ? clamp(Math.round(raw), 1, 600) : 12;
+        event.target.value = `${value}`;
+        queueExternalSettingsPatch({ duration: value }, christmasStatus);
+      });
+      christmasSaveButton?.addEventListener("click", () => {
+        const patch = {
+          enabled: Boolean(christmasEnabledInput?.checked),
+          days_before: Number.isFinite(Number(christmasDaysBeforeInput?.value))
+            ? clamp(Math.round(Number(christmasDaysBeforeInput.value)), 0, 365)
+            : 25,
+          duration: Number.isFinite(Number(christmasDurationInput?.value))
+            ? clamp(Math.round(Number(christmasDurationInput.value)), 1, 600)
+            : 12,
+        };
+        persistTestSlideSettings(patch)
+          .then(() => {
+            setExternalStatus(christmasStatus, "Paramètres enregistrés.", "success");
+            void refreshTokenPreview({ force: true });
+          })
+          .catch(() => {
+            setExternalStatus(christmasStatus, "Erreur lors de l'enregistrement.", "error");
+          });
+      });
+    }
+    if (editorKind === "time_change" && useCustomDateInput && customDateInput) {
+      useCustomDateInput.addEventListener("change", () => {
+        customDateInput.disabled = !useCustomDateInput.checked;
+        if (!useCustomDateInput.checked) {
+          customDateInput.value = "";
+        }
+        persistCustomDateControl(true);
+        void refreshTokenPreview({ force: true });
+      });
+      customDateInput.addEventListener("input", () => {
+        persistCustomDateControl(false);
+        void refreshTokenPreview({ force: true });
+      });
+      customDateInput.addEventListener("change", () => {
+        persistCustomDateControl(true);
+        void refreshTokenPreview({ force: true });
+      });
+    }
 
     window.addEventListener("pointermove", handleTextPointerMove);
     window.addEventListener("pointerup", handleTextPointerUp);

@@ -24,7 +24,7 @@ from datetime import date, datetime, timedelta, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 try:
@@ -121,6 +121,8 @@ DEFAULT_TEST_TEXT_STYLE = {
     "font_size": 48.0,
     "scale_x": 1.0,
     "scale_y": 1.0,
+    "line_height": 1.2,
+    "letter_spacing": 0.0,
     "bold": False,
     "italic": False,
     "underline": False,
@@ -251,6 +253,9 @@ DEFAULT_SETTINGS = {
         "background_mimetype": None,
         # Nombre de jours d'anticipation avant l'affichage de la diapositive.
         "days_before": 7,
+        # Permet de forcer la date utilisée dans l'aperçu live-editor.
+        "use_custom_date": False,
+        "custom_date": "",
         "offset_hours": 1.0,
         "title_text": "Annonce Changement d'heure (Été / Hiver)",
         "message_template": (
@@ -750,8 +755,20 @@ def _format_offset(delta: Optional[timedelta]) -> str:
     return f"{sign}{hours:02d}:{minutes:02d}"
 
 
-def _next_time_change_info() -> Optional[Dict[str, Any]]:
-    now = _now().astimezone(QUEBEC_TZ)
+def _next_time_change_info(reference_date: Optional[date] = None) -> Optional[Dict[str, Any]]:
+    if isinstance(reference_date, date):
+        # Fixe midi local pour éviter les ambiguïtés autour des transitions DST.
+        now = datetime(
+            reference_date.year,
+            reference_date.month,
+            reference_date.day,
+            12,
+            0,
+            0,
+            tzinfo=QUEBEC_TZ,
+        )
+    else:
+        now = _now().astimezone(QUEBEC_TZ)
     schedule = _get_time_change_schedule(now.year)
     candidates: List[tuple[datetime, str, str]] = []
     for kind in ("start", "end"):
@@ -1261,6 +1278,19 @@ def _normalize_time_change_config(
             if days > 365:
                 days = 365
             result["days_before"] = days
+        elif key == "use_custom_date":
+            result["use_custom_date"] = bool(value)
+        elif key == "custom_date":
+            if value in (None, ""):
+                result["custom_date"] = ""
+            elif isinstance(value, str):
+                text = value.strip()
+                if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+                    try:
+                        date.fromisoformat(text)
+                    except ValueError:
+                        continue
+                    result["custom_date"] = text
         elif key == "background_path":
             if value is None:
                 result["background_path"] = None
@@ -1871,7 +1901,10 @@ def _resolve_test_tokens(value: str, token_map: Dict[str, str]) -> str:
 
 def _normalize_text_entry(raw: Any) -> Dict[str, Any]:
     if isinstance(raw, dict):
-        value = raw.get("value") or ""
+        value = raw.get("value")
+        if value is None:
+            value = raw.get("text")
+        value = value or ""
         position_data = raw.get("position")
         size_data = raw.get("size")
         color_value = raw.get("color")
@@ -1970,12 +2003,28 @@ def _normalize_text_style(raw: Any) -> Dict[str, Any]:
     if math.isnan(scale_y) or math.isinf(scale_y) or scale_y <= 0:
         scale_y = float(DEFAULT_TEST_TEXT_STYLE["scale_y"])
     scale_y = max(0.1, min(4.0, scale_y))
+    try:
+        line_height = float(raw.get("line_height", DEFAULT_TEST_TEXT_STYLE["line_height"]))
+    except (TypeError, ValueError):
+        line_height = float(DEFAULT_TEST_TEXT_STYLE["line_height"])
+    if math.isnan(line_height) or math.isinf(line_height) or line_height <= 0:
+        line_height = float(DEFAULT_TEST_TEXT_STYLE["line_height"])
+    line_height = max(0.6, min(3.0, line_height))
+    try:
+        letter_spacing = float(raw.get("letter_spacing", DEFAULT_TEST_TEXT_STYLE["letter_spacing"]))
+    except (TypeError, ValueError):
+        letter_spacing = float(DEFAULT_TEST_TEXT_STYLE["letter_spacing"])
+    if math.isnan(letter_spacing) or math.isinf(letter_spacing):
+        letter_spacing = float(DEFAULT_TEST_TEXT_STYLE["letter_spacing"])
+    letter_spacing = max(-10.0, min(30.0, letter_spacing))
     return {
         "font_family": font_family,
         "font_size_auto": font_size_auto,
         "font_size": font_size,
         "scale_x": scale_x,
         "scale_y": scale_y,
+        "line_height": line_height,
+        "letter_spacing": letter_spacing,
         "bold": _coerce_bool(raw.get("bold"), DEFAULT_TEST_TEXT_STYLE["bold"]),
         "italic": _coerce_bool(raw.get("italic"), DEFAULT_TEST_TEXT_STYLE["italic"]),
         "underline": _coerce_bool(raw.get("underline"), DEFAULT_TEST_TEXT_STYLE["underline"]),
@@ -4207,13 +4256,21 @@ def _save_custom_slides_index(data: Dict[str, Any]) -> None:
     CUSTOM_SLIDES_INDEX_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _sanitize_custom_slide_id(slide_id: str) -> str:
+    return re.sub(r"[^0-9a-fA-F]", "", slide_id or "").lower()
+
+
 def _custom_slide_dir(slide_id: str) -> Path:
-    safe = re.sub(r"[^0-9a-fA-F]", "", slide_id or "")
+    safe = _sanitize_custom_slide_id(slide_id)
     return CUSTOM_SLIDES_DIR / safe
 
 
 def _custom_slide_config_path(slide_id: str) -> Path:
     return _custom_slide_dir(slide_id) / "config.json"
+
+
+def _custom_slide_assets_dir(slide_id: str) -> Path:
+    return _custom_slide_dir(slide_id) / "assets"
 
 
 def _load_custom_slide_config(slide_id: str) -> Dict[str, Any]:
@@ -4233,13 +4290,19 @@ def _save_custom_slide_config(slide_id: str, data: Dict[str, Any]) -> None:
     slide_folder = _custom_slide_dir(slide_id)
     slide_folder.mkdir(parents=True, exist_ok=True)
     path = _custom_slide_config_path(slide_id)
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def _get_custom_slide_index_entry(slide_id: str) -> Optional[Dict[str, Any]]:
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    if not safe_id:
+        return None
     index = _load_custom_slides_index()
     for entry in index.get("slides", []):
-        if isinstance(entry, dict) and entry.get("id") == slide_id:
+        if not isinstance(entry, dict):
+            continue
+        entry_id = _sanitize_custom_slide_id(str(entry.get("id") or ""))
+        if entry_id == safe_id:
             return entry
     return None
 
@@ -4263,30 +4326,227 @@ def _normalize_custom_slide_settings(raw: Any) -> Dict[str, Any]:
     return base
 
 
+def _normalize_custom_slide_meta(
+    raw: Any, fallback_name: str = "", fallback_event_date: str = ""
+) -> Dict[str, str]:
+    source = raw if isinstance(raw, dict) else {}
+    base = _normalize_test_meta(source)
+    if not base.get("name") and fallback_name:
+        base["name"] = str(fallback_name).strip() or DEFAULT_TEST_SLIDE_META["name"]
+    if not base.get("event_date") and fallback_event_date:
+        base["event_date"] = str(fallback_event_date).strip()
+    return base
+
+
+def _normalize_custom_slide_text_name(name: Any, fallback_index: int) -> str:
+    if isinstance(name, str):
+        candidate = name.strip()
+        if _text_name_is_valid(candidate):
+            return candidate
+    return f"text{max(1, fallback_index)}"
+
+
+def _normalize_custom_slide_texts(raw: Any) -> List[Dict[str, Any]]:
+    entries: List[Tuple[str, Any]] = []
+    if isinstance(raw, dict):
+        keyed_items = [
+            (key, value)
+            for key, value in raw.items()
+            if isinstance(key, str) and isinstance(value, dict)
+        ]
+        keyed_items.sort(
+            key=lambda item: int(item[0][4:])
+            if isinstance(item[0], str) and item[0].startswith("text") and item[0][4:].isdigit()
+            else item[0]
+        )
+        entries.extend(keyed_items)
+    elif isinstance(raw, list):
+        for idx, value in enumerate(raw, start=1):
+            if not isinstance(value, dict):
+                continue
+            entry_name = value.get("name") if isinstance(value.get("name"), str) else f"text{idx}"
+            entries.append((entry_name, value))
+
+    normalized: List[Dict[str, Any]] = []
+    used_names: set[str] = set()
+    for idx, (raw_name, raw_entry) in enumerate(entries, start=1):
+        entry = _normalize_text_entry(raw_entry)
+        value = str(entry.get("value") or "")
+        if not value.strip():
+            continue
+        desired_name = _normalize_custom_slide_text_name(
+            raw_name if isinstance(raw_name, str) else raw_entry.get("name"), idx
+        )
+        if desired_name in used_names:
+            suffix = 1
+            while f"text{idx + suffix}" in used_names:
+                suffix += 1
+            desired_name = f"text{idx + suffix}"
+        used_names.add(desired_name)
+        normalized.append({"name": desired_name, **entry})
+    return normalized
+
+
+def _normalize_custom_slide_background(raw: Any) -> Optional[Dict[str, Any]]:
+    if raw in (None, "", False):
+        return None
+    filename = ""
+    mimetype = ""
+    if isinstance(raw, str):
+        filename = os.path.basename(raw.strip())
+    elif isinstance(raw, dict):
+        raw_name = (
+            raw.get("name")
+            or raw.get("filename")
+            or raw.get("value")
+            or raw.get("path")
+            or raw.get("background")
+        )
+        if isinstance(raw_name, str):
+            filename = os.path.basename(raw_name.strip())
+        raw_type = str(raw.get("type") or "").lower()
+        if raw_type == "color":
+            filename = ""
+        raw_mime = raw.get("mimetype")
+        if isinstance(raw_mime, str):
+            mimetype = raw_mime.strip()
+    if not filename:
+        return None
+    resolved_mimetype = mimetype or _guess_mimetype(filename) or "application/octet-stream"
+    return {
+        "name": filename,
+        "mimetype": resolved_mimetype,
+        "is_video": resolved_mimetype.startswith("video/"),
+    }
+
+
+def _normalize_custom_slide_config(
+    slide_id: str,
+    raw: Any,
+    *,
+    fallback_name: str = "",
+    fallback_event_date: str = "",
+) -> Dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    legacy_meta = {
+        "name": source.get("slide_name"),
+        "event_date": source.get("event_date"),
+    }
+    meta_source = source.get("meta") if isinstance(source.get("meta"), dict) else legacy_meta
+    meta = _normalize_custom_slide_meta(meta_source, fallback_name, fallback_event_date)
+    texts = _normalize_custom_slide_texts(source.get("texts"))
+    background = _normalize_custom_slide_background(source.get("background"))
+    signature = str(source.get("signature") or "")
+    return {
+        "id": _sanitize_custom_slide_id(slide_id),
+        "background": background,
+        "texts": texts,
+        "meta": meta,
+        "slide_name": meta.get("name") or DEFAULT_TEST_SLIDE_META["name"],
+        "event_date": meta.get("event_date") or "",
+        "signature": signature,
+    }
+
+
+def _custom_slide_background_to_api(
+    slide_id: str, background: Optional[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    if not isinstance(background, dict):
+        return None
+    filename = os.path.basename(str(background.get("name") or "").strip())
+    if not filename:
+        return None
+    target = _custom_slide_assets_dir(slide_id) / filename
+    if not target.exists() or not target.is_file():
+        return None
+    mimetype = (
+        str(background.get("mimetype")).strip()
+        if isinstance(background.get("mimetype"), str) and background.get("mimetype")
+        else _guess_mimetype(filename) or "application/octet-stream"
+    )
+    return {
+        "name": filename,
+        "url": url_for(
+            "main.serve_custom_slide_asset",
+            slide_id=_sanitize_custom_slide_id(slide_id),
+            filename=filename,
+            _external=False,
+        ),
+        "mimetype": mimetype,
+        "is_video": bool(background.get("is_video")) or mimetype.startswith("video/"),
+    }
+
+
+def _update_custom_slide_index_entry(
+    slide_id: str,
+    *,
+    meta: Optional[Dict[str, str]] = None,
+    settings_patch: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    if not safe_id:
+        return None
+    index = _load_custom_slides_index()
+    slides_list = index.get("slides")
+    if not isinstance(slides_list, list):
+        slides_list = []
+        index["slides"] = slides_list
+
+    updated_entry: Optional[Dict[str, Any]] = None
+    for entry in slides_list:
+        if not isinstance(entry, dict):
+            continue
+        entry_id = _sanitize_custom_slide_id(str(entry.get("id") or ""))
+        if entry_id != safe_id:
+            continue
+        if meta:
+            entry["name"] = meta.get("name") or entry.get("name") or DEFAULT_TEST_SLIDE_META["name"]
+            entry["event_date"] = meta.get("event_date") or ""
+        if settings_patch:
+            current_settings = _normalize_custom_slide_settings(entry.get("settings"))
+            merged_settings = {**current_settings, **settings_patch}
+            entry["settings"] = _normalize_custom_slide_settings(merged_settings)
+        entry["updated_at"] = _now_iso()
+        updated_entry = copy.deepcopy(entry)
+        break
+
+    if updated_entry is None:
+        return None
+    _save_custom_slides_index(index)
+    return updated_entry
+
+
 def _custom_slide_to_api_item(slide_id: str) -> Optional[Dict[str, Any]]:
-    entry = _get_custom_slide_index_entry(slide_id)
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    entry = _get_custom_slide_index_entry(safe_id)
     if not entry:
         return None
-    cfg = _load_custom_slide_config(slide_id)
+    cfg = _normalize_custom_slide_config(
+        safe_id,
+        _load_custom_slide_config(safe_id),
+        fallback_name=str(entry.get("name") or ""),
+        fallback_event_date=str(entry.get("event_date") or ""),
+    )
     settings = _normalize_custom_slide_settings(entry.get("settings"))
-    name = entry.get("name") or cfg.get("slide_name") or "Diapo personnalisée"
-    event_date = entry.get("event_date") or cfg.get("event_date") or ""
-
-    texts_raw = cfg.get("texts")
-    texts: List[Dict[str, Any]] = []
-    if isinstance(texts_raw, list):
-        texts = [t for t in texts_raw if isinstance(t, dict)]
-
-    meta = cfg.get("meta") if isinstance(cfg.get("meta"), dict) else None
-    if not meta:
-        meta = {"name": name, "event_date": event_date}
-    else:
-        meta = {"name": meta.get("name") or name, "event_date": meta.get("event_date") or event_date}
-
-    background = cfg.get("background") if isinstance(cfg.get("background"), dict) else None
+    meta = _normalize_custom_slide_meta(
+        cfg.get("meta"),
+        str(entry.get("name") or ""),
+        str(entry.get("event_date") or ""),
+    )
+    texts = _normalize_custom_slide_texts(cfg.get("texts"))
+    background = _custom_slide_background_to_api(safe_id, cfg.get("background"))
+    has_background = bool(background and background.get("url"))
+    has_texts = any((str(item.get("value") or "").strip() for item in texts))
+    name = meta.get("name") or str(entry.get("name") or "") or "Diapo personnalisée"
+    signature = cfg.get("signature")
+    if not signature:
+        try:
+            signature = str(_custom_slide_config_path(safe_id).stat().st_mtime_ns)
+        except OSError:
+            signature = f"{safe_id}:{len(texts)}:{background.get('name') if background else ''}"
 
     return {
-        "id": slide_id,
+        "id": safe_id,
         "name": name,
         "enabled": bool(settings.get("enabled")),
         "order_index": settings.get("order_index", 0),
@@ -4294,7 +4554,9 @@ def _custom_slide_to_api_item(slide_id: str) -> Optional[Dict[str, Any]]:
         "background": background,
         "texts": texts,
         "meta": meta,
-        "signature": cfg.get("signature"),
+        "has_background": has_background,
+        "has_texts": has_texts,
+        "signature": signature,
     }
 
 
@@ -4339,6 +4601,12 @@ def custom_slide_page(slide_id: str) -> Any:
 
 @bp.route("/api/custom-slides", methods=["GET"])
 def api_custom_slides_list() -> Any:
+    include_disabled = str(request.args.get("include_disabled") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "all",
+    }
     index = _load_custom_slides_index()
     items: List[Dict[str, Any]] = []
     for entry in index.get("slides", []):
@@ -4348,7 +4616,9 @@ def api_custom_slides_list() -> Any:
         if not isinstance(slide_id, str) or not slide_id:
             continue
         item = _custom_slide_to_api_item(slide_id)
-        if item and item.get("enabled"):
+        if not item:
+            continue
+        if include_disabled or item.get("enabled"):
             items.append(item)
     return jsonify({"items": items})
 
@@ -4377,18 +4647,217 @@ def api_custom_slides_create() -> Any:
     _save_custom_slides_index(index)
     _save_custom_slide_config(
         new_id,
-        {
-            "background": None,
-            "texts": [],
-            "meta": {"name": display_name, "event_date": ""},
-            "signature": now_iso,
-        },
+        _normalize_custom_slide_config(
+            new_id,
+            {
+                "background": None,
+                "texts": [],
+                "meta": {"name": display_name, "event_date": ""},
+                "signature": now_iso,
+            },
+            fallback_name=display_name,
+            fallback_event_date="",
+        ),
     )
     return jsonify({"id": new_id})
 
 
+@bp.route("/api/custom-slides/<slide_id>", methods=["GET", "PATCH"])
+def api_custom_slide_detail(slide_id: str) -> Any:
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    if not safe_id:
+        abort(404)
+
+    if request.method == "GET":
+        item = _custom_slide_to_api_item(safe_id)
+        if not item:
+            abort(404)
+        return jsonify(item)
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400, description="Payload invalide.")
+
+    index_entry = _get_custom_slide_index_entry(safe_id)
+    if not index_entry:
+        abort(404)
+
+    cfg = _normalize_custom_slide_config(
+        safe_id,
+        _load_custom_slide_config(safe_id),
+        fallback_name=str(index_entry.get("name") or ""),
+        fallback_event_date=str(index_entry.get("event_date") or ""),
+    )
+
+    settings_patch: Dict[str, Any] = {}
+    settings_source = payload.get("settings") if isinstance(payload.get("settings"), dict) else payload
+    for key in ("enabled", "order_index", "duration"):
+        if key in settings_source:
+            settings_patch[key] = settings_source.get(key)
+
+    meta_source: Dict[str, Any] = {}
+    if isinstance(payload.get("meta"), dict):
+        meta_source = dict(payload.get("meta") or {})
+    for key in ("name", "event_date"):
+        if key in payload and key not in meta_source:
+            meta_source[key] = payload.get(key)
+
+    if meta_source:
+        merged_meta = {**cfg.get("meta", {}), **meta_source}
+        cfg["meta"] = _normalize_custom_slide_meta(
+            merged_meta,
+            str(index_entry.get("name") or ""),
+            str(index_entry.get("event_date") or ""),
+        )
+        cfg["slide_name"] = cfg["meta"].get("name") or cfg.get("slide_name") or DEFAULT_TEST_SLIDE_META["name"]
+        cfg["event_date"] = cfg["meta"].get("event_date") or ""
+
+    if "texts" in payload:
+        cfg["texts"] = _normalize_custom_slide_texts(payload.get("texts"))
+
+    if "background" in payload:
+        cfg["background"] = _normalize_custom_slide_background(payload.get("background"))
+
+    cfg["signature"] = _now_iso()
+    _save_custom_slide_config(safe_id, cfg)
+    _update_custom_slide_index_entry(safe_id, meta=cfg.get("meta"), settings_patch=settings_patch)
+
+    item = _custom_slide_to_api_item(safe_id)
+    if not item:
+        abort(404)
+    return jsonify(item)
+
+
+@bp.route("/api/custom-slides/<slide_id>/background", methods=["POST"])
+def upload_custom_slide_background(slide_id: str) -> Any:
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    if not safe_id or not _get_custom_slide_index_entry(safe_id):
+        abort(404)
+
+    uploaded = request.files.get("file") or request.files.get("background")
+    if not uploaded or not uploaded.filename:
+        abort(400, description="Aucun fichier reçu.")
+
+    original_name = uploaded.filename
+    safe_name = secure_filename(original_name) or "custom-background"
+    ext = Path(original_name).suffix or Path(safe_name).suffix
+    ext_lower = (ext or "").lower()
+    mimetype = uploaded.mimetype or _guess_mimetype(original_name, safe_name) or ""
+    if not (
+        mimetype.startswith("image/")
+        or mimetype.startswith("video/")
+        or ext_lower in IMAGE_EXTENSIONS
+        or ext_lower in VIDEO_EXTENSIONS
+    ):
+        abort(400, description="Format de fichier non supporté.")
+
+    storage_name = f"{uuid.uuid4().hex}{ext_lower or ''}"
+    assets_dir = _custom_slide_assets_dir(safe_id)
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    target = assets_dir / storage_name
+    uploaded.save(target)
+
+    entry = _get_custom_slide_index_entry(safe_id) or {}
+    cfg = _normalize_custom_slide_config(
+        safe_id,
+        _load_custom_slide_config(safe_id),
+        fallback_name=str(entry.get("name") or ""),
+        fallback_event_date=str(entry.get("event_date") or ""),
+    )
+    cfg["background"] = _normalize_custom_slide_background(
+        {
+            "name": storage_name,
+            "mimetype": mimetype or _guess_mimetype(storage_name) or "application/octet-stream",
+        }
+    )
+    cfg["signature"] = _now_iso()
+    _save_custom_slide_config(safe_id, cfg)
+    item = _custom_slide_to_api_item(safe_id)
+    if not item:
+        abort(404)
+    return jsonify(item)
+
+
+@bp.route("/api/custom-slides/<slide_id>/backgrounds", methods=["GET"])
+def list_custom_slide_backgrounds(slide_id: str) -> Any:
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    if not safe_id or not _get_custom_slide_index_entry(safe_id):
+        abort(404)
+
+    entry = _get_custom_slide_index_entry(safe_id) or {}
+    cfg = _normalize_custom_slide_config(
+        safe_id,
+        _load_custom_slide_config(safe_id),
+        fallback_name=str(entry.get("name") or ""),
+        fallback_event_date=str(entry.get("event_date") or ""),
+    )
+    active_name = (cfg.get("background") or {}).get("name") if isinstance(cfg.get("background"), dict) else None
+    items: List[Dict[str, Any]] = []
+    assets_dir = _custom_slide_assets_dir(safe_id)
+    if assets_dir.exists():
+        for child in sorted(assets_dir.iterdir(), key=lambda p: _natural_key(p.name)):
+            if not child.is_file():
+                continue
+            name = child.name
+            mimetype = _guess_mimetype(name) or "application/octet-stream"
+            items.append(
+                {
+                    "filename": name,
+                    "url": url_for(
+                        "main.serve_custom_slide_asset",
+                        slide_id=safe_id,
+                        filename=name,
+                        _external=False,
+                    ),
+                    "mimetype": mimetype,
+                    "is_active": bool(active_name and name == active_name),
+                }
+            )
+    current = {"type": "upload", "filename": active_name} if active_name else {}
+    return jsonify({"items": items, "current": current})
+
+
+@bp.route("/api/custom-slides/<slide_id>/background/<path:filename>", methods=["DELETE"])
+def delete_custom_slide_background(slide_id: str, filename: str) -> Any:
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    if not safe_id or not _get_custom_slide_index_entry(safe_id):
+        abort(404)
+    safe_name = os.path.basename(filename)
+    if not safe_name:
+        abort(404, description="Fichier introuvable.")
+
+    target = _custom_slide_assets_dir(safe_id) / safe_name
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+    try:
+        target.unlink()
+    except OSError:
+        abort(500, description="Impossible de supprimer le fichier.")
+
+    entry = _get_custom_slide_index_entry(safe_id) or {}
+    cfg = _normalize_custom_slide_config(
+        safe_id,
+        _load_custom_slide_config(safe_id),
+        fallback_name=str(entry.get("name") or ""),
+        fallback_event_date=str(entry.get("event_date") or ""),
+    )
+    current_bg = cfg.get("background") if isinstance(cfg.get("background"), dict) else None
+    if current_bg and str(current_bg.get("name") or "") == safe_name:
+        cfg["background"] = None
+        cfg["signature"] = _now_iso()
+        _save_custom_slide_config(safe_id, cfg)
+
+    item = _custom_slide_to_api_item(safe_id)
+    if not item:
+        abort(404)
+    return jsonify(item)
+
+
 @bp.route("/api/custom-slides/<slide_id>", methods=["DELETE"])
 def api_custom_slides_delete(slide_id: str) -> Any:
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    if not safe_id:
+        abort(404)
     index = _load_custom_slides_index()
     slides_list = index.get("slides", [])
     if not isinstance(slides_list, list):
@@ -4396,18 +4865,18 @@ def api_custom_slides_delete(slide_id: str) -> Any:
     next_list = []
     removed = False
     for entry in slides_list:
-        if isinstance(entry, dict) and entry.get("id") == slide_id:
+        if isinstance(entry, dict) and _sanitize_custom_slide_id(str(entry.get("id") or "")) == safe_id:
             removed = True
             continue
         next_list.append(entry)
     index["slides"] = next_list
     _save_custom_slides_index(index)
-    slide_folder = _custom_slide_dir(slide_id)
+    slide_folder = _custom_slide_dir(safe_id)
     if slide_folder.exists():
         shutil.rmtree(slide_folder, ignore_errors=True)
     if not removed:
         abort(404)
-    return jsonify({"deleted": slide_id})
+    return jsonify({"deleted": safe_id})
 
 
 @bp.route("/diaporama/messages-temporaires")
@@ -4589,6 +5058,24 @@ def serve_temporary_asset(filename: str) -> Any:
     return _send_cached_directory_file(
         TEMP_SLIDE_ASSETS_DIR,
         filename,
+        mimetype=mimetype,
+    )
+
+
+@bp.route("/custom-slide-assets/<slide_id>/<path:filename>")
+def serve_custom_slide_asset(slide_id: str, filename: str) -> Any:
+    safe_id = _sanitize_custom_slide_id(slide_id)
+    safe_name = os.path.basename(filename or "")
+    if not safe_id or not safe_name:
+        abort(404, description="Fichier introuvable.")
+    assets_dir = _custom_slide_assets_dir(safe_id)
+    target = assets_dir / safe_name
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+    mimetype = _guess_mimetype(safe_name) or "application/octet-stream"
+    return _send_cached_directory_file(
+        assets_dir,
+        safe_name,
         mimetype=mimetype,
     )
 
@@ -5759,16 +6246,59 @@ def delete_birthday_slide_background(filename: str) -> Any:
 
 @bp.get("/api/time-change-slide/next")
 def api_time_change_next() -> Any:
-    info = _next_time_change_info()
+    settings = store.get_settings().get("time_change_slide") or {}
+    use_custom_date_query = str(request.args.get("use_custom_date") or "").strip().lower()
+    use_custom_date = use_custom_date_query in {"1", "true", "yes", "on"}
+    custom_date_raw = str(request.args.get("custom_date") or "").strip()
+    if not custom_date_raw and use_custom_date:
+        if bool(settings.get("use_custom_date")):
+            custom_date_raw = str(settings.get("custom_date") or "").strip()
+
+    reference_date: Optional[date] = None
+    if custom_date_raw:
+        try:
+            reference_date = date.fromisoformat(custom_date_raw)
+        except ValueError:
+            reference_date = None
+
+    if not reference_date and bool(settings.get("use_custom_date")):
+        stored_custom_date = str(settings.get("custom_date") or "").strip()
+        if stored_custom_date:
+            try:
+                reference_date = date.fromisoformat(stored_custom_date)
+            except ValueError:
+                reference_date = None
+
+    info = _next_time_change_info(reference_date=reference_date)
     days_before_arg = request.args.get("days_before")
+    limit_days: Optional[int] = None
     within_window: Optional[bool] = None
     if days_before_arg is not None:
         try:
             limit_days = int(days_before_arg)
-            within_window = info is not None and info.get("days_until") is not None and info["days_until"] <= limit_days
         except (TypeError, ValueError):
-            within_window = None
-    return jsonify({"change": info, "within_window": within_window})
+            limit_days = None
+
+    if limit_days is None:
+        try:
+            limit_days = int(settings.get("days_before"))
+        except (TypeError, ValueError):
+            limit_days = None
+
+    if limit_days is not None:
+        within_window = (
+            info is not None
+            and info.get("days_until") is not None
+            and int(info.get("days_until")) <= int(limit_days)
+        )
+
+    return jsonify(
+        {
+            "change": info,
+            "within_window": within_window,
+            "reference_date": reference_date.isoformat() if reference_date else None,
+        }
+    )
 
 
 @bp.get("/api/time-change-slide/upcoming")

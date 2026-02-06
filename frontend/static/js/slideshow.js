@@ -2795,8 +2795,17 @@ const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
     });
   }
   if (type === "custom") {
-    const list = await fetchCustomSlidesList(true);
-    const target = (Array.isArray(list) ? list : []).find((entry) => entry?.id === slideId) || list?.[0];
+    let target = null;
+    if (slideId) {
+      target = await fetchCustomSlideById(slideId);
+    }
+    if (!target) {
+      const list = await fetchCustomSlidesList(true);
+      target =
+        (Array.isArray(list) ? list : []).find((entry) => entry?.id === slideId) ||
+        list?.[0] ||
+        null;
+    }
     return target ? buildCustomSlideItem(target) : null;
   }
   if (type === "test") {
@@ -5463,6 +5472,17 @@ const fetchCustomSlidesList = async (force = false) => {
     customSlidesPayload = [];
     lastCustomSlidesFetch = now;
     return [];
+  }
+};
+
+const fetchCustomSlideById = async (slideId) => {
+  const id = String(slideId || "").trim();
+  if (!id) return null;
+  try {
+    const item = await fetchJSON(`api/custom-slides/${encodeURIComponent(id)}`);
+    return item || null;
+  } catch (error) {
+    return null;
   }
 };
 
