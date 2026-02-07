@@ -2780,6 +2780,16 @@ class MediaStore:
                 if duration > 600.0:
                     duration = 600.0
                 result["duration"] = duration
+            elif key == "days_before":
+                try:
+                    days = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if days < 0:
+                    days = 0
+                if days > 365:
+                    days = 365
+                result["days_before"] = days
             elif key == "background_path":
                 if value is None:
                     result["background_path"] = None

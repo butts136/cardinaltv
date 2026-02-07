@@ -6160,6 +6160,14 @@ const handlePlaylistRefresh = async () => {
   if (result.changed) {
     const current = playlist[currentIndex];
     if (current && detectMediaKind(current) !== "video") {
+      const currentKind = detectMediaKind(current);
+      // Avoid mid-playlist re-render for birthday slides: it restarts the background video
+      // and can cause visible black flashes on some devices.
+      if (currentKind === "birthday") {
+        preloadNextBackground();
+        queueUpcomingSlidePreload(currentIndex);
+        return;
+      }
       const elapsed = Date.now() - lastSlideStartAt;
       const durationSeconds = Math.max(1, Math.round(Number(current.duration) || 10));
       const remainingMs = durationSeconds * 1000 - elapsed;

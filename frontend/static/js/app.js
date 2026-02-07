@@ -1516,6 +1516,18 @@ const createInputGroup = (labelText, input) => {
   return group;
 };
 
+const triggerMediaDownload = (item) => {
+  const href = item?.url || item?.display_url || "";
+  if (!href) return;
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = item?.original_name || item?.filename || "media";
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
 const createMediaCard = (item, globalIndex, displayNumber, mediaCount, autoCount = 0) => {
   const card = document.createElement("article");
   card.className = "media-card";
@@ -1676,6 +1688,15 @@ const createMediaCard = (item, globalIndex, displayNumber, mediaCount, autoCount
   deleteButton.className = "secondary-button";
   deleteButton.textContent = "Supprimer";
 
+  let downloadButton = null;
+  if (kind === "image" || kind === "video") {
+    downloadButton = document.createElement("button");
+    downloadButton.type = "button";
+    downloadButton.className = "secondary-button";
+    downloadButton.textContent = "Télécharger";
+    downloadButton.addEventListener("click", () => triggerMediaDownload(item));
+  }
+
   saveButton.addEventListener("click", async () => {
     const payload = {
       enabled: enabledInput.checked,
@@ -1723,6 +1744,9 @@ const createMediaCard = (item, globalIndex, displayNumber, mediaCount, autoCount
     }
   });
 
+  if (downloadButton) {
+    actions.append(downloadButton);
+  }
   actions.append(saveButton, deleteButton);
 
   if (controls.childElementCount > 0) {
@@ -1992,6 +2016,7 @@ const createNewsSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) =
   const card = document.createElement("article");
   card.className = "media-card news-slide-card auto-slide-card";
   card.dataset.id = NEWS_SLIDE_CARD_ID;
+  applyAutoAvailability(card, "news");
 
   const header = createOrderHeader(NEWS_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
 
