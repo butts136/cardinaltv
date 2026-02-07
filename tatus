@@ -1,0 +1,32 @@
+* [33m1723103[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Fix live editor
+[31m|[m * [33me20da5b[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Merge pull request #8 from butts136/copilot/fix-employees-availability-issues
+[31m|[m[31m/[m[33m|[m 
+[31m|[m * [33m5651fc6[m[33m ([m[1;31morigin/copilot/fix-employees-availability-issues[m[33m)[m Harden employee storage reload/write
+[31m|[m * [33m763a83b[m Initial plan
+[31m|[m[31m/[m  
+* [33m72dd5e0[m feat(editor): enhance drag-and-drop functionality and overlay editing mode
+* [33m5fad8fa[m feat(weather): enhance weather info band display and data fetching
+* [33m1154ac3[m feat: Enhance live editor and slideshow functionality for custom slides
+* [33m1fdccce[m feat(slideshow): enhance media loading and caching
+* [33m4bf3c46[m update HTML fetching: enhance request headers and add gzip/deflate decompression support
+* [33m580f8ae[m add news scrapper
+* [33m220a92d[m update live editor and slideshow scripts: add slideshow preview mode handling; increment cache version to v18
+* [33m178f7cc[m update styles and service worker: change background to transparent and increment cache version; update stylesheet references
+* [33m5fabfb3[m update slideshow and service worker: increment cache version and adjust script/style references; refactor team avatar sizing calculations
+* [33m24a8782[m update slideshow and service worker: increment cache version and adjust script/style references
+* [33ma0d0a04[m birthday slide reload fix
+* [33m478f6da[m fix
+* [33md78836e[m test
+* [33m2465668[m test
+* [33ma94a106[m test
+* [33m6afcd3e[m fix
+* [33md632b0a[m try
+* [33m58ff64c[m test
+* [33mc2c5e7b[m test
+* [33mc96a3ea[m fix
+* [33mcff6f0b[m try to fix
+* [33m1222acc[m fix
+* [33m4f69a5f[m same fix
+* [33meebbff4[m try to fix birthday background video display
+* [33m941d7e2[m News slides lighter scrolling
+* [33ma75a307[m small fix

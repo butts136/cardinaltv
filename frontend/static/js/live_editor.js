@@ -78,7 +78,10 @@
     const testMetaFeedback = byPrefixId("meta-feedback");
     const useCustomDateInput = byPrefixId("use-custom-date");
     const customDateInput = byPrefixId("custom-date");
+    const birthdaySectionRoot = document.querySelector("#birthday-section");
     const birthdayVariantButtons = document.querySelectorAll(".birthday-variant-pill");
+    const birthdayCountdownBlock = document.querySelector(".birthday-countdown");
+    const birthdayOpeningBlock = document.querySelector(".birthday-opening");
     const birthdayEnabledInput = document.querySelector("#birthday-enabled");
     const birthdayDaysBeforeInput = document.querySelector("#birthday-days-before");
     const birthdayOpenDayButtons = document.querySelectorAll("[data-open-day]");
@@ -937,6 +940,28 @@
     });
   };
 
+  const syncBirthdayVariantPanels = (variantRaw) => {
+    if (editorKind !== "birthday") return;
+    const variant = variantRaw || "before";
+    if (birthdaySectionRoot) {
+      birthdaySectionRoot.dataset.variant = variant;
+    }
+    if (birthdayOpeningBlock) {
+      const visible = variant === "weekend";
+      birthdayOpeningBlock.hidden = !visible;
+      birthdayOpeningBlock.setAttribute("aria-hidden", visible ? "false" : "true");
+      if (birthdayOpeningBody && birthdayOpeningToggle) {
+        const isCollapsed = birthdayOpeningBody.classList.contains("collapsed");
+        birthdayOpeningToggle.setAttribute("aria-expanded", !visible || isCollapsed ? "false" : "true");
+      }
+    }
+    if (birthdayCountdownBlock) {
+      const visible = variant === "before";
+      birthdayCountdownBlock.hidden = !visible;
+      birthdayCountdownBlock.setAttribute("aria-hidden", visible ? "false" : "true");
+    }
+  };
+
   const switchEditorVariant = (variant) => {
     if (editorKind !== "birthday") return;
     if (!variant || variant === editorVariant) return;
@@ -952,6 +977,7 @@
     currentSelectedTextName = null;
     hideSelectedTextPanel();
     setActiveVariantUI(variant);
+    syncBirthdayVariantPanels(variant);
     void refreshTestSlideSettings();
     void refreshTestMeta();
     void refreshTestBackgroundList();
@@ -3760,6 +3786,7 @@
         });
       });
       setActiveVariantUI(editorVariant || "before");
+      syncBirthdayVariantPanels(editorVariant || "before");
     }
     if (editorAdapter.supportsMeta) {
       metaNameInput?.addEventListener("input", (event) => {
