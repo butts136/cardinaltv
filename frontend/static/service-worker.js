@@ -3,7 +3,7 @@
  * tout en laissant les appels API se rafraîchir depuis le réseau.
  */
 
-const CACHE_VERSION = "v23";
+const CACHE_VERSION = "v24";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 
@@ -28,6 +28,9 @@ const CORE_ASSETS = [
   `${BASE_PATH}/static/js/slideshow/birthday_config.js`,
   `${BASE_PATH}/static/js/slideshow_cache.js`,
   `${BASE_PATH}/static/js/slideshow.js`,
+  `${BASE_PATH}/static/fonts/CardinalPoppins-Regular.ttf`,
+  `${BASE_PATH}/static/fonts/CardinalPoppins-SemiBold.ttf`,
+  `${BASE_PATH}/static/fonts/CardinalPoppins-Bold.ttf`,
   `${BASE_PATH}/static/img/favicon.png`,
 ];
 

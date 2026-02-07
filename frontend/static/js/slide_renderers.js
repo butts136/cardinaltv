@@ -212,10 +212,16 @@
   const BIRTHDAY_DEFAULT_HEIGHT_PERCENT = 12;
   const birthdayMeasureCanvas = document.createElement("canvas");
   const birthdayMeasureCtx = birthdayMeasureCanvas.getContext("2d");
+  const normalizeOverlayFontFamily = (fontFamily) => {
+    const primary = (fontFamily || "").trim();
+    if (!primary) return "CardinalPoppins";
+    if (primary.toLowerCase() === "poppins") return "CardinalPoppins";
+    return primary;
+  };
 
   const getBirthdayFontStack = (fontFamily) => {
-    const primary = (fontFamily || "").trim();
-    return `"${primary || "Poppins"}", "Poppins", "Helvetica Neue", Arial, sans-serif`;
+    const primary = normalizeOverlayFontFamily(fontFamily);
+    return `"${primary}", "CardinalPoppins", "Poppins", "Helvetica Neue", Arial, sans-serif`;
   };
 
   const clampBirthdayPercent = (value, fallback) => {
@@ -316,13 +322,14 @@
   const CUSTOM_CARD_MAX_PADDING_RATIO = 0.25;
   const CUSTOM_CARD_MIN_VERTICAL_PADDING = 8;
   const CUSTOM_CARD_MIN_HORIZONTAL_PADDING = 12;
-  const CUSTOM_FONT_FALLBACK = '"Poppins", "Helvetica Neue", Arial, sans-serif';
+  const CUSTOM_FONT_FALLBACK = '"CardinalPoppins", "Poppins", "Helvetica Neue", Arial, sans-serif';
 
   const getCustomFontStack = (fontFamily) => {
     if (!fontFamily) {
       return CUSTOM_FONT_FALLBACK;
     }
-    return `"${fontFamily}", ${CUSTOM_FONT_FALLBACK}`;
+    const normalized = normalizeOverlayFontFamily(fontFamily);
+    return `"${normalized}", ${CUSTOM_FONT_FALLBACK}`;
   };
 
   const buildRgbaColor = (hex, opacity) => {

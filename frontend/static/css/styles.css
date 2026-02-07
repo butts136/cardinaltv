@@ -1,6 +1,30 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@400;600&family=Dancing+Script:wght@500;600&family=Fira+Sans:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Inconsolata:wght@400;600&family=Lato:wght@400;700&family=Merriweather:wght@400;700&family=Montserrat:wght@400;600;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;600&family=Pacifico&family=Playfair+Display:wght@600;700&family=Poppins:wght@400;600;700&family=PT+Serif:wght@400;700&family=Raleway:wght@400;600;700&family=Roboto:wght@400;700&family=Source+Sans+Pro:wght@400;700&family=Space+Mono:wght@400;700&family=Ubuntu:wght@400;700&display=swap");
 
+@font-face {
+  font-family: "CardinalPoppins";
+  src: url("../fonts/CardinalPoppins-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "CardinalPoppins";
+  src: url("../fonts/CardinalPoppins-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "CardinalPoppins";
+  src: url("../fonts/CardinalPoppins-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 *,
 *::before,
 *::after {

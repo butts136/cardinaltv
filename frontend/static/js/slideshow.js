@@ -321,9 +321,27 @@ const BIRTHDAY_MIN_VERTICAL_PADDING_PX = 8;
 const BIRTHDAY_MIN_HORIZONTAL_PADDING_PX = 12;
 const birthdayMeasureCanvas = document.createElement("canvas");
 const birthdayMeasureCtx = birthdayMeasureCanvas.getContext("2d");
-const getBirthdayFontStack = (fontFamily) => {
+const normalizeOverlayFontFamily = (fontFamily) => {
   const primary = (fontFamily || "").trim();
-  return `"${primary || "Poppins"}", "Poppins", "Helvetica Neue", Arial, sans-serif`;
+  if (!primary) return "CardinalPoppins";
+  if (primary.toLowerCase() === "poppins") return "CardinalPoppins";
+  return primary;
+};
+const getBirthdayFontStack = (fontFamily) => {
+  const primary = normalizeOverlayFontFamily(fontFamily);
+  return `"${primary}", "CardinalPoppins", "Poppins", "Helvetica Neue", Arial, sans-serif`;
+};
+let overlayFontReadyPromise = null;
+const ensureCoreOverlayFontsLoaded = async () => {
+  if (!document.fonts?.load) return;
+  if (!overlayFontReadyPromise) {
+    overlayFontReadyPromise = Promise.all([
+      document.fonts.load('400 24px "CardinalPoppins"', "Cardinal TV"),
+      document.fonts.load('600 24px "CardinalPoppins"', "Cardinal TV"),
+      document.fonts.load('700 24px "CardinalPoppins"', "Cardinal TV"),
+    ]).catch(() => {});
+  }
+  await overlayFontReadyPromise;
 };
 const clampBirthdayPercent = (value, fallback) => {
   const num = Number(value);
@@ -3099,13 +3117,14 @@ const CUSTOM_CARD_HORIZONTAL_PADDING_RATIO = 0.06;
 const CUSTOM_CARD_MAX_PADDING_RATIO = 0.25;
 const CUSTOM_CARD_MIN_VERTICAL_PADDING = 8;
 const CUSTOM_CARD_MIN_HORIZONTAL_PADDING = 12;
-const CUSTOM_FONT_FALLBACK = '"Poppins", "Helvetica Neue", Arial, sans-serif';
+const CUSTOM_FONT_FALLBACK = '"CardinalPoppins", "Poppins", "Helvetica Neue", Arial, sans-serif';
 
 const getCustomFontStack = (fontFamily) => {
   if (!fontFamily) {
     return CUSTOM_FONT_FALLBACK;
   }
-  return `"${fontFamily}", ${CUSTOM_FONT_FALLBACK}`;
+  const normalized = normalizeOverlayFontFamily(fontFamily);
+  return `"${normalized}", ${CUSTOM_FONT_FALLBACK}`;
 };
 
 const buildRgbaColor = (hex, opacity) => {
@@ -6527,6 +6546,7 @@ const startSlideshow = async () => {
   // Initialize info bands layout before showing content
   await initInfoBands();
 
+  await ensureCoreOverlayFontsLoaded();
   await loadBirthdayCustomFonts();
   if (!isPreviewMode || isSingleSlideMode) {
     await refreshOverlaySettings();
