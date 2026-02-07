@@ -3,7 +3,7 @@
  * tout en laissant les appels API se rafraîchir depuis le réseau.
  */
 
-const CACHE_VERSION = "v19";
+const CACHE_VERSION = "v20";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 

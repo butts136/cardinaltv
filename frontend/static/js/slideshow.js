@@ -464,10 +464,39 @@ const updateCanvasScale = () => {
     return false;
   }
   const rect = frame.getBoundingClientRect();
-  if (!rect.width || !rect.height) {
+  let frameWidth = Number(rect.width) || 0;
+  let frameHeight = Number(rect.height) || 0;
+  const viewportWidth = Math.max(
+    0,
+    Number(window.innerWidth) || Number(document.documentElement?.clientWidth) || 0,
+  );
+  const viewportHeight = Math.max(
+    0,
+    Number(window.innerHeight) || Number(document.documentElement?.clientHeight) || 0,
+  );
+  const hasViewport = viewportWidth > 0 && viewportHeight > 0;
+  const layoutWidth = hasViewport ? Math.min(viewportWidth, (viewportHeight * 16) / 9) : 0;
+  const layoutHeight = hasViewport ? Math.min(viewportHeight, (viewportWidth * 9) / 16) : 0;
+  const bandsActive = Boolean(slideshowContainer?.classList.contains("bands-active"));
+
+  // Firestick/WebView can report a transient oversized frame rect at startup.
+  // For TV fullscreen (no info bands), clamp to viewport-derived 16:9 layout when rect is out of bounds.
+  if (isTvDevice && !bandsActive && hasViewport && layoutWidth > 0 && layoutHeight > 0) {
+    const widthTooLarge = frameWidth > layoutWidth * 1.02;
+    const heightTooLarge = frameHeight > layoutHeight * 1.02;
+    const widthTooSmall = frameWidth > 0 && frameWidth < layoutWidth * 0.65;
+    const heightTooSmall = frameHeight > 0 && frameHeight < layoutHeight * 0.65;
+    const missing = frameWidth <= 0 || frameHeight <= 0;
+    if (missing || widthTooLarge || heightTooLarge || widthTooSmall || heightTooSmall) {
+      frameWidth = layoutWidth;
+      frameHeight = layoutHeight;
+    }
+  }
+
+  if (!frameWidth || !frameHeight) {
     return false;
   }
-  const scale = Math.min(rect.width / BASE_CANVAS_WIDTH, rect.height / BASE_CANVAS_HEIGHT);
+  const scale = Math.min(frameWidth / BASE_CANVAS_WIDTH, frameHeight / BASE_CANVAS_HEIGHT);
   if (!Number.isFinite(scale) || scale <= 0) {
     return false;
   }
@@ -4359,45 +4388,98 @@ const renderTeamSlide = (item, employeesList = []) => {
 };
 
 const lockBirthdayVideoLayoutForTv = (viewport, frameEl, backdrop, video) => {
-  if (!isTvDevice) return;
-  const widthPx = `${BASE_CANVAS_WIDTH}px`;
-  const heightPx = `${BASE_CANVAS_HEIGHT}px`;
-  const apply = () => {
+  if (!isTvDevice || !video) return;
+  const fallbackWidth = Number(canvas?.dataset.baseWidth) || BASE_CANVAS_WIDTH;
+  const fallbackHeight = Number(canvas?.dataset.baseHeight) || BASE_CANVAS_HEIGHT;
+  const getContainerSize = () => {
+    const width =
+      Math.round(backdrop?.clientWidth || frameEl?.clientWidth || viewport?.clientWidth || fallbackWidth) || fallbackWidth;
+    const height =
+      Math.round(backdrop?.clientHeight || frameEl?.clientHeight || viewport?.clientHeight || fallbackHeight) || fallbackHeight;
+    return { width, height };
+  };
+  const fitVideoToContainer = () => {
+    if (!video.isConnected) return;
+    const { width: containerWidth, height: containerHeight } = getContainerSize();
+    const sourceWidth = Number(video.videoWidth) || containerWidth || fallbackWidth;
+    const sourceHeight = Number(video.videoHeight) || containerHeight || fallbackHeight;
+    const scale = Math.max(containerWidth / sourceWidth, containerHeight / sourceHeight);
+    const renderWidth = Math.ceil(sourceWidth * scale);
+    const renderHeight = Math.ceil(sourceHeight * scale);
+    const offsetLeft = Math.floor((containerWidth - renderWidth) / 2);
+    const offsetTop = Math.floor((containerHeight - renderHeight) / 2);
+
     [viewport, frameEl, backdrop].forEach((element) => {
       if (!element) return;
-      element.style.width = widthPx;
-      element.style.height = heightPx;
-      element.style.minWidth = widthPx;
-      element.style.minHeight = heightPx;
-      element.style.maxWidth = widthPx;
-      element.style.maxHeight = heightPx;
+      element.style.width = `${containerWidth}px`;
+      element.style.height = `${containerHeight}px`;
+      element.style.minWidth = `${containerWidth}px`;
+      element.style.minHeight = `${containerHeight}px`;
+      element.style.maxWidth = `${containerWidth}px`;
+      element.style.maxHeight = `${containerHeight}px`;
+      element.style.overflow = "hidden";
     });
     if (viewport) {
       viewport.style.flex = "0 0 auto";
     }
-    if (video) {
-      video.style.width = widthPx;
-      video.style.height = heightPx;
-      video.style.minWidth = widthPx;
-      video.style.minHeight = heightPx;
-      video.style.maxWidth = widthPx;
-      video.style.maxHeight = heightPx;
-      video.style.left = "0";
-      video.style.top = "0";
-      video.style.objectFit = "cover";
-      video.style.objectPosition = "center center";
-    }
+
+    // Manual cover sizing avoids Firestick/WebView object-fit first-frame glitches.
+    video.style.position = "absolute";
+    video.style.objectFit = "fill";
+    video.style.objectPosition = "center center";
+    video.style.width = `${renderWidth}px`;
+    video.style.height = `${renderHeight}px`;
+    video.style.minWidth = `${renderWidth}px`;
+    video.style.minHeight = `${renderHeight}px`;
+    video.style.maxWidth = "none";
+    video.style.maxHeight = "none";
+    video.style.left = `${offsetLeft}px`;
+    video.style.top = `${offsetTop}px`;
+
     if (frameEl) {
       void frameEl.offsetWidth;
     }
   };
-  apply();
-  requestAnimationFrame(apply);
-  setTimeout(apply, 120);
-  setTimeout(apply, 420);
-  if (video) {
-    video.addEventListener("loadedmetadata", apply);
-    video.addEventListener("playing", apply, { once: true });
+
+  const scheduleBurst = () => {
+    const delays = [0, 16, 40, 90, 160, 280, 420, 700, 1100, 1600];
+    delays.forEach((delay) => {
+      setTimeout(() => {
+        fitVideoToContainer();
+      }, delay);
+    });
+  };
+
+  const onResize = () => {
+    if (!video.isConnected) {
+      window.removeEventListener("resize", onResize);
+      return;
+    }
+    fitVideoToContainer();
+    requestAnimationFrame(fitVideoToContainer);
+  };
+
+  scheduleBurst();
+  window.addEventListener("resize", onResize);
+  video.addEventListener("loadedmetadata", () => {
+    fitVideoToContainer();
+    scheduleBurst();
+  });
+  video.addEventListener("loadeddata", fitVideoToContainer);
+  video.addEventListener("canplay", fitVideoToContainer);
+  video.addEventListener("playing", () => {
+    fitVideoToContainer();
+    scheduleBurst();
+  }, { once: true });
+
+  if ("ResizeObserver" in window && backdrop) {
+    const observer = new ResizeObserver(() => {
+      fitVideoToContainer();
+      if (!video.isConnected) {
+        observer.disconnect();
+      }
+    });
+    observer.observe(backdrop);
   }
 };
 
