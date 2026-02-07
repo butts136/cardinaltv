@@ -481,38 +481,8 @@ const updateCanvasScale = () => {
   if (!frame || !canvas) {
     return false;
   }
-  const bandsActive = Boolean(slideshowContainer?.classList.contains("bands-active"));
-  if (isTvDevice && !bandsActive && slideshowContainer && stage) {
-    const viewportWidth = Math.max(
-      0,
-      Number(window.innerWidth) || Number(document.documentElement?.clientWidth) || 0,
-    );
-    const viewportHeight = Math.max(
-      0,
-      Number(window.innerHeight) || Number(document.documentElement?.clientHeight) || 0,
-    );
-    if (viewportWidth > 0 && viewportHeight > 0) {
-      const targetWidth = Math.floor(Math.min(viewportWidth, (viewportHeight * 16) / 9));
-      const targetHeight = Math.floor(Math.min(viewportHeight, (viewportWidth * 9) / 16));
-      if (targetWidth > 0 && targetHeight > 0) {
-        // Hard-lock TV geometry to avoid transient incorrect first layout metrics.
-        slideshowContainer.style.width = `${targetWidth}px`;
-        slideshowContainer.style.height = `${targetHeight}px`;
-        frame.style.width = `${targetWidth}px`;
-        frame.style.height = `${targetHeight}px`;
-        stage.style.width = `${targetWidth}px`;
-        stage.style.height = `${targetHeight}px`;
-      }
-    }
-  } else if (isTvDevice && bandsActive && slideshowContainer && stage) {
-    slideshowContainer.style.removeProperty("width");
-    slideshowContainer.style.removeProperty("height");
-    frame.style.removeProperty("width");
-    frame.style.removeProperty("height");
-  }
-  const rect = frame.getBoundingClientRect();
-  let frameWidth = Number(rect.width) || 0;
-  let frameHeight = Number(rect.height) || 0;
+  let frameWidth = 0;
+  let frameHeight = 0;
   const viewportWidth = Math.max(
     0,
     Number(window.innerWidth) || Number(document.documentElement?.clientWidth) || 0,
@@ -522,21 +492,30 @@ const updateCanvasScale = () => {
     Number(window.innerHeight) || Number(document.documentElement?.clientHeight) || 0,
   );
   const hasViewport = viewportWidth > 0 && viewportHeight > 0;
-  const layoutWidth = hasViewport ? Math.min(viewportWidth, (viewportHeight * 16) / 9) : 0;
-  const layoutHeight = hasViewport ? Math.min(viewportHeight, (viewportWidth * 9) / 16) : 0;
-
-  // Firestick/WebView can report a transient oversized frame rect at startup.
-  // For TV fullscreen (no info bands), clamp to viewport-derived 16:9 layout when rect is out of bounds.
-  if (isTvDevice && !bandsActive && hasViewport && layoutWidth > 0 && layoutHeight > 0) {
-    const widthTooLarge = frameWidth > layoutWidth * 1.02;
-    const heightTooLarge = frameHeight > layoutHeight * 1.02;
-    const widthTooSmall = frameWidth > 0 && frameWidth < layoutWidth * 0.65;
-    const heightTooSmall = frameHeight > 0 && frameHeight < layoutHeight * 0.65;
-    const missing = frameWidth <= 0 || frameHeight <= 0;
-    if (missing || widthTooLarge || heightTooLarge || widthTooSmall || heightTooSmall) {
-      frameWidth = layoutWidth;
-      frameHeight = layoutHeight;
+  if (hasViewport) {
+    const containerWidth = Math.min(viewportWidth, (viewportHeight * 16) / 9);
+    const containerHeight = Math.min(viewportHeight, (viewportWidth * 9) / 16);
+    const stageWidthPercent = Number.parseFloat(String(stage?.style?.width || ""));
+    const stageHeightPercent = Number.parseFloat(String(stage?.style?.height || ""));
+    let framePercent = 100;
+    if (Number.isFinite(stageWidthPercent) && stageWidthPercent > 0) {
+      framePercent = stageWidthPercent;
+    } else if (Number.isFinite(stageHeightPercent) && stageHeightPercent > 0) {
+      framePercent = stageHeightPercent;
+    } else {
+      const configuredSize = Number(infoBandsConfig?.frame?.size);
+      if (Boolean(infoBandsConfig?.enabled) && Number.isFinite(configuredSize) && configuredSize > 0 && configuredSize < 100) {
+        framePercent = Math.max(50, Math.min(100, configuredSize));
+      }
     }
+    frameWidth = containerWidth * (framePercent / 100);
+    frameHeight = containerHeight * (framePercent / 100);
+  }
+
+  if (!frameWidth || !frameHeight) {
+    const rect = frame.getBoundingClientRect();
+    frameWidth = Number(rect.width) || 0;
+    frameHeight = Number(rect.height) || 0;
   }
 
   if (!frameWidth || !frameHeight) {
@@ -4763,7 +4742,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   }
   viewport.appendChild(frameEl);
 
-  const swapPromise = setMediaContent(viewport, { waitForReady: true, immediateSwap: true });
+  const swapPromise = setMediaContent(viewport, { waitForReady: !isTvDevice, immediateSwap: true });
   if (swapPromise && typeof swapPromise.then === "function") {
     swapPromise.then(() => {
       const entries = frameEl?._birthdayLineLayoutEntries;
