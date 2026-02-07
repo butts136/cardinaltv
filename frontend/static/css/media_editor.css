@@ -690,6 +690,10 @@
 }
 
 .preview-frame[data-preview-mode="slideshow"] .preview-frame-media {
+  display: flex;
+}
+
+.preview-frame[data-preview-mode="slideshow"].slideshow-preview-ready .preview-frame-media {
   display: none;
 }
 
@@ -5999,4 +6003,3 @@ details.collapsible:not([open]) .birthday-text-footer {
   font-size: 0.8rem;
   color: rgba(148, 163, 184, 0.8);
 }
-

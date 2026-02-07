@@ -23,14 +23,25 @@
     return lines.length ? lines : [""];
   };
 
-  const measureTextBlock = (lines, fontSize, fontStack, ctx) => {
+  const measureTextBlock = (
+    lines,
+    fontSize,
+    fontStack,
+    ctx,
+    { lineHeight = TEXT_LINE_HEIGHT, letterSpacing = 0 } = {},
+  ) => {
     const normalizedLines = lines && lines.length ? lines : [""];
     const safeFontSize = Number.isFinite(Number(fontSize)) ? Number(fontSize) : MIN_FONT_SIZE;
+    const lineHeightRatio = normalizeLineHeight(lineHeight, TEXT_LINE_HEIGHT);
+    const spacing = normalizeLetterSpacing(letterSpacing, 0);
     if (!ctx) {
       const fallbackWidth =
-        Math.max(1, Math.max(...normalizedLines.map((line) => (line || "").length)) *
-          safeFontSize * MEASUREMENT_FALLBACK_CHAR_WIDTH);
-      const fallbackLineHeight = safeFontSize * TEXT_LINE_HEIGHT;
+        Math.max(
+          1,
+          Math.max(...normalizedLines.map((line) => (line || "").length)) *
+            safeFontSize * MEASUREMENT_FALLBACK_CHAR_WIDTH,
+        ) + Math.max(0, normalizedLines[0].length - 1) * spacing;
+      const fallbackLineHeight = safeFontSize * lineHeightRatio;
       return { width: fallbackWidth, height: fallbackLineHeight * normalizedLines.length };
     }
     ctx.font = `${safeFontSize}px ${fontStack}`;
@@ -42,16 +53,17 @@
       const left = Math.abs(metrics.actualBoundingBoxLeft ?? 0);
       const right = Math.abs(metrics.actualBoundingBoxRight ?? 0);
       const boundingWidth = Math.max(metrics.width || 0, left + right);
-      maxWidth = Math.max(maxWidth, boundingWidth);
+      const spacedWidth = boundingWidth + Math.max(0, (line || "").length - 1) * spacing;
+      maxWidth = Math.max(maxWidth, spacedWidth);
       maxAscent = Math.max(maxAscent, metrics.actualBoundingBoxAscent ?? 0);
       maxDescent = Math.max(maxDescent, metrics.actualBoundingBoxDescent ?? 0);
     });
     const safety = safeFontSize * MEASUREMENT_SAFETY_RATIO;
-    const lineHeight = Math.max(
-      safeFontSize * TEXT_LINE_HEIGHT,
+    const resolvedLineHeight = Math.max(
+      safeFontSize * lineHeightRatio,
       maxAscent + maxDescent + safety * 2,
     );
-    const blockHeight = lineHeight * normalizedLines.length;
+    const blockHeight = resolvedLineHeight * normalizedLines.length;
     return {
       width: Math.max(1, maxWidth),
       height: Math.max(1, blockHeight),
@@ -86,6 +98,20 @@
     }
     return clampValue(num, MIN_SCALE, MAX_SCALE);
   };
+  const normalizeLineHeight = (value, fallback = TEXT_LINE_HEIGHT) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) {
+      return clampValue(Number(fallback) || TEXT_LINE_HEIGHT, 0.6, 3);
+    }
+    return clampValue(num, 0.6, 3);
+  };
+  const normalizeLetterSpacing = (value, fallback = 0) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+      return clampValue(Number(fallback) || 0, -10, 30);
+    }
+    return clampValue(num, -10, 30);
+  };
 
   const fitTextToBox = (
     text,
@@ -93,7 +119,13 @@
     innerWidthPx,
     innerHeightPx,
     ctx,
-    { fontSize: preferredFontSize, scaleX: preferredScaleX, scaleY: preferredScaleY } = {},
+    {
+      fontSize: preferredFontSize,
+      scaleX: preferredScaleX,
+      scaleY: preferredScaleY,
+      lineHeight: preferredLineHeight,
+      letterSpacing: preferredLetterSpacing,
+    } = {},
   ) => {
     const lines = splitLines(text);
     const lineCount = Math.max(1, lines.length);
@@ -106,10 +138,16 @@
     );
     const desiredScaleX = normalizeScale(preferredScaleX, 1);
     const desiredScaleY = normalizeScale(preferredScaleY, 1);
+    const desiredLineHeight = normalizeLineHeight(preferredLineHeight, TEXT_LINE_HEIGHT);
+    const desiredLetterSpacing = normalizeLetterSpacing(preferredLetterSpacing, 0);
 
     let fontSize = baseFontSize;
 
-    const measure = (size) => measureTextBlock(lines, size, fontStack, ctx);
+    const measure = (size) =>
+      measureTextBlock(lines, size, fontStack, ctx, {
+        lineHeight: desiredLineHeight,
+        letterSpacing: desiredLetterSpacing,
+      });
     let metrics = measure(fontSize);
 
     let safety = 0;
@@ -135,7 +173,13 @@
     const scaleX = clampValue(Math.min(desiredScaleX, maxScaleX), MIN_SCALE, MAX_SCALE);
     const scaleY = clampValue(Math.min(desiredScaleY, maxScaleY), MIN_SCALE, MAX_SCALE);
 
-    return { fontSize, scaleX, scaleY };
+    return {
+      fontSize,
+      scaleX,
+      scaleY,
+      lineHeight: desiredLineHeight,
+      letterSpacing: desiredLetterSpacing,
+    };
   };
 
   const hexToRgb = (value) => {
@@ -224,7 +268,7 @@
     const fontSizeAuto =
       typeof opts?.font_size_auto === "boolean" ? opts.font_size_auto : true;
     const preferredFontSize = fontSizeAuto ? null : Number(opts?.font_size);
-    const { fontSize, scaleX, scaleY } = fitTextToBox(
+    const { fontSize, scaleX, scaleY, lineHeight, letterSpacing } = fitTextToBox(
       displayText,
       fontFamily,
       availableWidthPx,
@@ -234,12 +278,15 @@
         fontSize: preferredFontSize,
         scaleX: opts?.scale_x,
         scaleY: opts?.scale_y,
+        lineHeight: opts?.line_height,
+        letterSpacing: opts?.letter_spacing,
       },
     );
 
     lineEl.style.fontFamily = fontFamily;
     lineEl.style.fontSize = `${fontSize}px`;
-    lineEl.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+    lineEl.style.lineHeight = lineHeight.toString();
+    lineEl.style.letterSpacing = `${letterSpacing}px`;
     lineEl.style.transformOrigin = "50% 50%";
     lineEl.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
 
@@ -247,6 +294,8 @@
     contentEl.style.alignItems = "center";
     contentEl.style.justifyContent = "center";
     contentEl.style.transformOrigin = "center";
+    contentEl.style.lineHeight = lineHeight.toString();
+    contentEl.style.letterSpacing = `${letterSpacing}px`;
     contentEl.style.transform =
       scaleX === 1 && scaleY === 1 ? "none" : `scale(${scaleX}, ${scaleY})`;
   };
@@ -371,7 +420,7 @@
     const fontSizeAuto =
       fontSizeAutoRaw == null ? true : fontSizeAutoRaw === "1" || fontSizeAutoRaw === "true";
     const preferredFontSize = fontSizeAuto ? null : Number(card.dataset.fontSize);
-    const { fontSize, scaleX, scaleY } = fitTextToBox(
+    const { fontSize, scaleX, scaleY, lineHeight, letterSpacing } = fitTextToBox(
       displayValue,
       fontStack,
       availableWidthPx,
@@ -381,18 +430,22 @@
         fontSize: preferredFontSize,
         scaleX: card.dataset.scaleX,
         scaleY: card.dataset.scaleY,
+        lineHeight: card.dataset.lineHeight,
+        letterSpacing: card.dataset.letterSpacing,
       },
     );
 
     card.style.fontSize = `${fontSize}px`;
-    card.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+    card.style.lineHeight = lineHeight.toString();
+    card.style.letterSpacing = `${letterSpacing}px`;
     card.style.fontFamily = fontStack;
 
     if (content) {
       content.style.transformOrigin = "center";
       content.style.transform =
         scaleX === 1 && scaleY === 1 ? "none" : `scale(${scaleX}, ${scaleY})`;
-      content.style.lineHeight = TEXT_LINE_HEIGHT.toString();
+      content.style.lineHeight = lineHeight.toString();
+      content.style.letterSpacing = `${letterSpacing}px`;
       content.style.fontSize = `${fontSize}px`;
     }
 

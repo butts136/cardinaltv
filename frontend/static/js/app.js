@@ -690,6 +690,7 @@ window.CardinalApp = {
   fetchJSON,
   clampValue,
 };
+const LIVE_EDITOR_ACTIVE = Boolean(document.querySelector("[data-editor-kind]"));
 
 // ---------------------------------------------------------------------------
 // Feedback pour le téléversement de fichiers
@@ -7028,290 +7029,292 @@ settingsForm?.addEventListener("submit", async (event) => {
   }
 });
 
-// Anniversaire : interactions
-birthdayBackgroundUploadButton?.addEventListener("click", () => {
-  void uploadBirthdayBackground();
-});
+if (!LIVE_EDITOR_ACTIVE) {
+  // Anniversaire : interactions
+  birthdayBackgroundUploadButton?.addEventListener("click", () => {
+    void uploadBirthdayBackground();
+  });
 
-birthdayBackgroundInput?.addEventListener("change", () => {
-  void uploadBirthdayBackground();
-});
+  birthdayBackgroundInput?.addEventListener("change", () => {
+    void uploadBirthdayBackground();
+  });
 
-birthdayDropZone?.addEventListener("click", (event) => {
-  event.preventDefault();
-  birthdayBackgroundInput?.click();
-});
-
-const birthdayDragEvents = ["dragenter", "dragover", "dragleave", "drop"];
-birthdayDragEvents.forEach((eventName) => {
-  birthdayDropZone?.addEventListener(eventName, (event) => {
+  birthdayDropZone?.addEventListener("click", (event) => {
     event.preventDefault();
-    event.stopPropagation();
+    birthdayBackgroundInput?.click();
   });
-});
 
-birthdayDropZone?.addEventListener("dragenter", () => {
-  birthdayDropZone.classList.add("drag-over");
-});
-birthdayDropZone?.addEventListener("dragover", () => {
-  birthdayDropZone.classList.add("drag-over");
-});
-birthdayDropZone?.addEventListener("dragleave", () => {
-  birthdayDropZone.classList.remove("drag-over");
-});
-birthdayDropZone?.addEventListener("drop", (event) => {
-  const { files } = event.dataTransfer || {};
-  birthdayDropZone.classList.remove("drag-over");
-  if (files && files.length) {
-    void uploadBirthdayBackground(files[0]);
-  }
-});
-
-birthdayEnabledInput?.addEventListener("change", () => {
-  void saveBirthdaySettings();
-  renderBirthdayPreview();
-});
-
-birthdayPreviewRefreshButton?.addEventListener("click", () => {
-  renderBirthdayPreview();
-});
-
-birthdayBackgroundToggleButton?.addEventListener("click", () => {
-  if (!birthdayBackgroundBody) return;
-  const collapsed = birthdayBackgroundBody.classList.toggle("collapsed");
-  birthdayBackgroundToggleButton.classList.toggle("expanded", !collapsed);
-  birthdayBackgroundToggleButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
-});
-
-birthdayOpenDayButtons.forEach((button) => {
-  button?.addEventListener("click", () => {
-    const day = button.dataset.openDay;
-    if (!day) return;
-    void toggleOpenDay(day);
-  });
-});
-
-birthdayOpeningToggle?.addEventListener("click", () => {
-  if (!birthdayOpeningBody) return;
-  const collapsed = birthdayOpeningBody.classList.toggle("collapsed");
-  birthdayOpeningToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
-});
-
-birthdayDaysBeforeInput?.addEventListener("input", () => {
-  void saveBirthdaySettings();
-});
-
-// Mise à jour en direct des réglages de titre
-[birthdayTitleTextInput, birthdayTitleSizeInput, birthdayTitleColorInput, birthdayTitleYInput].forEach(
-  (input) => {
-    input?.addEventListener("input", () => {
-      void saveBirthdaySettings();
-      renderBirthdayPreview();
+  const birthdayDragEvents = ["dragenter", "dragover", "dragleave", "drop"];
+  birthdayDragEvents.forEach((eventName) => {
+    birthdayDropZone?.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      event.stopPropagation();
     });
-  }
-);
-
-// Textes des variantes (ajout/suppression)
-getBirthdayTextBlocks().forEach((block, idx) => {
-  setBirthdayTextBlockIds(block, idx + 1);
-  bindBirthdayTextBlock(block);
-});
-renumberBirthdayTextBlocks();
-updateBirthdayTextButtons();
-
-birthdayTextAddButton?.addEventListener("click", () => {
-  if (!birthdayTextList) return;
-  const blocks = getBirthdayTextBlocks();
-  if (blocks.length >= BIRTHDAY_MAX_LINES) return;
-  const nextIndex = blocks.length + 1;
-  const block = createBirthdayTextBlock(nextIndex, {
-    text: `(Texte ${nextIndex})`,
-    options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
   });
-  if (!block) return;
-  birthdayTextList.appendChild(block);
+
+  birthdayDropZone?.addEventListener("dragenter", () => {
+    birthdayDropZone.classList.add("drag-over");
+  });
+  birthdayDropZone?.addEventListener("dragover", () => {
+    birthdayDropZone.classList.add("drag-over");
+  });
+  birthdayDropZone?.addEventListener("dragleave", () => {
+    birthdayDropZone.classList.remove("drag-over");
+  });
+  birthdayDropZone?.addEventListener("drop", (event) => {
+    const { files } = event.dataTransfer || {};
+    birthdayDropZone.classList.remove("drag-over");
+    if (files && files.length) {
+      void uploadBirthdayBackground(files[0]);
+    }
+  });
+
+  birthdayEnabledInput?.addEventListener("change", () => {
+    void saveBirthdaySettings();
+    renderBirthdayPreview();
+  });
+
+  birthdayPreviewRefreshButton?.addEventListener("click", () => {
+    renderBirthdayPreview();
+  });
+
+  birthdayBackgroundToggleButton?.addEventListener("click", () => {
+    if (!birthdayBackgroundBody) return;
+    const collapsed = birthdayBackgroundBody.classList.toggle("collapsed");
+    birthdayBackgroundToggleButton.classList.toggle("expanded", !collapsed);
+    birthdayBackgroundToggleButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  });
+
+  birthdayOpenDayButtons.forEach((button) => {
+    button?.addEventListener("click", () => {
+      const day = button.dataset.openDay;
+      if (!day) return;
+      void toggleOpenDay(day);
+    });
+  });
+
+  birthdayOpeningToggle?.addEventListener("click", () => {
+    if (!birthdayOpeningBody) return;
+    const collapsed = birthdayOpeningBody.classList.toggle("collapsed");
+    birthdayOpeningToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  });
+
+  birthdayDaysBeforeInput?.addEventListener("input", () => {
+    void saveBirthdaySettings();
+  });
+
+  // Mise à jour en direct des réglages de titre
+  [birthdayTitleTextInput, birthdayTitleSizeInput, birthdayTitleColorInput, birthdayTitleYInput].forEach(
+    (input) => {
+      input?.addEventListener("input", () => {
+        void saveBirthdaySettings();
+        renderBirthdayPreview();
+      });
+    }
+  );
+
+  // Textes des variantes (ajout/suppression)
+  getBirthdayTextBlocks().forEach((block, idx) => {
+    setBirthdayTextBlockIds(block, idx + 1);
+    bindBirthdayTextBlock(block);
+  });
   renumberBirthdayTextBlocks();
   updateBirthdayTextButtons();
-  syncBirthdayVariantConfigFromUI();
-  renderBirthdayPreview();
-  getBirthdayTextInputs(block).textarea?.focus();
-});
 
-// Variantes d'anniversaire
-birthdayVariantPills.forEach((pill) => {
-  pill?.addEventListener("click", () => {
-    const variant = pill.dataset.variant || "before";
-    if (variant === birthdayCurrentVariant) return;
-    void loadBirthdayVariantConfig(variant);
+  birthdayTextAddButton?.addEventListener("click", () => {
+    if (!birthdayTextList) return;
+    const blocks = getBirthdayTextBlocks();
+    if (blocks.length >= BIRTHDAY_MAX_LINES) return;
+    const nextIndex = blocks.length + 1;
+    const block = createBirthdayTextBlock(nextIndex, {
+      text: `(Texte ${nextIndex})`,
+      options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT },
+    });
+    if (!block) return;
+    birthdayTextList.appendChild(block);
+    renumberBirthdayTextBlocks();
+    updateBirthdayTextButtons();
+    syncBirthdayVariantConfigFromUI();
+    renderBirthdayPreview();
+    getBirthdayTextInputs(block).textarea?.focus();
   });
-});
 
-birthdayVariantSaveButton?.addEventListener("click", () => {
-  void saveBirthdayVariantConfig({ successMessage: "Textes enregistrés pour ce modèle." });
-});
+  // Variantes d'anniversaire
+  birthdayVariantPills.forEach((pill) => {
+    pill?.addEventListener("click", () => {
+      const variant = pill.dataset.variant || "before";
+      if (variant === birthdayCurrentVariant) return;
+      void loadBirthdayVariantConfig(variant);
+    });
+  });
 
-// Changement d'heure : interactions
-timeChangeSaveButton?.addEventListener("click", () => {
-  void saveTimeChangeSettings();
-});
+  birthdayVariantSaveButton?.addEventListener("click", () => {
+    void saveBirthdayVariantConfig({ successMessage: "Textes enregistrés pour ce modèle." });
+  });
 
-[timeChangeEnabledInput, timeChangeDaysBeforeInput, timeChangeDurationInput].forEach((input) => {
-  input?.addEventListener("change", () => {
+  // Changement d'heure : interactions
+  timeChangeSaveButton?.addEventListener("click", () => {
     void saveTimeChangeSettings();
   });
-});
 
-timeChangeRefreshButton?.addEventListener("click", () => {
-  void loadTimeChangeInfo();
-  startTimeChangeAutoRefresh();
-});
-
-timeChangeShowUpcomingButton?.addEventListener("click", () => {
-  void toggleTimeChangeUpcomingList();
-});
-
-timeChangePreviewRefreshButton?.addEventListener("click", () => {
-  renderTimeChangePreview();
-});
-
-timeChangeTextAddButton?.addEventListener("click", () => {
-  if (!timeChangeTextList) return;
-  const blocks = getTimeChangeTextBlocks();
-  const nextIndex = blocks.length + 1;
-  const block = createTimeChangeTextBlock(nextIndex, {
-    text: `(Texte ${nextIndex})`,
-    options: { ...TIME_CHANGE_TEXT_OPTIONS_DEFAULT },
+  [timeChangeEnabledInput, timeChangeDaysBeforeInput, timeChangeDurationInput].forEach((input) => {
+    input?.addEventListener("change", () => {
+      void saveTimeChangeSettings();
+    });
   });
-  if (!block) return;
-  timeChangeTextList.appendChild(block);
-  renumberTimeChangeTextBlocks();
-  syncTimeChangeLinesFromUI();
-  renderTimeChangePreview();
-  getTimeChangeTextInputs(block).textarea?.focus();
-});
 
-timeChangeBackgroundUploadButton?.addEventListener("click", () => {
-  void uploadTimeChangeBackground();
-});
+  timeChangeRefreshButton?.addEventListener("click", () => {
+    void loadTimeChangeInfo();
+    startTimeChangeAutoRefresh();
+  });
 
-timeChangeBackgroundInput?.addEventListener("change", () => {
-  void uploadTimeChangeBackground();
-});
+  timeChangeShowUpcomingButton?.addEventListener("click", () => {
+    void toggleTimeChangeUpcomingList();
+  });
 
-timeChangeDropZone?.addEventListener("click", (event) => {
-  event.preventDefault();
-  timeChangeBackgroundInput?.click();
-});
+  timeChangePreviewRefreshButton?.addEventListener("click", () => {
+    renderTimeChangePreview();
+  });
 
-["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
-  timeChangeDropZone?.addEventListener(eventName, (event) => {
+  timeChangeTextAddButton?.addEventListener("click", () => {
+    if (!timeChangeTextList) return;
+    const blocks = getTimeChangeTextBlocks();
+    const nextIndex = blocks.length + 1;
+    const block = createTimeChangeTextBlock(nextIndex, {
+      text: `(Texte ${nextIndex})`,
+      options: { ...TIME_CHANGE_TEXT_OPTIONS_DEFAULT },
+    });
+    if (!block) return;
+    timeChangeTextList.appendChild(block);
+    renumberTimeChangeTextBlocks();
+    syncTimeChangeLinesFromUI();
+    renderTimeChangePreview();
+    getTimeChangeTextInputs(block).textarea?.focus();
+  });
+
+  timeChangeBackgroundUploadButton?.addEventListener("click", () => {
+    void uploadTimeChangeBackground();
+  });
+
+  timeChangeBackgroundInput?.addEventListener("change", () => {
+    void uploadTimeChangeBackground();
+  });
+
+  timeChangeDropZone?.addEventListener("click", (event) => {
     event.preventDefault();
-    event.stopPropagation();
+    timeChangeBackgroundInput?.click();
   });
-});
 
-timeChangeDropZone?.addEventListener("dragenter", () => {
-  timeChangeDropZone.classList.add("drag-over");
-});
-timeChangeDropZone?.addEventListener("dragover", () => {
-  timeChangeDropZone.classList.add("drag-over");
-});
-timeChangeDropZone?.addEventListener("dragleave", () => {
-  timeChangeDropZone.classList.remove("drag-over");
-});
-timeChangeDropZone?.addEventListener("drop", (event) => {
-  const { files } = event.dataTransfer || {};
-  timeChangeDropZone.classList.remove("drag-over");
-  if (files && files.length) {
-    void uploadTimeChangeBackground(files[0]);
-  }
-});
+  ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+    timeChangeDropZone?.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+  });
 
-timeChangeBackgroundToggleButton?.addEventListener("click", () => {
-  if (!timeChangeBackgroundBody) return;
-  const collapsed = timeChangeBackgroundBody.classList.toggle("collapsed");
-  timeChangeBackgroundToggleButton.classList.toggle("expanded", !collapsed);
-  timeChangeBackgroundToggleButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
-});
+  timeChangeDropZone?.addEventListener("dragenter", () => {
+    timeChangeDropZone.classList.add("drag-over");
+  });
+  timeChangeDropZone?.addEventListener("dragover", () => {
+    timeChangeDropZone.classList.add("drag-over");
+  });
+  timeChangeDropZone?.addEventListener("dragleave", () => {
+    timeChangeDropZone.classList.remove("drag-over");
+  });
+  timeChangeDropZone?.addEventListener("drop", (event) => {
+    const { files } = event.dataTransfer || {};
+    timeChangeDropZone.classList.remove("drag-over");
+    if (files && files.length) {
+      void uploadTimeChangeBackground(files[0]);
+    }
+  });
 
-bindPreviewFullscreen(timeChangePreviewStage);
+  timeChangeBackgroundToggleButton?.addEventListener("click", () => {
+    if (!timeChangeBackgroundBody) return;
+    const collapsed = timeChangeBackgroundBody.classList.toggle("collapsed");
+    timeChangeBackgroundToggleButton.classList.toggle("expanded", !collapsed);
+    timeChangeBackgroundToggleButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  });
 
-// Noël: interactions
-christmasSaveButton?.addEventListener("click", () => {
-  void saveChristmasSettings();
-});
+  bindPreviewFullscreen(timeChangePreviewStage);
 
-[christmasEnabledInput, christmasDaysBeforeInput, christmasDurationInput].forEach((input) => {
-  input?.addEventListener("change", () => {
+  // Noël: interactions
+  christmasSaveButton?.addEventListener("click", () => {
     void saveChristmasSettings();
   });
-});
 
-christmasPreviewRefreshButton?.addEventListener("click", () => {
-  renderChristmasPreview();
-});
-
-christmasTextAddButton?.addEventListener("click", () => {
-  if (!christmasTextList) return;
-  const blocks = getChristmasTextBlocks();
-  const nextIndex = blocks.length + 1;
-  const block = createChristmasTextBlock(nextIndex, {
-    text: `(Texte ${nextIndex})`,
-    options: { ...CHRISTMAS_TEXT_OPTIONS_DEFAULT },
+  [christmasEnabledInput, christmasDaysBeforeInput, christmasDurationInput].forEach((input) => {
+    input?.addEventListener("change", () => {
+      void saveChristmasSettings();
+    });
   });
-  if (!block) return;
-  christmasTextList.appendChild(block);
-  renumberChristmasTextBlocks();
-  syncChristmasLinesFromUI();
-  renderChristmasPreview();
-  getChristmasTextInputs(block).textarea?.focus();
-});
 
-christmasBackgroundUploadButton?.addEventListener("click", () => {
-  void uploadChristmasBackground();
-});
+  christmasPreviewRefreshButton?.addEventListener("click", () => {
+    renderChristmasPreview();
+  });
 
-christmasBackgroundInput?.addEventListener("change", () => {
-  void uploadChristmasBackground();
-});
+  christmasTextAddButton?.addEventListener("click", () => {
+    if (!christmasTextList) return;
+    const blocks = getChristmasTextBlocks();
+    const nextIndex = blocks.length + 1;
+    const block = createChristmasTextBlock(nextIndex, {
+      text: `(Texte ${nextIndex})`,
+      options: { ...CHRISTMAS_TEXT_OPTIONS_DEFAULT },
+    });
+    if (!block) return;
+    christmasTextList.appendChild(block);
+    renumberChristmasTextBlocks();
+    syncChristmasLinesFromUI();
+    renderChristmasPreview();
+    getChristmasTextInputs(block).textarea?.focus();
+  });
 
-christmasDropZone?.addEventListener("click", (event) => {
-  event.preventDefault();
-  christmasBackgroundInput?.click();
-});
+  christmasBackgroundUploadButton?.addEventListener("click", () => {
+    void uploadChristmasBackground();
+  });
 
-["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
-  christmasDropZone?.addEventListener(eventName, (event) => {
+  christmasBackgroundInput?.addEventListener("change", () => {
+    void uploadChristmasBackground();
+  });
+
+  christmasDropZone?.addEventListener("click", (event) => {
     event.preventDefault();
-    event.stopPropagation();
+    christmasBackgroundInput?.click();
   });
-});
 
-christmasDropZone?.addEventListener("dragenter", () => {
-  christmasDropZone.classList.add("drag-over");
-});
-christmasDropZone?.addEventListener("dragover", () => {
-  christmasDropZone.classList.add("drag-over");
-});
-christmasDropZone?.addEventListener("dragleave", () => {
-  christmasDropZone.classList.remove("drag-over");
-});
-christmasDropZone?.addEventListener("drop", (event) => {
-  const { files } = event.dataTransfer || {};
-  christmasDropZone.classList.remove("drag-over");
-  if (files && files.length) {
-    void uploadChristmasBackground(files[0]);
-  }
-});
+  ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+    christmasDropZone?.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+  });
 
-christmasBackgroundToggleButton?.addEventListener("click", () => {
-  if (!christmasBackgroundBody) return;
-  const collapsed = christmasBackgroundBody.classList.toggle("collapsed");
-  christmasBackgroundToggleButton.classList.toggle("expanded", !collapsed);
-  christmasBackgroundToggleButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
-});
+  christmasDropZone?.addEventListener("dragenter", () => {
+    christmasDropZone.classList.add("drag-over");
+  });
+  christmasDropZone?.addEventListener("dragover", () => {
+    christmasDropZone.classList.add("drag-over");
+  });
+  christmasDropZone?.addEventListener("dragleave", () => {
+    christmasDropZone.classList.remove("drag-over");
+  });
+  christmasDropZone?.addEventListener("drop", (event) => {
+    const { files } = event.dataTransfer || {};
+    christmasDropZone.classList.remove("drag-over");
+    if (files && files.length) {
+      void uploadChristmasBackground(files[0]);
+    }
+  });
 
-bindPreviewFullscreen(christmasPreviewStage);
+  christmasBackgroundToggleButton?.addEventListener("click", () => {
+    if (!christmasBackgroundBody) return;
+    const collapsed = christmasBackgroundBody.classList.toggle("collapsed");
+    christmasBackgroundToggleButton.classList.toggle("expanded", !collapsed);
+    christmasBackgroundToggleButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  });
+
+  bindPreviewFullscreen(christmasPreviewStage);
+}
 
 // Notre Équipe: interactions
 teamBackgroundUploadButton?.addEventListener("click", () => {
@@ -7411,6 +7414,13 @@ pptUploadForm?.addEventListener("submit", submitPptUploadForm);
 
 // Initialisation globale
 window.addEventListener("load", async () => {
+  if (LIVE_EDITOR_ACTIVE) {
+    updateQuebecTime();
+    if (!quebecTimeTimer) {
+      quebecTimeTimer = setInterval(updateQuebecTime, 1000);
+    }
+    return;
+  }
   const needsOverlaySettings =
     Boolean(settingsForm) ||
     Boolean(birthdayEnabledInput) ||

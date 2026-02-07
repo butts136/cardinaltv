@@ -87,6 +87,9 @@
     const timeChangeEnabledInput = document.querySelector("#time-change-enabled");
     const timeChangeDaysBeforeInput = document.querySelector("#time-change-days-before");
     const timeChangeDurationInput = document.querySelector("#time-change-duration");
+    const timeChangeRefreshButton = document.querySelector("#time-change-refresh");
+    const timeChangeShowUpcomingButton = document.querySelector("#time-change-show-upcoming");
+    const timeChangeUpcomingList = document.querySelector("#time-change-upcoming-list");
     const timeChangeSaveButton = document.querySelector("#time-change-save");
     const timeChangeStatus = document.querySelector("#time-change-status");
     const christmasEnabledInput = document.querySelector("#christmas-enabled");
@@ -1014,6 +1017,14 @@
   };
 
   const isSlideshowPreviewMode = previewFrame?.dataset?.previewMode === "slideshow";
+  let slideshowPreviewReady = !isSlideshowPreviewMode;
+  let activeBackgroundPreviewEntry = null;
+  const setSlideshowPreviewReady = (ready) => {
+    slideshowPreviewReady = Boolean(ready);
+    if (previewFrame) {
+      previewFrame.classList.toggle("slideshow-preview-ready", slideshowPreviewReady);
+    }
+  };
 
   const clearTestPreview = () => {
     if (!testPreviewMedia) return;
@@ -1023,7 +1034,7 @@
   const setPreviewFallback = () => {
     if (!testPreviewMedia) return;
     clearTestPreview();
-    if (isSlideshowPreviewMode) {
+    if (isSlideshowPreviewMode && slideshowPreviewReady) {
       testPreviewMedia.classList.remove("preview-frame-media--fallback");
       return;
     }
@@ -1034,7 +1045,7 @@
     if (!testPreviewMedia) return;
     clearTestPreview();
     testPreviewMedia.classList.remove("preview-frame-media--fallback");
-    if (isSlideshowPreviewMode) {
+    if (isSlideshowPreviewMode && slideshowPreviewReady) {
       scheduleSlideshowPreviewRefresh();
       return;
     }
@@ -1445,6 +1456,50 @@
         });
     }, 220);
   };
+  const updateTimeChangeNextSubtitle = (context) => {
+    if (!timeChangeNextSubtitle) return;
+    const tokens = context?.tokens || {};
+    const weekday = tokens["[change_weekday]"] || "";
+    const dateLabel = tokens["[change_date]"] || "date inconnue";
+    const timeLabel = tokens["[change_time]"] || "";
+    const days = tokens["[days_until]"] || tokens["[days_left]"] || "";
+    const daysLabel = tokens["[days_label]"] || "jours";
+    const mode = context?.mode || "live";
+    const prefix = mode === "next" ? "Hors fenêtre d'affichage · " : "";
+    const when = [weekday, dateLabel].filter(Boolean).join(" ");
+    const timePart = timeLabel ? ` à ${timeLabel}` : "";
+    const daysPart = days ? ` · dans ${days} ${daysLabel}` : "";
+    timeChangeNextSubtitle.textContent = `${prefix}${when || dateLabel}${timePart}${daysPart}`.trim();
+  };
+  const renderTimeChangeUpcomingList = (items) => {
+    if (!timeChangeUpcomingList) return;
+    const rows = Array.isArray(items) ? items : [];
+    if (!rows.length) {
+      timeChangeUpcomingList.innerHTML = "<p class=\"field-hint\">Aucune donnée disponible.</p>";
+      return;
+    }
+    const list = rows
+      .map((entry) => {
+        const weekday = entry?.weekday_label || "";
+        const dateLabel = entry?.date_label || "";
+        const timeLabel = entry?.time_label || "";
+        const direction = entry?.direction_label || "";
+        const season = entry?.season_label || "";
+        return `<li><strong>${weekday} ${dateLabel}</strong>${timeLabel ? ` à ${timeLabel}` : ""} · ${direction} ${season}</li>`;
+      })
+      .join("");
+    timeChangeUpcomingList.innerHTML = `<ul class="field-hint">${list}</ul>`;
+  };
+  const refreshTimeChangeUpcomingList = async () => {
+    if (!timeChangeUpcomingList) return;
+    try {
+      const payload = await fetchJSON("api/time-change-slide/upcoming");
+      renderTimeChangeUpcomingList(payload?.changes || []);
+    } catch (error) {
+      console.warn("Impossible de charger les prochaines dates de changement d'heure:", error);
+      renderTimeChangeUpcomingList([]);
+    }
+  };
   const persistCustomDateControl = (forceImmediate = false) => {
     if (editorKind !== "time_change" || !useCustomDateInput) return;
     const enabled = Boolean(useCustomDateInput.checked);
@@ -1470,8 +1525,33 @@
     }, 260);
   };
   const bindBirthdayOpenDays = () => {
-    // Les boutons "jours ouverts" restent gérés par app.js legacy pour éviter
-    // des doubles handlers tant que les deux scripts cohabitent sur la page.
+    if (!birthdayOpenDayButtons || !birthdayOpenDayButtons.length) return;
+    birthdayOpenDayButtons.forEach((button) => {
+      if (!button || button.dataset.liveEditorBound === "1") {
+        return;
+      }
+      button.dataset.liveEditorBound = "1";
+      button.addEventListener("click", () => {
+        const key = button.dataset.openDay;
+        if (!key) return;
+        const current = normalizeOpenDays(currentTestSlideSettings.open_days);
+        const next = { ...current, [key]: !Boolean(current[key]) };
+        currentTestSlideSettings = {
+          ...currentTestSlideSettings,
+          open_days: next,
+        };
+        applyBirthdayOpenDaysUI(next);
+        queueExternalSettingsPatch({ open_days: next });
+        void refreshTokenPreview({ force: true });
+      });
+    });
+    if (birthdayOpeningToggle && birthdayOpeningBody && birthdayOpeningToggle.dataset.liveEditorBound !== "1") {
+      birthdayOpeningToggle.dataset.liveEditorBound = "1";
+      birthdayOpeningToggle.addEventListener("click", () => {
+        const collapsed = birthdayOpeningBody.classList.toggle("collapsed");
+        birthdayOpeningToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      });
+    }
   };
 
   const normalizeBackgroundOptions = (raw) => {
@@ -3027,6 +3107,9 @@
         context = await buildChristmasTokenContext();
       }
       tokenPreview = { ...context, updatedAt: Date.now() };
+      if (editorKind === "time_change") {
+        updateTimeChangeNextSubtitle(context);
+      }
       updateVariablesHint();
       updateVariableSamples();
       refreshPreviewTokenRendering();
@@ -3557,6 +3640,7 @@
     });
     testBackgroundList.appendChild(fragment);
     const activeEntry = items.find((item) => item.is_active);
+    activeBackgroundPreviewEntry = activeEntry || null;
     updateTestPreview(activeEntry);
   };
 
@@ -3629,6 +3713,32 @@
   const init = () => {
     setupPreviewStageScaling();
     syncSlideshowPreviewSrc();
+    if (slideshowPreviewFrame && isSlideshowPreviewMode) {
+      setSlideshowPreviewReady(false);
+      slideshowPreviewFrame.addEventListener("load", () => {
+        setSlideshowPreviewReady(true);
+        updateTestPreview(activeBackgroundPreviewEntry);
+      });
+      slideshowPreviewFrame.addEventListener("error", () => {
+        setSlideshowPreviewReady(false);
+        setPreviewFallback();
+      });
+      setTimeout(() => {
+        if (!slideshowPreviewReady) {
+          setSlideshowPreviewReady(false);
+          updateTestPreview(activeBackgroundPreviewEntry);
+        }
+      }, 4000);
+      try {
+        const previewDoc = slideshowPreviewFrame.contentDocument;
+        if (previewDoc?.readyState === "complete") {
+          setSlideshowPreviewReady(true);
+          updateTestPreview(activeBackgroundPreviewEntry);
+        }
+      } catch (error) {
+        // ignore cross-document access edge cases
+      }
+    }
     hideSelectedTextPanel();
     bindDropZoneEvents();
     void refreshTestSlideSettings();
@@ -3856,7 +3966,21 @@
           })
           .catch(() => {
             setExternalStatus(timeChangeStatus, "Erreur lors de l'enregistrement.", "error");
-          });
+        });
+      });
+      timeChangeRefreshButton?.addEventListener("click", () => {
+        void refreshTokenPreview({ force: true });
+        if (timeChangeUpcomingList && !timeChangeUpcomingList.hidden) {
+          void refreshTimeChangeUpcomingList();
+        }
+      });
+      timeChangeShowUpcomingButton?.addEventListener("click", () => {
+        if (!timeChangeUpcomingList) return;
+        const willShow = timeChangeUpcomingList.hidden;
+        timeChangeUpcomingList.hidden = !willShow;
+        if (willShow) {
+          void refreshTimeChangeUpcomingList();
+        }
       });
     }
     if (editorKind === "christmas") {

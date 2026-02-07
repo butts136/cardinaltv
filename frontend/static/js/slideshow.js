@@ -3137,6 +3137,25 @@ const createCustomTextCard = (entry, overlayWidth, overlayHeight, tokenMap) => {
   card.dataset.width = normalizedSize.width ?? DEFAULT_CUSTOM_TEXT_SIZE.width;
   card.dataset.height = normalizedSize.height ?? DEFAULT_CUSTOM_TEXT_SIZE.height;
   card.dataset.fontFamily = normalizedStyle.font_family || DEFAULT_CUSTOM_TEXT_STYLE.font_family;
+  card.dataset.fontSizeAuto =
+    typeof normalizedStyle.font_size_auto === "boolean"
+      ? (normalizedStyle.font_size_auto ? "1" : "0")
+      : "1";
+  card.dataset.fontSize = Number.isFinite(Number(normalizedStyle.font_size))
+    ? String(normalizedStyle.font_size)
+    : "";
+  card.dataset.scaleX = Number.isFinite(Number(normalizedStyle.scale_x))
+    ? String(normalizedStyle.scale_x)
+    : "1";
+  card.dataset.scaleY = Number.isFinite(Number(normalizedStyle.scale_y))
+    ? String(normalizedStyle.scale_y)
+    : "1";
+  card.dataset.lineHeight = Number.isFinite(Number(normalizedStyle.line_height))
+    ? String(normalizedStyle.line_height)
+    : "1.2";
+  card.dataset.letterSpacing = Number.isFinite(Number(normalizedStyle.letter_spacing))
+    ? String(normalizedStyle.letter_spacing)
+    : "0";
   card.dataset.backgroundColor = normalizedBackground.color || DEFAULT_CUSTOM_TEXT_BACKGROUND.color;
   card.dataset.backgroundOpacity =
     normalizedBackground.opacity ?? DEFAULT_CUSTOM_TEXT_BACKGROUND.opacity;
@@ -4344,63 +4363,62 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   }
   frameEl.appendChild(backdrop);
 
-  const overlay = document.createElement("div");
-  overlay.className = "birthday-slide-overlay";
-  const linesWrapper = document.createElement("div");
-  linesWrapper.className = "birthday-slide-lines";
-  const lines = normalizeBirthdayLines(variantCfg);
-  const overlayWidth = BASE_CANVAS_WIDTH;
-  const overlayHeight = BASE_CANVAS_HEIGHT;
-  lines.forEach((entry, idx) => {
-    const line = document.createElement("div");
-    line.className = "birthday-slide-line" + (idx === 0 ? " birthday-slide-line--primary" : "");
-    const opts = entry.options || BIRTHDAY_TEXT_OPTIONS_DEFAULT;
-    const text = replaceTokens(entry.text ?? "");
-    const content = document.createElement("span");
-    content.className = "birthday-line-content";
-    content.textContent = text;
-    const color = opts.color || settings.title_color;
-    if (color) {
-      line.style.color = color;
-    }
-    line.style.fontWeight = opts.bold ? "700" : "400";
-    line.style.fontStyle = opts.italic ? "italic" : "normal";
-    line.style.textDecoration = opts.underline ? "underline" : "none";
-    const baseFontSize =
-      (idx === 0 && settings.title_font_size) || opts.font_size || BIRTHDAY_TEXT_OPTIONS_DEFAULT.font_size;
-    line.style.fontSize = `${baseFontSize}px`;
-    applyLineBackground(line, opts);
-    const rawX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
-    const rawY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-    const left = clampPercent(50 + rawX);
-    const top = clampPercent(50 - rawY);
-    line.style.left = `${left}%`;
-    line.style.top = `${top}%`;
-    const rawTemplateText = entry.text ?? "";
-    if (sharedRenderers?.layoutOverlayTextLine) {
-      sharedRenderers.layoutOverlayTextLine(
-        line,
-        content,
-        text,
-        rawTemplateText,
-        opts,
-        overlayWidth,
-        overlayHeight,
-      );
-    } else {
-      layoutOverlayLine(line, content, text, opts, overlayWidth, overlayHeight);
-    }
-    line.appendChild(content);
-    linesWrapper.appendChild(line);
-  });
-  const pos = Number.isFinite(Number(settings.title_y_percent))
-    ? Math.min(100, Math.max(0, Number(settings.title_y_percent)))
-    : DEFAULT_BIRTHDAY_SLIDE.title_y_percent;
-  overlay.style.justifyContent = "center";
-  overlay.style.paddingTop = "0";
-  overlay.style.alignItems = "center";
-  overlay.append(linesWrapper);
-  frameEl.appendChild(overlay);
+  if (!isEditorPreview) {
+    const overlay = document.createElement("div");
+    overlay.className = "birthday-slide-overlay";
+    const linesWrapper = document.createElement("div");
+    linesWrapper.className = "birthday-slide-lines";
+    const lines = normalizeBirthdayLines(variantCfg);
+    const overlayWidth = BASE_CANVAS_WIDTH;
+    const overlayHeight = BASE_CANVAS_HEIGHT;
+    lines.forEach((entry, idx) => {
+      const line = document.createElement("div");
+      line.className = "birthday-slide-line" + (idx === 0 ? " birthday-slide-line--primary" : "");
+      const opts = entry.options || BIRTHDAY_TEXT_OPTIONS_DEFAULT;
+      const text = replaceTokens(entry.text ?? "");
+      const content = document.createElement("span");
+      content.className = "birthday-line-content";
+      content.textContent = text;
+      const color = opts.color || settings.title_color;
+      if (color) {
+        line.style.color = color;
+      }
+      line.style.fontWeight = opts.bold ? "700" : "400";
+      line.style.fontStyle = opts.italic ? "italic" : "normal";
+      line.style.textDecoration = opts.underline ? "underline" : "none";
+      const baseFontSize =
+        (idx === 0 && settings.title_font_size) || opts.font_size || BIRTHDAY_TEXT_OPTIONS_DEFAULT.font_size;
+      line.style.fontSize = `${baseFontSize}px`;
+      applyLineBackground(line, opts);
+      const rawX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+      const rawY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+      const left = clampPercent(50 + rawX);
+      const top = clampPercent(50 - rawY);
+      line.style.left = `${left}%`;
+      line.style.top = `${top}%`;
+      const rawTemplateText = entry.text ?? "";
+      if (sharedRenderers?.layoutOverlayTextLine) {
+        sharedRenderers.layoutOverlayTextLine(
+          line,
+          content,
+          text,
+          rawTemplateText,
+          opts,
+          overlayWidth,
+          overlayHeight,
+        );
+      } else {
+        layoutOverlayLine(line, content, text, opts, overlayWidth, overlayHeight);
+      }
+      line.appendChild(content);
+      linesWrapper.appendChild(line);
+    });
+    overlay.style.justifyContent = "center";
+    overlay.style.paddingTop = "0";
+    overlay.style.alignItems = "center";
+    overlay.append(linesWrapper);
+    frameEl.appendChild(overlay);
+  }
   viewport.appendChild(frameEl);
 
   const swapPromise = setMediaContent(viewport, { waitForReady: true });
@@ -4545,61 +4563,64 @@ const renderChristmasSlide = (item) => {
     backdrop.classList.add("christmas-slide-backdrop--fallback");
   }
 
-  const overlay = document.createElement("div");
-  overlay.className = "christmas-slide-overlay";
+  frame.appendChild(backdrop);
+  if (!isEditorPreview) {
+    const overlay = document.createElement("div");
+    overlay.className = "christmas-slide-overlay";
 
-  const replaceTokens = (text) => formatChristmasMessage(text, info);
-  const overlayWidth = BASE_CANVAS_WIDTH;
-  const overlayHeight = BASE_CANVAS_HEIGHT;
-  const makeLine = (text, options, extraClasses = "") => {
-    const line = document.createElement("div");
-    line.className = `christmas-line ${extraClasses}`.trim();
-    const opts = options || CHRISTMAS_TEXT_OPTIONS_DEFAULT;
-    const content = document.createElement("span");
-    content.className = "christmas-line-content";
-    content.textContent = replaceTokens(text || "");
-    const color = opts.color || settings.text_color || "#f8fafc";
-    line.style.color = color;
-    line.style.fontWeight = opts.bold ? "700" : "400";
-    line.style.fontStyle = opts.italic ? "italic" : "normal";
-    line.style.textDecoration = opts.underline ? "underline" : "none";
-    line.style.fontSize = `${opts.font_size || CHRISTMAS_TEXT_OPTIONS_DEFAULT.font_size}px`;
-    applyLineBackground(line, opts);
-    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
-    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-    const left = Math.min(100, Math.max(0, 50 + offsetX));
-    const top = Math.min(100, Math.max(0, 50 - offsetY));
-    line.style.left = `${left}%`;
-    line.style.top = `${top}%`;
-    const renderedText = content.textContent || "";
-    if (sharedRenderers?.layoutOverlayTextLine) {
-      sharedRenderers.layoutOverlayTextLine(
-        line,
-        content,
-        renderedText,
-        text || "",
-        opts,
-        overlayWidth,
-        overlayHeight,
+    const replaceTokens = (text) => formatChristmasMessage(text, info);
+    const overlayWidth = BASE_CANVAS_WIDTH;
+    const overlayHeight = BASE_CANVAS_HEIGHT;
+    const makeLine = (text, options, extraClasses = "") => {
+      const line = document.createElement("div");
+      line.className = `christmas-line ${extraClasses}`.trim();
+      const opts = options || CHRISTMAS_TEXT_OPTIONS_DEFAULT;
+      const content = document.createElement("span");
+      content.className = "christmas-line-content";
+      content.textContent = replaceTokens(text || "");
+      const color = opts.color || settings.text_color || "#f8fafc";
+      line.style.color = color;
+      line.style.fontWeight = opts.bold ? "700" : "400";
+      line.style.fontStyle = opts.italic ? "italic" : "normal";
+      line.style.textDecoration = opts.underline ? "underline" : "none";
+      line.style.fontSize = `${opts.font_size || CHRISTMAS_TEXT_OPTIONS_DEFAULT.font_size}px`;
+      applyLineBackground(line, opts);
+      const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+      const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+      const left = Math.min(100, Math.max(0, 50 + offsetX));
+      const top = Math.min(100, Math.max(0, 50 - offsetY));
+      line.style.left = `${left}%`;
+      line.style.top = `${top}%`;
+      const renderedText = content.textContent || "";
+      if (sharedRenderers?.layoutOverlayTextLine) {
+        sharedRenderers.layoutOverlayTextLine(
+          line,
+          content,
+          renderedText,
+          text || "",
+          opts,
+          overlayWidth,
+          overlayHeight,
+        );
+      } else {
+        layoutOverlayLine(line, content, renderedText, opts, overlayWidth, overlayHeight);
+      }
+      line.appendChild(content);
+      return line;
+    };
+
+    const linesWrapper = document.createElement("div");
+    linesWrapper.className = "christmas-lines";
+    const lines = normalizeChristmasLines(settings);
+    lines.forEach((line, idx) => {
+      linesWrapper.append(
+        makeLine(line.text, line.options, idx === 0 ? "christmas-line--primary" : ""),
       );
-    } else {
-      layoutOverlayLine(line, content, renderedText, opts, overlayWidth, overlayHeight);
-    }
-    line.appendChild(content);
-    return line;
-  };
+    });
 
-  const linesWrapper = document.createElement("div");
-  linesWrapper.className = "christmas-lines";
-  const lines = normalizeChristmasLines(settings);
-  lines.forEach((line, idx) => {
-    linesWrapper.append(
-      makeLine(line.text, line.options, idx === 0 ? "christmas-line--primary" : ""),
-    );
-  });
-
-  overlay.append(linesWrapper);
-  frame.append(backdrop, overlay);
+    overlay.append(linesWrapper);
+    frame.appendChild(overlay);
+  }
   viewport.appendChild(frame);
   const swapPromise = setMediaContent(viewport, { waitForReady: true });
   if (swapPromise && typeof swapPromise.then === "function") {
@@ -4672,6 +4693,10 @@ const renderCustomSlide = (item) => {
   }
 
   const layoutTexts = () => {
+    if (isEditorPreview) {
+      overlay.replaceChildren();
+      return;
+    }
     overlay.innerHTML = "";
     const overlayWidth = BASE_CANVAS_WIDTH;
     const overlayHeight = BASE_CANVAS_HEIGHT;
@@ -5340,61 +5365,64 @@ const renderTimeChangeSlide = (item) => {
     backdrop.classList.add("time-change-slide-backdrop--fallback");
   }
 
-  const overlay = document.createElement("div");
-  overlay.className = "time-change-slide-overlay";
+  frame.appendChild(backdrop);
+  if (!isEditorPreview) {
+    const overlay = document.createElement("div");
+    overlay.className = "time-change-slide-overlay";
 
-  const replaceTokens = (text) => formatTimeChangeMessage(text, info);
-  const overlayWidth = BASE_CANVAS_WIDTH;
-  const overlayHeight = BASE_CANVAS_HEIGHT;
-  const makeLine = (text, options, extraClasses = "") => {
-    const line = document.createElement("div");
-    line.className = `time-change-line ${extraClasses}`.trim();
-    const opts = options || TIME_CHANGE_TEXT_OPTIONS_DEFAULT;
-    const content = document.createElement("span");
-    content.className = "time-change-line-content";
-    content.textContent = replaceTokens(text || "");
-    const color = opts.color || settings.text_color || "#f8fafc";
-    line.style.color = color;
-    line.style.fontWeight = opts.bold ? "700" : "400";
-    line.style.fontStyle = opts.italic ? "italic" : "normal";
-    line.style.textDecoration = opts.underline ? "underline" : "none";
-    line.style.fontSize = `${opts.font_size || TIME_CHANGE_TEXT_OPTIONS_DEFAULT.font_size}px`;
-    applyLineBackground(line, opts);
-    const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
-    const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-    const left = Math.min(100, Math.max(0, 50 + offsetX));
-    const top = Math.min(100, Math.max(0, 50 - offsetY));
-    line.style.left = `${left}%`;
-    line.style.top = `${top}%`;
-    const renderedText = content.textContent || "";
-    if (sharedRenderers?.layoutOverlayTextLine) {
-      sharedRenderers.layoutOverlayTextLine(
-        line,
-        content,
-        renderedText,
-        text || "",
-        opts,
-        overlayWidth,
-        overlayHeight,
+    const replaceTokens = (text) => formatTimeChangeMessage(text, info);
+    const overlayWidth = BASE_CANVAS_WIDTH;
+    const overlayHeight = BASE_CANVAS_HEIGHT;
+    const makeLine = (text, options, extraClasses = "") => {
+      const line = document.createElement("div");
+      line.className = `time-change-line ${extraClasses}`.trim();
+      const opts = options || TIME_CHANGE_TEXT_OPTIONS_DEFAULT;
+      const content = document.createElement("span");
+      content.className = "time-change-line-content";
+      content.textContent = replaceTokens(text || "");
+      const color = opts.color || settings.text_color || "#f8fafc";
+      line.style.color = color;
+      line.style.fontWeight = opts.bold ? "700" : "400";
+      line.style.fontStyle = opts.italic ? "italic" : "normal";
+      line.style.textDecoration = opts.underline ? "underline" : "none";
+      line.style.fontSize = `${opts.font_size || TIME_CHANGE_TEXT_OPTIONS_DEFAULT.font_size}px`;
+      applyLineBackground(line, opts);
+      const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+      const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+      const left = Math.min(100, Math.max(0, 50 + offsetX));
+      const top = Math.min(100, Math.max(0, 50 - offsetY));
+      line.style.left = `${left}%`;
+      line.style.top = `${top}%`;
+      const renderedText = content.textContent || "";
+      if (sharedRenderers?.layoutOverlayTextLine) {
+        sharedRenderers.layoutOverlayTextLine(
+          line,
+          content,
+          renderedText,
+          text || "",
+          opts,
+          overlayWidth,
+          overlayHeight,
+        );
+      } else {
+        layoutOverlayLine(line, content, renderedText, opts, overlayWidth, overlayHeight);
+      }
+      line.appendChild(content);
+      return line;
+    };
+
+    const linesWrapper = document.createElement("div");
+    linesWrapper.className = "time-change-lines";
+    const lines = normalizeTimeChangeLines(settings);
+    lines.forEach((line, idx) => {
+      linesWrapper.append(
+        makeLine(line.text, line.options, idx === 0 ? "time-change-line--primary" : ""),
       );
-    } else {
-      layoutOverlayLine(line, content, renderedText, opts, overlayWidth, overlayHeight);
-    }
-    line.appendChild(content);
-    return line;
-  };
+    });
 
-  const linesWrapper = document.createElement("div");
-  linesWrapper.className = "time-change-lines";
-  const lines = normalizeTimeChangeLines(settings);
-  lines.forEach((line, idx) => {
-    linesWrapper.append(
-      makeLine(line.text, line.options, idx === 0 ? "time-change-line--primary" : ""),
-    );
-  });
-
-  overlay.append(linesWrapper);
-  frame.append(backdrop, overlay);
+    overlay.append(linesWrapper);
+    frame.appendChild(overlay);
+  }
   viewport.appendChild(frame);
   const swapPromise = setMediaContent(viewport, { waitForReady: true });
   if (swapPromise && typeof swapPromise.then === "function") {
