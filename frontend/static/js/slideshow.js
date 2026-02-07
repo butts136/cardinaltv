@@ -4436,20 +4436,12 @@ const renderTeamSlide = (item, employeesList = []) => {
 
 const lockBirthdayVideoLayoutForTv = (viewport, frameEl, backdrop, video) => {
   if (!isTvDevice || !video) return;
-  const fallbackWidth = Number(canvas?.dataset.baseWidth) || BASE_CANVAS_WIDTH;
-  const fallbackHeight = Number(canvas?.dataset.baseHeight) || BASE_CANVAS_HEIGHT;
-  const getContainerSize = () => {
-    const width =
-      Math.round(backdrop?.clientWidth || frameEl?.clientWidth || viewport?.clientWidth || fallbackWidth) || fallbackWidth;
-    const height =
-      Math.round(backdrop?.clientHeight || frameEl?.clientHeight || viewport?.clientHeight || fallbackHeight) || fallbackHeight;
-    return { width, height };
-  };
+  const containerWidth = Number(canvas?.dataset.baseWidth) || BASE_CANVAS_WIDTH;
+  const containerHeight = Number(canvas?.dataset.baseHeight) || BASE_CANVAS_HEIGHT;
   const fitVideoToContainer = () => {
     if (!video.isConnected) return;
-    const { width: containerWidth, height: containerHeight } = getContainerSize();
-    const sourceWidth = Number(video.videoWidth) || containerWidth || fallbackWidth;
-    const sourceHeight = Number(video.videoHeight) || containerHeight || fallbackHeight;
+    const sourceWidth = Number(video.videoWidth) || containerWidth;
+    const sourceHeight = Number(video.videoHeight) || containerHeight;
     const scale = Math.max(containerWidth / sourceWidth, containerHeight / sourceHeight);
     const renderWidth = Math.ceil(sourceWidth * scale);
     const renderHeight = Math.ceil(sourceHeight * scale);
@@ -4670,13 +4662,18 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
       ? createBackgroundVideoPlayHandler(video, { slideId: item.id, maxRetries: 6, retryDelay: 500 })
       : null;
     setupBackgroundVideo(video, {
-      fallbackEl: backdrop,
-      fallbackClass: "birthday-slide-backdrop--fallback",
       playHandler,
       cacheUrl: bgUrl,
       slideId: item.id || null,
-      requireDimensionsForReveal: true,
+      requireDimensionsForReveal: false,
     });
+    video.addEventListener(
+      "error",
+      () => {
+        backdrop.classList.add("birthday-slide-backdrop--fallback");
+      },
+      { once: true },
+    );
     backdrop.appendChild(video);
     currentVideo = video;
     lockBirthdayVideoLayoutForTv(viewport, frameEl, backdrop, video);

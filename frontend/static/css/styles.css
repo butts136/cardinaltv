@@ -1366,7 +1366,7 @@ input[type="datetime-local"]:focus {
 }
 
 .birthday-slide-backdrop--fallback {
-  background: transparent;
+  background: #000000;
 }
 
 .birthday-slide-media {
