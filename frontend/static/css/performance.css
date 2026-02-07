@@ -249,6 +249,41 @@ body {
 }
 
 /* ============================================
+   Fire TV / Android WebView compatibility
+   ============================================ */
+.slideshow-tv video,
+.slideshow-tv .birthday-slide-video,
+.slideshow-tv .time-change-slide-media,
+.slideshow-tv .christmas-slide-media,
+.slideshow-tv .custom-slide-background video,
+.slideshow-tv .weather-slide-video {
+  transform: none !important;
+  will-change: auto !important;
+  -webkit-backface-visibility: visible !important;
+  backface-visibility: visible !important;
+  contain: none !important;
+}
+
+.slideshow-tv .birthday-slide-backdrop,
+.slideshow-tv .birthday-slide-backdrop--video,
+.slideshow-tv .birthday-slide-frame--video,
+.slideshow-tv .time-change-slide-backdrop,
+.slideshow-tv .christmas-slide-backdrop,
+.slideshow-tv .custom-slide-background {
+  contain: none !important;
+}
+
+.slideshow-tv .birthday-line-content,
+.slideshow-tv .christmas-line-content,
+.slideshow-tv .custom-slide-text-content,
+.slideshow-tv .time-change-line {
+  contain: none !important;
+  text-rendering: geometricPrecision;
+  font-kerning: normal;
+  font-variant-ligatures: none;
+}
+
+/* ============================================
    Préférences utilisateur
    ============================================ */
 

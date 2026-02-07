@@ -473,6 +473,18 @@ const updateCanvasScale = () => {
   return true;
 };
 
+const scheduleTvScaleStabilization = () => {
+  if (!isTvDevice) return;
+  // Fire TV / Android WebView can report unstable frame metrics on first paints.
+  // Re-apply scale over a short window to converge after compositor settles.
+  const delays = [0, 16, 48, 120, 260, 520, 900];
+  delays.forEach((delay) => {
+    setTimeout(() => {
+      updateCanvasScale();
+    }, delay);
+  });
+};
+
 const waitForCanvasScaleReady = async ({ stableFrames = 2, timeoutMs = 900 } = {}) => {
   if (!frame || !canvas) return false;
   let stable = 0;
@@ -2187,6 +2199,7 @@ const setMediaContent = (element, { waitForReady = false, immediateSwap = false 
           return;
         }
         updateCanvasScale();
+        scheduleTvScaleStabilization();
         const oldLayer = activeMediaLayer;
         const newLayer = idleMediaLayer;
         if (!oldLayer || !newLayer) {
@@ -2225,6 +2238,7 @@ const setMediaContent = (element, { waitForReady = false, immediateSwap = false 
         return;
       }
       updateCanvasScale();
+      scheduleTvScaleStabilization();
       const oldLayer = activeMediaLayer;
       const newLayer = idleMediaLayer;
       if (!oldLayer || !newLayer) {
@@ -4385,6 +4399,10 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     video.style.maxHeight = "none";
     video.style.objectFit = "cover";
     video.style.objectPosition = "center center";
+    video.style.transform = "none";
+    video.style.willChange = "auto";
+    video.style.backfaceVisibility = "visible";
+    video.style.WebkitBackfaceVisibility = "visible";
     video.autoplay = true;
     video.setAttribute("autoplay", "");
     video.loop = true;
