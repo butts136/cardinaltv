@@ -8,6 +8,11 @@ const overlayContainer = document.querySelector("#slideshow-brand");
 const overlayLogo = document.querySelector("#overlay-logo");
 const overlayContent = document.querySelector("#overlay-content");
 
+if (canvas) {
+  // Prevent a first-paint flash at scale=1 before layout is stabilized.
+  canvas.style.visibility = "hidden";
+}
+
 // Info bands elements
 const slideshowContainer = document.querySelector("#slideshow-container");
 const infoBandHorizontal = document.querySelector("#info-band-horizontal");
@@ -467,10 +472,7 @@ const updateCanvasScale = () => {
     return false;
   }
   canvas.style.setProperty("--slideshow-scale", scale.toString());
-  if (canvas.style.visibility === "hidden") {
-    canvas.style.visibility = "visible";
-  }
-  return true;
+  return scale;
 };
 
 const scheduleTvScaleStabilization = () => {
@@ -488,19 +490,48 @@ const scheduleTvScaleStabilization = () => {
 const waitForCanvasScaleReady = async ({ stableFrames = 2, timeoutMs = 900 } = {}) => {
   if (!frame || !canvas) return false;
   let stable = 0;
+  let lastScale = null;
   const start = performance.now();
   while (performance.now() - start < timeoutMs) {
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    if (updateCanvasScale()) {
-      stable += 1;
-      if (stable >= stableFrames) {
-        return true;
-      }
-    } else {
+    const scale = updateCanvasScale();
+    if (!Number.isFinite(scale) || scale <= 0) {
       stable = 0;
+      lastScale = null;
+      continue;
+    }
+    if (lastScale != null && Math.abs(scale - lastScale) <= 0.0005) {
+      stable += 1;
+    } else {
+      stable = 1;
+    }
+    lastScale = scale;
+    if (stable >= stableFrames) {
+      return true;
     }
   }
-  return updateCanvasScale();
+  return Boolean(updateCanvasScale());
+};
+
+const revealCanvasWhenScaleIsStable = async () => {
+  if (!canvas) return false;
+  const primaryConfig = isTvDevice
+    ? { stableFrames: 10, timeoutMs: 3200 }
+    : { stableFrames: 2, timeoutMs: 900 };
+  let ready = await waitForCanvasScaleReady(primaryConfig);
+  if (!ready && isTvDevice) {
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    ready = await waitForCanvasScaleReady({ stableFrames: 8, timeoutMs: 2200 });
+  }
+  if (!ready) {
+    updateCanvasScale();
+  }
+  if (isTvDevice) {
+    await new Promise((resolve) => setTimeout(resolve, 160));
+  }
+  canvas.style.visibility = "visible";
+  scheduleTvScaleStabilization();
+  return ready;
 };
 
 if (frame && "ResizeObserver" in window) {
@@ -6299,15 +6330,10 @@ const startSlideshow = async () => {
     currentId = item.id;
     if (stage) {
       stage.hidden = false;
-      if (canvas) {
-        canvas.style.visibility = "hidden";
-      }
-      await waitForCanvasScaleReady();
-      if (canvas) {
-        canvas.style.visibility = "visible";
-      }
+      if (canvas) canvas.style.visibility = "hidden";
     }
     await showMedia(item);
+    await revealCanvasWhenScaleIsStable();
     preloadNextBackground();
     if (!isPreviewMode) {
       const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
@@ -6325,24 +6351,21 @@ const startSlideshow = async () => {
 
   if (stage) {
     stage.hidden = false;
-    if (canvas) {
-      canvas.style.visibility = "hidden";
-    }
-    await waitForCanvasScaleReady();
-    if (canvas) {
-      canvas.style.visibility = "visible";
-    }
+    if (canvas) canvas.style.visibility = "hidden";
   }
   startClock();
 
   const current = playlist[currentIndex] || playlist[0];
   if (current) {
     await showMedia(current);
+    await revealCanvasWhenScaleIsStable();
     preloadNextBackground();
     if (!isPreviewMode) {
       const startIndex = playlist.length > 1 ? (currentIndex + 1) % playlist.length : 0;
       void runInitialCacheWarmup(playlist, weatherBackgroundUrls, startIndex);
     }
+  } else {
+    await revealCanvasWhenScaleIsStable();
   }
 
   startPlaylistRefresh();
