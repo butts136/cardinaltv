@@ -756,6 +756,18 @@ def _format_offset(delta: Optional[timedelta]) -> str:
     return f"{sign}{hours:02d}:{minutes:02d}"
 
 
+def _format_time_change_wall_time(
+    change_dt: datetime, before_offset: timedelta, after_offset: timedelta
+) -> str:
+    """
+    Retourne l'heure locale "avant changement" (heure murale annoncée),
+    ex.: 02:00 à Montréal pour le passage été/hiver.
+    """
+    instant_utc = change_dt.astimezone(timezone.utc)
+    before_local = instant_utc + before_offset
+    return before_local.strftime("%H:%M")
+
+
 def _next_time_change_info(reference_date: Optional[date] = None) -> Optional[Dict[str, Any]]:
     if isinstance(reference_date, date):
         # Fixe midi local pour éviter les ambiguïtés autour des transitions DST.
@@ -802,6 +814,7 @@ def _next_time_change_info(reference_date: Optional[date] = None) -> Optional[Di
     weekday_label = TIME_CHANGE_WEEKDAYS_FR[change_dt.weekday()]
     offset_hours = abs(after_offset - before_offset).total_seconds() / 3600.0
     days_until = (change_dt.date() - now.date()).days
+    time_label = _format_time_change_wall_time(change_dt, before_offset, after_offset)
 
     return {
         "change_at": change_dt.isoformat(),
@@ -813,7 +826,7 @@ def _next_time_change_info(reference_date: Optional[date] = None) -> Optional[Di
         "season_label": season_label,
         "weekday_label": weekday_label,
         "date_label": date_label,
-        "time_label": change_dt.strftime("%H:%M"),
+        "time_label": time_label,
         "offset_from": _format_offset(before_offset),
         "offset_to": _format_offset(after_offset),
         "offset_hours": round(offset_hours, 2),
@@ -6360,6 +6373,7 @@ def api_time_change_upcoming() -> Any:
             weekday_label = TIME_CHANGE_WEEKDAYS_FR[local_dt.weekday()]
             offset_hours = abs(after_offset - before_offset).total_seconds() / 3600.0
             days_until = (local_dt.date() - now.date()).days
+            time_label = _format_time_change_wall_time(local_dt, before_offset, after_offset)
             upcoming.append({
                 "change_at": local_dt.isoformat(),
                 "change_at_local": local_dt.isoformat(),
@@ -6370,7 +6384,7 @@ def api_time_change_upcoming() -> Any:
                 "season_label": season_label,
                 "weekday_label": weekday_label,
                 "date_label": date_label,
-                "time_label": local_dt.strftime("%H:%M"),
+                "time_label": time_label,
                 "offset_from": _format_offset(before_offset),
                 "offset_to": _format_offset(after_offset),
                 "offset_hours": round(offset_hours, 2),

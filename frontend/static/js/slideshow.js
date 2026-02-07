@@ -4339,6 +4339,15 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   if (bgUrl && isVideo) {
     const video = document.createElement("video");
     video.className = "birthday-slide-media birthday-slide-video";
+    // Force stable first-paint sizing inside the birthday frame.
+    video.style.position = "absolute";
+    video.style.inset = "0";
+    video.style.width = "100%";
+    video.style.height = "100%";
+    video.style.maxWidth = "none";
+    video.style.maxHeight = "none";
+    video.style.objectFit = "cover";
+    video.style.objectPosition = "center center";
     video.autoplay = true;
     video.setAttribute("autoplay", "");
     video.loop = true;
