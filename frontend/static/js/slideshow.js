@@ -2421,9 +2421,9 @@ const setupBackgroundVideo = (
   attemptPlay();
   if (cacheUrl) {
     const timeoutMs = performanceProfile.lowPower ? 9000 : 12000;
-    void ensureBackgroundVideoCached(cacheUrl, { timeoutMs }).finally(() => {
-      void maybeSwapVideoToCached(video, cacheUrl, slideId, { fallbackUrl: cacheUrl });
-    });
+    // Cache in background for upcoming slides, but avoid swapping src during playback.
+    // Runtime src swaps trigger visible reload/black flashes on some devices.
+    void ensureBackgroundVideoCached(cacheUrl, { timeoutMs });
   }
 };
 

@@ -84,6 +84,8 @@
     const birthdayOpeningBlock = document.querySelector(".birthday-opening");
     const birthdayEnabledInput = document.querySelector("#birthday-enabled");
     const birthdayDaysBeforeInput = document.querySelector("#birthday-days-before");
+    const birthdayDaysBeforeSaveButton = document.querySelector("#birthday-days-before-save");
+    const birthdayDaysBeforeStatus = document.querySelector("#birthday-days-before-status");
     const birthdayOpenDayButtons = document.querySelectorAll("[data-open-day]");
     const birthdayOpeningToggle = document.querySelector("#birthday-opening-toggle");
     const birthdayOpeningBody = document.querySelector("#birthday-opening-body");
@@ -902,6 +904,7 @@
   let tokenPreview = { tokens: {}, withinWindow: null, mode: "live", updatedAt: 0 };
   let tokenRefreshTimer = null;
   let tokenRefreshInFlight = null;
+  let birthdayDaysBeforeDirty = false;
   let pendingCardLayoutFrame = null;
   const pendingCardLayoutSet = new Set();
   const DRAG_SNAP_THRESHOLD_PX = 10;
@@ -1384,7 +1387,9 @@
         birthdayEnabledInput.checked = Boolean(currentTestSlideSettings.enabled);
       }
       if (birthdayDaysBeforeInput && Number.isFinite(Number(currentTestSlideSettings.days_before))) {
-        birthdayDaysBeforeInput.value = `${Math.round(Number(currentTestSlideSettings.days_before))}`;
+        if (!birthdayDaysBeforeDirty && document.activeElement !== birthdayDaysBeforeInput) {
+          birthdayDaysBeforeInput.value = `${Math.round(Number(currentTestSlideSettings.days_before))}`;
+        }
       }
       applyBirthdayOpenDaysUI(currentTestSlideSettings.open_days);
       return;
@@ -3941,17 +3946,36 @@
         });
     });
     if (editorKind === "birthday") {
+      const saveBirthdayDaysBefore = () => {
+        if (!birthdayDaysBeforeInput) return;
+        const raw = Number(birthdayDaysBeforeInput.value);
+        const value = Number.isFinite(raw) ? clamp(Math.round(raw), 0, 365) : 0;
+        birthdayDaysBeforeInput.value = `${value}`;
+        birthdayDaysBeforeDirty = false;
+        currentTestSlideSettings = {
+          ...currentTestSlideSettings,
+          days_before: value,
+        };
+        setExternalStatus(birthdayDaysBeforeStatus, "Enregistrement...", "info");
+        queueExternalSettingsPatch({ days_before: value }, birthdayDaysBeforeStatus);
+        void refreshTokenPreview({ force: true });
+      };
       birthdayEnabledInput?.addEventListener("change", (event) => {
         const enabled = Boolean(event.target.checked);
         queueExternalSettingsPatch({ enabled });
       });
       birthdayDaysBeforeInput?.addEventListener("input", (event) => {
-        const raw = Number(event.target.value);
-        const value = Number.isFinite(raw) ? clamp(Math.round(raw), 0, 365) : 0;
-        event.target.value = `${value}`;
-        queueExternalSettingsPatch({ days_before: value });
-        void refreshTokenPreview({ force: true });
+        birthdayDaysBeforeDirty = true;
+        if (birthdayDaysBeforeStatus) {
+          setExternalStatus(birthdayDaysBeforeStatus, "Valeur modifiée (non enregistrée).", "info");
+        }
       });
+      birthdayDaysBeforeInput?.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        saveBirthdayDaysBefore();
+      });
+      birthdayDaysBeforeSaveButton?.addEventListener("click", saveBirthdayDaysBefore);
       bindBirthdayOpenDays();
     }
     if (editorKind === "time_change") {
