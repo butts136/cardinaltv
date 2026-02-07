@@ -2332,6 +2332,11 @@
   background: rgba(17, 22, 36, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+  display: none;
+}
+
+.birthday-section[data-variant="weekend"] .birthday-opening {
+  display: block;
 }
 
 .birthday-opening-header {

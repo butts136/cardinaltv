@@ -2433,6 +2433,8 @@ const createBackgroundVideoPlayHandler = (video, { slideId = null, maxRetries = 
   }
   let retries = 0;
   let retryTimer = null;
+  let lastProgressAt = Date.now();
+  let lastKnownTime = 0;
   const canAttempt = () =>
     video.isConnected && (!slideId || !currentId || currentId === slideId);
   const clearRetry = () => {
@@ -2460,35 +2462,50 @@ const createBackgroundVideoPlayHandler = (video, { slideId = null, maxRetries = 
       if (!canAttempt()) return;
       if (video.paused || video.readyState < 2) {
         retries += 1;
-        try {
-          video.load?.();
-        } catch (error) {
-          // ignore
-        }
+        // Avoid aggressive reload loops causing black flashes.
+        // We first retry play(), and only hard-reload on explicit recover paths.
         attemptPlay();
       }
     }, retryDelay * Math.max(1, retries + 1));
   };
-  const recover = () => {
+  const recover = (reason = "stalled") => {
     if (!canAttempt()) return;
     if (retries >= maxRetries) return;
+    const now = Date.now();
+    const stagnantMs = Math.max(0, now - lastProgressAt);
+    const noProgress = Math.abs((video.currentTime || 0) - lastKnownTime) < 0.02;
+    const shouldHardReload =
+      reason === "error" ||
+      (reason === "stalled" && stagnantMs > 4000 && noProgress && video.readyState < 2);
     retries += 1;
-    try {
-      video.load?.();
-    } catch (error) {
-      // ignore
+    if (shouldHardReload) {
+      try {
+        video.load?.();
+      } catch (error) {
+        // ignore
+      }
     }
     attemptPlay();
   };
   const resetRetries = () => {
     retries = 0;
     clearRetry();
+    lastKnownTime = Number.isFinite(video.currentTime) ? video.currentTime : lastKnownTime;
+    lastProgressAt = Date.now();
+  };
+  const markProgress = () => {
+    const current = Number.isFinite(video.currentTime) ? video.currentTime : lastKnownTime;
+    if (Math.abs(current - lastKnownTime) >= 0.02) {
+      lastKnownTime = current;
+      lastProgressAt = Date.now();
+    }
   };
   video.addEventListener("playing", resetRetries);
-  video.addEventListener("stalled", recover);
-  video.addEventListener("waiting", recover);
-  video.addEventListener("suspend", recover);
-  video.addEventListener("error", recover);
+  video.addEventListener("timeupdate", markProgress);
+  video.addEventListener("stalled", () => recover("stalled"));
+  // `waiting` and `suspend` are often transient on streaming devices.
+  // Retrying with load() here causes visible black blinking.
+  video.addEventListener("error", () => recover("error"));
   return attemptPlay;
 };
 
