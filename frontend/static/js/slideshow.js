@@ -456,14 +456,39 @@ if (autoStartRequested) {
 
 const updateCanvasScale = () => {
   if (!frame || !canvas) {
-    return;
+    return false;
   }
   const rect = frame.getBoundingClientRect();
   if (!rect.width || !rect.height) {
-    return;
+    return false;
   }
   const scale = Math.min(rect.width / BASE_CANVAS_WIDTH, rect.height / BASE_CANVAS_HEIGHT);
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return false;
+  }
   canvas.style.setProperty("--slideshow-scale", scale.toString());
+  if (canvas.style.visibility === "hidden") {
+    canvas.style.visibility = "visible";
+  }
+  return true;
+};
+
+const waitForCanvasScaleReady = async ({ stableFrames = 2, timeoutMs = 900 } = {}) => {
+  if (!frame || !canvas) return false;
+  let stable = 0;
+  const start = performance.now();
+  while (performance.now() - start < timeoutMs) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    if (updateCanvasScale()) {
+      stable += 1;
+      if (stable >= stableFrames) {
+        return true;
+      }
+    } else {
+      stable = 0;
+    }
+  }
+  return updateCanvasScale();
 };
 
 if (frame && "ResizeObserver" in window) {
@@ -2161,6 +2186,7 @@ const setMediaContent = (element, { waitForReady = false, immediateSwap = false 
           resolve();
           return;
         }
+        updateCanvasScale();
         const oldLayer = activeMediaLayer;
         const newLayer = idleMediaLayer;
         if (!oldLayer || !newLayer) {
@@ -2198,6 +2224,7 @@ const setMediaContent = (element, { waitForReady = false, immediateSwap = false 
         resolve();
         return;
       }
+      updateCanvasScale();
       const oldLayer = activeMediaLayer;
       const newLayer = idleMediaLayer;
       if (!oldLayer || !newLayer) {
@@ -6243,7 +6270,13 @@ const startSlideshow = async () => {
     currentId = item.id;
     if (stage) {
       stage.hidden = false;
-      updateCanvasScale();
+      if (canvas) {
+        canvas.style.visibility = "hidden";
+      }
+      await waitForCanvasScaleReady();
+      if (canvas) {
+        canvas.style.visibility = "visible";
+      }
     }
     await showMedia(item);
     preloadNextBackground();
@@ -6263,7 +6296,13 @@ const startSlideshow = async () => {
 
   if (stage) {
     stage.hidden = false;
-    updateCanvasScale();
+    if (canvas) {
+      canvas.style.visibility = "hidden";
+    }
+    await waitForCanvasScaleReady();
+    if (canvas) {
+      canvas.style.visibility = "visible";
+    }
   }
   startClock();
 
