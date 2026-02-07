@@ -463,6 +463,37 @@ const updateCanvasScale = () => {
   if (!frame || !canvas) {
     return false;
   }
+  const bandsActive = Boolean(slideshowContainer?.classList.contains("bands-active"));
+  if (isTvDevice && !bandsActive && slideshowContainer && stage) {
+    const viewportWidth = Math.max(
+      0,
+      Number(window.innerWidth) || Number(document.documentElement?.clientWidth) || 0,
+    );
+    const viewportHeight = Math.max(
+      0,
+      Number(window.innerHeight) || Number(document.documentElement?.clientHeight) || 0,
+    );
+    if (viewportWidth > 0 && viewportHeight > 0) {
+      const targetWidth = Math.floor(Math.min(viewportWidth, (viewportHeight * 16) / 9));
+      const targetHeight = Math.floor(Math.min(viewportHeight, (viewportWidth * 9) / 16));
+      if (targetWidth > 0 && targetHeight > 0) {
+        // Hard-lock TV geometry to avoid transient incorrect first layout metrics.
+        slideshowContainer.style.width = `${targetWidth}px`;
+        slideshowContainer.style.height = `${targetHeight}px`;
+        frame.style.width = `${targetWidth}px`;
+        frame.style.height = `${targetHeight}px`;
+        stage.style.width = `${targetWidth}px`;
+        stage.style.height = `${targetHeight}px`;
+      }
+    }
+  } else if (isTvDevice && bandsActive && slideshowContainer && stage) {
+    slideshowContainer.style.removeProperty("width");
+    slideshowContainer.style.removeProperty("height");
+    frame.style.removeProperty("width");
+    frame.style.removeProperty("height");
+    stage.style.removeProperty("width");
+    stage.style.removeProperty("height");
+  }
   const rect = frame.getBoundingClientRect();
   let frameWidth = Number(rect.width) || 0;
   let frameHeight = Number(rect.height) || 0;
@@ -477,7 +508,6 @@ const updateCanvasScale = () => {
   const hasViewport = viewportWidth > 0 && viewportHeight > 0;
   const layoutWidth = hasViewport ? Math.min(viewportWidth, (viewportHeight * 16) / 9) : 0;
   const layoutHeight = hasViewport ? Math.min(viewportHeight, (viewportWidth * 9) / 16) : 0;
-  const bandsActive = Boolean(slideshowContainer?.classList.contains("bands-active"));
 
   // Firestick/WebView can report a transient oversized frame rect at startup.
   // For TV fullscreen (no info bands), clamp to viewport-derived 16:9 layout when rect is out of bounds.

@@ -3,7 +3,7 @@
  * tout en laissant les appels API se rafraîchir depuis le réseau.
  */
 
-const CACHE_VERSION = "v20";
+const CACHE_VERSION = "v22";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 
@@ -156,6 +156,25 @@ const fetchAndCacheMedia = async (cache, url) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET" || !isSameOrigin(request.url)) {
+    return;
+  }
+
+  // Toujours privilégier le réseau pour les documents HTML (ex: /slideshow)
+  // afin d'éviter de rester bloqué sur un ancien bundle JS/CSS sur Firestick.
+  if (request.mode === "navigate" || request.destination === "document") {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then(async (cache) => {
+        try {
+          const response = await fetch(request);
+          cache.put(request, response.clone());
+          return response;
+        } catch (error) {
+          const cached = await cache.match(request);
+          if (cached) return cached;
+          throw error;
+        }
+      })
+    );
     return;
   }
 
