@@ -2314,7 +2314,14 @@ const setupBackgroundImage = (img, { priority = "high" } = {}) => {
 
 const setupBackgroundVideo = (
   video,
-  { fallbackEl = null, fallbackClass = "", playHandler = null, cacheUrl = "", slideId = null } = {},
+  {
+    fallbackEl = null,
+    fallbackClass = "",
+    playHandler = null,
+    cacheUrl = "",
+    slideId = null,
+    requireDimensionsForReveal = false,
+  } = {},
 ) => {
   if (!video) return;
   const preload = getBackgroundVideoPreload();
@@ -2384,13 +2391,15 @@ const setupBackgroundVideo = (
   };
   const forceReveal = () => {
     if (hasRevealed) return;
-    if (video.readyState >= 2) {
+    const hasDimensions = video.videoWidth > 0 && video.videoHeight > 0;
+    if (video.readyState >= 2 && (!requireDimensionsForReveal || hasDimensions)) {
       revealVideo();
       video.style.opacity = "1";
     }
   };
+  const hasDimensions = () => video.videoWidth > 0 && video.videoHeight > 0;
   const canReveal = () =>
-    (video.videoWidth > 0 || isTvDevice) &&
+    (!requireDimensionsForReveal || hasDimensions()) &&
     video.readyState >= 2 &&
     !video.paused &&
     (video.currentTime > 0 || video.readyState >= 3);
@@ -2419,6 +2428,7 @@ const setupBackgroundVideo = (
     };
     video.addEventListener("timeupdate", onTimeUpdate, { once: true });
   };
+  video.addEventListener("loadedmetadata", scheduleReveal, { once: true });
   video.addEventListener("loadeddata", scheduleReveal, { once: true });
   video.addEventListener("canplay", scheduleReveal, { once: true });
   video.addEventListener("playing", scheduleReveal, { once: true });
@@ -4394,6 +4404,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
       playHandler,
       cacheUrl: bgUrl,
       slideId: item.id || null,
+      requireDimensionsForReveal: true,
     });
     backdrop.appendChild(video);
     currentVideo = video;

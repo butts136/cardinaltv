@@ -1363,10 +1363,10 @@ input[type="datetime-local"]:focus {
 }
 
 .slideshow-tv .birthday-slide-video {
-  transform: translateZ(0);
+  transform: none;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  will-change: transform;
+  will-change: auto;
 }
 
 .slideshow-tv .birthday-slide-frame--video {
