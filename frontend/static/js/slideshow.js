@@ -491,8 +491,6 @@ const updateCanvasScale = () => {
     slideshowContainer.style.removeProperty("height");
     frame.style.removeProperty("width");
     frame.style.removeProperty("height");
-    stage.style.removeProperty("width");
-    stage.style.removeProperty("height");
   }
   const rect = frame.getBoundingClientRect();
   let frameWidth = Number(rect.width) || 0;
