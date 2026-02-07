@@ -4358,6 +4358,49 @@ const renderTeamSlide = (item, employeesList = []) => {
   }
 };
 
+const lockBirthdayVideoLayoutForTv = (viewport, frameEl, backdrop, video) => {
+  if (!isTvDevice) return;
+  const widthPx = `${BASE_CANVAS_WIDTH}px`;
+  const heightPx = `${BASE_CANVAS_HEIGHT}px`;
+  const apply = () => {
+    [viewport, frameEl, backdrop].forEach((element) => {
+      if (!element) return;
+      element.style.width = widthPx;
+      element.style.height = heightPx;
+      element.style.minWidth = widthPx;
+      element.style.minHeight = heightPx;
+      element.style.maxWidth = widthPx;
+      element.style.maxHeight = heightPx;
+    });
+    if (viewport) {
+      viewport.style.flex = "0 0 auto";
+    }
+    if (video) {
+      video.style.width = widthPx;
+      video.style.height = heightPx;
+      video.style.minWidth = widthPx;
+      video.style.minHeight = heightPx;
+      video.style.maxWidth = widthPx;
+      video.style.maxHeight = heightPx;
+      video.style.left = "0";
+      video.style.top = "0";
+      video.style.objectFit = "cover";
+      video.style.objectPosition = "center center";
+    }
+    if (frameEl) {
+      void frameEl.offsetWidth;
+    }
+  };
+  apply();
+  requestAnimationFrame(apply);
+  setTimeout(apply, 120);
+  setTimeout(apply, 420);
+  if (video) {
+    video.addEventListener("loadedmetadata", apply);
+    video.addEventListener("playing", apply, { once: true });
+  }
+};
+
 const renderBirthdaySlide = (item, variantConfig = null) => {
   currentVideo = null;
   const settings = birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE;
@@ -4457,6 +4500,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     });
     backdrop.appendChild(video);
     currentVideo = video;
+    lockBirthdayVideoLayoutForTv(viewport, frameEl, backdrop, video);
     attachVideoDebugOverlay(frameEl, video, {
       label: bgSource ? `birthday:${bgSource}` : "birthday",
       fallbackEl: backdrop,

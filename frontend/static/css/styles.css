@@ -1369,6 +1369,13 @@ input[type="datetime-local"]:focus {
   will-change: auto;
 }
 
+.slideshow-tv .media-layer > .birthday-slide-viewport {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .slideshow-tv .birthday-slide-frame--video {
   border-radius: 0;
   box-shadow: none;
