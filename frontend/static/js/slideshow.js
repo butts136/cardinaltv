@@ -4511,6 +4511,56 @@ const lockBirthdayVideoLayoutForTv = (viewport, frameEl, backdrop, video) => {
   }
 };
 
+const relayoutBirthdayOverlayLines = (entries, overlayWidth = BASE_CANVAS_WIDTH, overlayHeight = BASE_CANVAS_HEIGHT) => {
+  if (!Array.isArray(entries) || !entries.length) return;
+  entries.forEach((entry) => {
+    if (!entry || !entry.line || !entry.content) return;
+    const opts = entry.options || BIRTHDAY_TEXT_OPTIONS_DEFAULT;
+    if (sharedRenderers?.layoutOverlayTextLine) {
+      sharedRenderers.layoutOverlayTextLine(
+        entry.line,
+        entry.content,
+        entry.text || "",
+        entry.rawText || "",
+        opts,
+        overlayWidth,
+        overlayHeight,
+      );
+    } else {
+      layoutOverlayLine(
+        entry.line,
+        entry.content,
+        entry.text || "",
+        opts,
+        overlayWidth,
+        overlayHeight,
+      );
+    }
+  });
+};
+
+const scheduleBirthdayOverlayRelayout = (entries, { slideId = null } = {}) => {
+  if (!Array.isArray(entries) || !entries.length) return;
+  const apply = () => {
+    if (slideId && currentId && currentId !== slideId) return;
+    relayoutBirthdayOverlayLines(entries, BASE_CANVAS_WIDTH, BASE_CANVAS_HEIGHT);
+  };
+  const delays = [0, 16, 48, 120, 260];
+  delays.forEach((delay) => {
+    setTimeout(() => {
+      requestAnimationFrame(apply);
+    }, delay);
+  });
+  if (document.fonts?.ready) {
+    document.fonts.ready
+      .then(() => {
+        apply();
+        setTimeout(apply, 40);
+      })
+      .catch(() => {});
+  }
+};
+
 const renderBirthdaySlide = (item, variantConfig = null) => {
   currentVideo = null;
   const settings = birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE;
@@ -4636,6 +4686,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     const linesWrapper = document.createElement("div");
     linesWrapper.className = "birthday-slide-lines";
     const lines = normalizeBirthdayLines(variantCfg);
+    const lineLayoutEntries = [];
     const overlayWidth = BASE_CANVAS_WIDTH;
     const overlayHeight = BASE_CANVAS_HEIGHT;
     lines.forEach((entry, idx) => {
@@ -4678,6 +4729,13 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
         layoutOverlayLine(line, content, text, opts, overlayWidth, overlayHeight);
       }
       line.appendChild(content);
+      lineLayoutEntries.push({
+        line,
+        content,
+        text,
+        rawText: rawTemplateText,
+        options: opts,
+      });
       linesWrapper.appendChild(line);
     });
     overlay.style.justifyContent = "center";
@@ -4685,13 +4743,24 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
     overlay.style.alignItems = "center";
     overlay.append(linesWrapper);
     frameEl.appendChild(overlay);
+    frameEl._birthdayLineLayoutEntries = lineLayoutEntries;
   }
   viewport.appendChild(frameEl);
 
-  const swapPromise = setMediaContent(viewport, { waitForReady: true });
+  const swapPromise = setMediaContent(viewport, { waitForReady: true, immediateSwap: true });
   if (swapPromise && typeof swapPromise.then === "function") {
-    swapPromise.then(() => markSlideVisible(item));
+    swapPromise.then(() => {
+      const entries = frameEl?._birthdayLineLayoutEntries;
+      if (entries?.length) {
+        scheduleBirthdayOverlayRelayout(entries, { slideId: item.id || null });
+      }
+      markSlideVisible(item);
+    });
   } else {
+    const entries = frameEl?._birthdayLineLayoutEntries;
+    if (entries?.length) {
+      scheduleBirthdayOverlayRelayout(entries, { slideId: item.id || null });
+    }
     markSlideVisible(item);
   }
   scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
