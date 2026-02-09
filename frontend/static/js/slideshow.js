@@ -207,6 +207,7 @@ const INFO_BANDS_PROGRESS_STYLES = ["numeric", "dots", "bars", "steps", "bar"];
 const normalizeInfoBandProgressStyle = (value) =>
   INFO_BANDS_PROGRESS_STYLES.includes(value) ? value : "numeric";
 const PLAYLIST_REFRESH_MS = performanceProfile.lowPower ? 60 * 1000 : 30 * 1000;
+const FETCH_NETWORK_RETRY_DELAY_MS = 1500;
 let infoBandsSignature = "";
 let infoBandWidgetTokenEntries = [];
 let infoBandWidgetProgressNodes = [];
@@ -956,7 +957,7 @@ const fetchJSON = async (url, options = {}) => {
     return await attempt();
   } catch (error) {
     if (error instanceof TypeError) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, FETCH_NETWORK_RETRY_DELAY_MS));
       return attempt();
     }
     throw error;
