@@ -207,6 +207,7 @@ const INFO_BANDS_PROGRESS_STYLES = ["numeric", "dots", "bars", "steps", "bar"];
 const normalizeInfoBandProgressStyle = (value) =>
   INFO_BANDS_PROGRESS_STYLES.includes(value) ? value : "numeric";
 const PLAYLIST_REFRESH_MS = performanceProfile.lowPower ? 60 * 1000 : 30 * 1000;
+const FETCH_NETWORK_RETRY_DELAY_MS = 1500;
 let infoBandsSignature = "";
 let infoBandWidgetTokenEntries = [];
 let infoBandWidgetProgressNodes = [];
@@ -941,15 +942,26 @@ const maybeSwapVideoToCached = async (video, url, slideId = null, { fallbackUrl 
 };
 
 const fetchJSON = async (url, options = {}) => {
-  const response = await fetch(buildApiUrl(url), {
-    cache: "no-store",
-    ...options,
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Requête échouée (${response.status})`);
+  const attempt = async () => {
+    const response = await fetch(buildApiUrl(url), {
+      cache: "no-store",
+      ...options,
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Requête échouée (${response.status})`);
+    }
+    return response.json();
+  };
+  try {
+    return await attempt();
+  } catch (error) {
+    if (error instanceof TypeError) {
+      await new Promise((resolve) => setTimeout(resolve, FETCH_NETWORK_RETRY_DELAY_MS));
+      return attempt();
+    }
+    throw error;
   }
-  return response.json();
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -967,8 +979,9 @@ const fetchInfoBandsConfig = async (force = false) => {
     lastInfoBandsFetch = Date.now();
   } catch (error) {
     console.warn("Failed to load info bands config:", error);
-    infoBandsConfig = { enabled: false };
-    lastInfoBandsFetch = Date.now();
+    if (!infoBandsConfig) {
+      infoBandsConfig = { enabled: false };
+    }
   }
   return infoBandsConfig;
 };
@@ -1839,8 +1852,6 @@ const fetchTimeChangeInfo = async (force = false) => {
     lastTimeChangeFetch = Date.now();
   } catch (error) {
     console.warn("Impossible de charger les données du changement d'heure:", error);
-    timeChangeInfo = null;
-    lastTimeChangeFetch = Date.now();
   }
   return timeChangeInfo;
 };
@@ -4006,8 +4017,6 @@ const ensureTeamEmployeesData = async (force = false) => {
       })
       .catch((error) => {
         console.warn("Impossible de charger les employés pour Notre Équipe:", error);
-        lastTeamEmployeesFetch = Date.now();
-        teamEmployeesData = [];
         return teamEmployeesData;
       })
       .finally(() => {
@@ -4824,8 +4833,6 @@ const fetchChristmasInfo = async (force = false) => {
     lastChristmasFetch = Date.now();
   } catch (error) {
     console.warn("Impossible de charger les données de Noël:", error);
-    christmasInfo = null;
-    lastChristmasFetch = Date.now();
   }
   return christmasInfo;
 };
@@ -5888,9 +5895,7 @@ const fetchTestSlide = async (force = false) => {
     return testSlidePayload;
   } catch (error) {
     console.warn("Impossible de récupérer la diapo personnalisée:", error);
-    testSlidePayload = null;
-    lastTestSlideFetch = now;
-    return null;
+    return testSlidePayload;
   }
 };
 
@@ -5945,9 +5950,7 @@ const fetchCustomSlidesList = async (force = false) => {
     return items;
   } catch (error) {
     console.warn("Impossible de récupérer les diapos personnalisées:", error);
-    customSlidesPayload = [];
-    lastCustomSlidesFetch = now;
-    return [];
+    return Array.isArray(customSlidesPayload) ? customSlidesPayload : [];
   }
 };
 
@@ -6171,7 +6174,13 @@ const refreshPlaylist = async () => {
     data = [];
   }
 
-  const enhanced = await injectAutoSlidesIntoPlaylist(data);
+  let enhanced;
+  try {
+    enhanced = await injectAutoSlidesIntoPlaylist(data);
+  } catch (error) {
+    console.warn("Erreur lors de l'injection des diapos auto:", error);
+    return { empty: !playlist.length, restart: false, changed: false };
+  }
   const signature = computeSignature(enhanced);
   const changed = signature !== playlistSignature;
   playlistSignature = signature;
@@ -6413,7 +6422,13 @@ const advanceSlide = async () => {
     if (result.restart) {
       const item = playlist[currentIndex] || playlist[0];
       if (item) {
-        await showMedia(item);
+        try {
+          await showMedia(item);
+        } catch (error) {
+          console.error("Erreur lors de l'affichage du média:", error);
+          scheduleSlideAdvance(5, null, item.id);
+          return;
+        }
         preloadNextBackground();
         queueUpcomingSlidePreload(currentIndex);
       }
@@ -6432,7 +6447,13 @@ const advanceSlide = async () => {
     }
     if (!shouldSkipItem(candidate)) {
       currentIndex = nextIndex;
-      await showMedia(candidate);
+      try {
+        await showMedia(candidate);
+      } catch (error) {
+        console.error("Erreur lors de l'affichage du média:", error);
+        scheduleSlideAdvance(5, null, candidate.id);
+        return;
+      }
       preloadNextBackground();
       queueUpcomingSlidePreload(currentIndex);
       return;
@@ -6448,7 +6469,13 @@ const advanceSlide = async () => {
   const fallback = playlist[nextIndex] || playlist[0];
   if (fallback) {
     currentIndex = playlist.findIndex((entry) => entry.id === fallback.id);
-    await showMedia(fallback);
+    try {
+      await showMedia(fallback);
+    } catch (error) {
+      console.error("Erreur lors de l'affichage du média:", error);
+      scheduleSlideAdvance(5, null, fallback.id);
+      return;
+    }
     preloadNextBackground();
     queueUpcomingSlidePreload(currentIndex);
   }
