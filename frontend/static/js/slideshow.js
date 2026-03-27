@@ -1989,11 +1989,10 @@ const refreshOverlaySettings = async () => {
       };
       weatherData = null;
       lastWeatherFetch = 0;
-      await fetchTimeChangeInfo(true);
-      await fetchChristmasInfo(true);
+      await Promise.all([fetchTimeChangeInfo(true), fetchChristmasInfo(true)]);
     }
     void refreshWeatherBackgroundUrls();
-    await preloadBirthdayVariants({ force: settingsChanged });
+    void preloadBirthdayVariants({ force: settingsChanged });
   } catch (error) {
     console.warn("Impossible de charger les paramètres:", error);
   }
@@ -6017,6 +6016,21 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
       return cloned;
     });
   const autoEntries = [];
+  const [
+    timeChangeData,
+    christmasData,
+    birthdayList,
+    teamEmployees,
+    testData,
+    customSlides,
+  ] = await Promise.all([
+    timeChangeSlideSettings.enabled ? fetchTimeChangeInfo() : Promise.resolve(null),
+    christmasSlideSettings.enabled ? fetchChristmasInfo() : Promise.resolve(null),
+    birthdaySlideSettings.enabled ? ensureBirthdayEmployeesData() : Promise.resolve([]),
+    teamSlideSettings.enabled ? ensureTeamEmployeesData() : Promise.resolve([]),
+    testSlideSettings.enabled ? fetchTestSlide() : Promise.resolve(null),
+    fetchCustomSlidesList(),
+  ]);
 
   // Les diapos "auto" sont affichées en premier, puis la playlist des médias dans son ordre.
   // On conserve `order_index` uniquement pour ordonner les diapos auto entre elles.
@@ -6027,7 +6041,7 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
   };
 
   if (timeChangeSlideSettings.enabled) {
-    const change = await fetchTimeChangeInfo();
+    const change = timeChangeData;
     const daysLimit = Number.isFinite(Number(timeChangeSlideSettings.days_before))
       ? Number(timeChangeSlideSettings.days_before)
       : DEFAULT_TIME_CHANGE_SLIDE.days_before;
@@ -6041,7 +6055,7 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
   }
 
   if (christmasSlideSettings.enabled) {
-    const christmas = await fetchChristmasInfo();
+    const christmas = christmasData;
     const daysLimit = Number.isFinite(Number(christmasSlideSettings.days_before))
       ? Number(christmasSlideSettings.days_before)
       : DEFAULT_CHRISTMAS_SLIDE.days_before;
@@ -6055,7 +6069,6 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
   }
 
   if (birthdaySlideSettings.enabled) {
-    const birthdayList = await ensureBirthdayEmployeesData();
     if (Array.isArray(birthdayList) && birthdayList.length) {
       const startOrder = normalizedOrderIndex(birthdaySlideSettings.order_index);
       birthdayList.forEach((data, idx) => {
@@ -6068,8 +6081,7 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
   }
 
   if (teamSlideSettings.enabled) {
-    await ensureTeamEmployeesData();
-    if (teamEmployeesData.length) {
+    if (Array.isArray(teamEmployees) && teamEmployees.length) {
       const teamItem = buildTeamSlideItem();
       autoEntries.push({
         ...teamItem,
@@ -6079,7 +6091,6 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
   }
 
   if (testSlideSettings.enabled) {
-    const testData = await fetchTestSlide();
     if (testData?.enabled && testData?.has_background && testData?.has_texts) {
       const testItem = buildTestSlideItem(testData);
       autoEntries.push({
@@ -6089,7 +6100,6 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     }
   }
 
-  const customSlides = await fetchCustomSlidesList();
   if (Array.isArray(customSlides) && customSlides.length) {
     customSlides.forEach((customData) => {
       if (!customData?.enabled) return;
@@ -6519,11 +6529,7 @@ const startSlideshow = async () => {
     void slideshowCache.ensureServiceWorker();
   }
 
-  // Initialize info bands layout before showing content
-  await initInfoBands();
-
-  await ensureCoreOverlayFontsLoaded();
-  await loadBirthdayCustomFonts();
+  await Promise.all([initInfoBands(), ensureCoreOverlayFontsLoaded(), loadBirthdayCustomFonts()]);
   if (!isPreviewMode || isSingleSlideMode) {
     await refreshOverlaySettings();
     if (isEditorPreview) {
@@ -6560,7 +6566,6 @@ const startSlideshow = async () => {
     }
     return true;
   }
-  await ensureTeamEmployeesData();
   const result = await refreshPlaylist();
   if (result.empty) {
     handleEmptyPlaylist();
@@ -6736,10 +6741,15 @@ const beginPlayback = async ({ fromAuto = false } = {}) => {
   }
 };
 
-window.addEventListener("load", async () => {
-  await refreshOverlaySettings();
+const initializeSlideshow = () => {
   void beginPlayback({ fromAuto: true });
-});
+};
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeSlideshow, { once: true });
+} else {
+  initializeSlideshow();
+}
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && wakeLock == null) {

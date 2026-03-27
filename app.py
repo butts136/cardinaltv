@@ -6,6 +6,7 @@ import calendar
 import concurrent.futures
 import copy
 import html
+import io
 import json
 import logging
 import math
@@ -51,6 +52,7 @@ POWERPOINT_DIR = DATA_DIR / "powerpoint"
 POWERPOINT_STATE_FILE = DATA_DIR / "powerpoint.json"
 EMPLOYEE_DB_PATH = DATA_DIR / "employees" / "employees.db"
 EMPLOYEE_JSON_PATH = DATA_DIR / "employees" / "employees.json"
+MAX_EMPLOYEE_AVATAR_BYTES = 4 * 1024 * 1024
 TEMP_SLIDE_STATE_FILE = DATA_DIR / "temporary_slides.json"
 TEMP_SLIDE_ASSETS_DIR = DATA_DIR / "temporary_assets"
 TEAM_SLIDE_ASSETS_DIR = DATA_DIR / "team_slide_assets"
@@ -3276,7 +3278,15 @@ class EmployeeStore:
         self._json_path = EMPLOYEE_JSON_PATH
         self._lock = RLock()
         self._employees: List[Dict[str, Any]] = []
+        self._json_signature: Optional[Tuple[int, int]] = None
         self._load()
+
+    def _compute_json_signature(self) -> Optional[Tuple[int, int]]:
+        try:
+            stat = self._json_path.stat()
+        except OSError:
+            return None
+        return (int(stat.st_mtime_ns), int(stat.st_size))
 
     def _load(self) -> None:
         self._json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -3285,6 +3295,7 @@ class EmployeeStore:
                 data = json.load(handle)
         except FileNotFoundError:
             data = []
+            self._json_signature = None
         except (json.JSONDecodeError, OSError) as exc:
             app_logger.warning("[employees] Lecture impossible de %s: %s", self._json_path, exc)
             return
@@ -3299,6 +3310,7 @@ class EmployeeStore:
                 dirty = True
             normalized.append(norm)
         self._employees = normalized
+        self._json_signature = self._compute_json_signature()
         if dirty:
             self._save()
 
@@ -3316,6 +3328,7 @@ class EmployeeStore:
                 os.fsync(handle.fileno())
                 tmp_path = Path(handle.name)
             os.replace(tmp_path, self._json_path)
+            self._json_signature = self._compute_json_signature()
         except Exception as exc:  # pragma: no cover
             app_logger.error("[employees] Impossible d'écrire %s: %s", self._json_path, exc)
         finally:
@@ -3326,8 +3339,9 @@ class EmployeeStore:
                     pass
 
     def _maybe_reload_from_disk(self) -> None:
-        # Recharge systématiquement pour refléter le JSON actuel.
-        self._load()
+        # Recharge seulement si le fichier a réellement changé pour éviter des lectures disque inutiles.
+        if self._compute_json_signature() != self._json_signature:
+            self._load()
 
     def _normalize_entry(self, entry: Dict[str, Any], fallback_order: int = 0) -> Dict[str, Any]:
         now_iso = _now_iso()
@@ -3424,9 +3438,17 @@ class EmployeeStore:
         ext = Path(uploaded.filename).suffix.lower()
         if ext not in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"}:
             raise ValueError("Format d'image non supporté.")
-        data = uploaded.read()
+        data = uploaded.read(MAX_EMPLOYEE_AVATAR_BYTES + 1)
         if not isinstance(data, (bytes, bytearray)):
             raise ValueError("Fichier invalide.")
+        if len(data) > MAX_EMPLOYEE_AVATAR_BYTES:
+            raise ValueError("Image trop volumineuse (maximum 4 Mo).")
+        if Image is not None:
+            try:
+                with Image.open(io.BytesIO(data)) as image:
+                    image.verify()
+            except Exception as exc:
+                raise ValueError("Image invalide.") from exc
         avatar_b64 = base64.b64encode(data).decode("ascii")
         now_iso = _now_iso()
         with self._lock:
@@ -3963,7 +3985,7 @@ def playlist() -> Any:
 
 @bp.route("/diaporama/employes")
 def employees() -> Any:
-    return render_template("employees.html")
+    return render_template("employees.html", initial_employees=employee_store.list_employees())
 
 
 @bp.route("/diaporama/team")

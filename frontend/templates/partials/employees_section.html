@@ -12,7 +12,10 @@
           <h3>Liste des employ&eacute;s</h3>
           <button id="employees-add-button" class="primary-button" type="button">+ Ajouter un employ&eacute;</button>
         </div>
-        <ul id="employees-list" class="employees-list" aria-live="polite"></ul>
+        <ul id="employees-list" class="employees-list" aria-live="polite">
+          <li class="employees-row employees-empty">Chargement des employ&eacute;s...</li>
+        </ul>
+        <script id="employees-bootstrap-data" type="application/json">{{ initial_employees|default([], true)|tojson }}</script>
       </div>
     </div>
   </div>

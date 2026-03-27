@@ -643,6 +643,17 @@ const fetchJSON = async (url, options) => {
   return response.json();
 };
 
+const readBootstrapJSON = (id, fallback = null) => {
+  const element = document.getElementById(id);
+  if (!element) return fallback;
+  try {
+    return JSON.parse(element.textContent || "null");
+  } catch (error) {
+    console.warn(`Impossible de lire les données bootstrap ${id}:`, error);
+    return fallback;
+  }
+};
+
 const buildSlideAssetUrl = (prefix, path) => {
   if (!path) return "";
   const value = String(path);
@@ -691,6 +702,8 @@ window.CardinalApp = {
   clampValue,
 };
 const LIVE_EDITOR_ACTIVE = Boolean(document.querySelector("[data-editor-kind]"));
+const initialEmployeesData = readBootstrapJSON("employees-bootstrap-data", null);
+let employeesBootstrapHydrated = false;
 
 // ---------------------------------------------------------------------------
 // Feedback pour le téléversement de fichiers
@@ -6613,17 +6626,34 @@ const renderEmployeesList = () => {
   });
 };
 
-const loadEmployees = async () => {
+const applyEmployeesState = (list) => {
+  employees = Array.isArray(list) ? list : [];
+  renderEmployeesList();
+  renderTeamPreview();
+};
+
+const loadEmployees = async ({ useBootstrap = false, forceRefresh = false, backgroundRefresh = false } = {}) => {
+  const canUseBootstrap =
+    useBootstrap &&
+    !forceRefresh &&
+    !employeesBootstrapHydrated &&
+    Array.isArray(initialEmployeesData);
+
+  if (canUseBootstrap) {
+    employeesBootstrapHydrated = true;
+    applyEmployeesState(initialEmployeesData);
+    if (backgroundRefresh) {
+      void loadEmployees({ forceRefresh: true });
+    }
+    return;
+  }
+
   try {
     const data = await fetchJSON("api/employees");
-    employees = Array.isArray(data.employees) ? data.employees : [];
-    renderEmployeesList();
-    renderTeamPreview();
+    applyEmployeesState(data.employees);
   } catch (error) {
     console.error("Erreur lors du chargement des employés:", error);
-    employees = [];
-    renderEmployeesList();
-    renderTeamPreview();
+    applyEmployeesState([]);
   }
 };
 
@@ -7438,7 +7468,7 @@ pptModal?.addEventListener("click", (event) => {
 pptUploadForm?.addEventListener("submit", submitPptUploadForm);
 
 // Initialisation globale
-window.addEventListener("load", async () => {
+const initializeApp = async () => {
   if (LIVE_EDITOR_ACTIVE) {
     updateQuebecTime();
     if (!quebecTimeTimer) {
@@ -7461,25 +7491,39 @@ window.addEventListener("load", async () => {
   const needsMedia = Boolean(mediaList);
   const needsEmployees = Boolean(employeesList || teamPreviewStage);
   const needsPowerpoint = Boolean(pptList || pptUploadForm || pptUploadButton);
+  const bootstrapEmployeesAvailable = Array.isArray(initialEmployeesData);
 
-  if (needsOverlaySettings) {
-    await loadOverlayAndSlideSettings();
-  }
-  if (needsMedia) {
-    await loadMedia();
-    void loadAutoSlideAvailability();
-  }
-  if (needsEmployees) {
-    await loadEmployees();
-    if (employeeForm) {
-      initEmployeeFormChoices();
-    }
-  }
-  if (needsPowerpoint) {
-    await loadPowerpointList();
-  }
   updateQuebecTime();
   if (!quebecTimeTimer) {
     quebecTimeTimer = setInterval(updateQuebecTime, 1000);
   }
-});
+
+  if (needsEmployees && employeeForm) {
+    initEmployeeFormChoices();
+  }
+
+  const overlayTask = needsOverlaySettings ? loadOverlayAndSlideSettings() : Promise.resolve();
+  const employeesTask = needsEmployees
+    ? loadEmployees({
+        useBootstrap: bootstrapEmployeesAvailable,
+        backgroundRefresh: bootstrapEmployeesAvailable,
+      })
+    : Promise.resolve();
+  const powerpointTask = needsPowerpoint ? loadPowerpointList() : Promise.resolve();
+
+  await Promise.allSettled([overlayTask, employeesTask, powerpointTask]);
+
+  if (needsMedia) {
+    await overlayTask.catch(() => {});
+    await loadMedia();
+    void loadAutoSlideAvailability();
+  }
+};
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    void initializeApp();
+  }, { once: true });
+} else {
+  void initializeApp();
+}
