@@ -2049,6 +2049,139 @@ const applyAutoAvailability = (card, type) => {
   }
 };
 
+const setSlideEntryEnabledState = async (type, enabled, slideId = null) => {
+  const nextEnabled = Boolean(enabled);
+
+  if (type === "team") {
+    const patch = { team_slide: { enabled: nextEnabled } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    teamSlideSettings = normalizeTeamSlideSettings(data.team_slide || patch.team_slide);
+    return;
+  }
+
+  if (type === "birthday") {
+    const patch = { birthday_slide: { enabled: nextEnabled } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    birthdaySlideSettings = normalizeBirthdaySlideSettings(
+      data.birthday_slide || patch.birthday_slide,
+    );
+    return;
+  }
+
+  if (type === "time-change") {
+    const patch = { time_change_slide: { enabled: nextEnabled } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    timeChangeSlideSettings = normalizeTimeChangeSettings(
+      data.time_change_slide || patch.time_change_slide,
+    );
+    return;
+  }
+
+  if (type === "christmas") {
+    const patch = { christmas_slide: { enabled: nextEnabled } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    christmasSlideSettings = normalizeChristmasSettings(
+      data.christmas_slide || patch.christmas_slide,
+    );
+    return;
+  }
+
+  if (type === "news") {
+    const data = await fetchJSON("api/news-slide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: nextEnabled }),
+    });
+    newsSlideSettings = {
+      ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS),
+      ...(data?.config || {}),
+      enabled: Boolean(data?.config?.enabled ?? nextEnabled),
+    };
+    return;
+  }
+
+  if (type === "weather") {
+    const data = await fetchJSON("api/weather-slide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: nextEnabled }),
+    });
+    weatherSlideSettings = {
+      ...(weatherSlideSettings || DEFAULT_WEATHER_SLIDE_SETTINGS),
+      ...(data?.config || {}),
+      enabled: Boolean(data?.config?.enabled ?? nextEnabled),
+    };
+    return;
+  }
+
+  if (type === "custom" && slideId) {
+    const updated = await fetchJSON(`api/custom-slides/${encodeURIComponent(slideId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: nextEnabled }),
+    });
+    if (Array.isArray(customSlides)) {
+      const slideIndex = customSlides.findIndex((slide) => slide && slide.id === slideId);
+      if (slideIndex !== -1) {
+        customSlides[slideIndex] = { ...customSlides[slideIndex], ...updated };
+      }
+    }
+  }
+};
+
+const createSlideArchiveActions = ({ type, slideId = null, label = "cette diapositive" } = {}) => {
+  const actions = document.createElement("div");
+  actions.className = "media-card-actions";
+
+  const archiveButton = document.createElement("button");
+  archiveButton.type = "button";
+  archiveButton.className = "secondary-button";
+  archiveButton.textContent = "Archiver";
+  archiveButton.addEventListener("click", async () => {
+    if (
+      !window.confirm(
+        `Archiver ${label} ? Elle sera désactivée et retirée de la playlist active.`,
+      )
+    ) {
+      return;
+    }
+
+    archiveButton.disabled = true;
+    archiveButton.textContent = "Archivage...";
+
+    try {
+      await setSlideEntryEnabledState(type, false, slideId);
+      renderMedia();
+    } catch (error) {
+      console.error("Impossible d'archiver la diapositive:", error);
+      archiveButton.textContent = "Erreur";
+      setTimeout(() => {
+        archiveButton.disabled = false;
+        archiveButton.textContent = "Archiver";
+      }, 1400);
+    }
+  });
+
+  actions.appendChild(archiveButton);
+  return actions;
+};
+
 const createTeamSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) => {
   const card = document.createElement("article");
   card.className = "media-card team-slide-card-special auto-slide-card";
@@ -2072,7 +2205,14 @@ const createTeamSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) =
       : "Activée";
   body.append(title, status);
 
-  card.append(header, body);
+  card.append(
+    header,
+    body,
+    createSlideArchiveActions({
+      type: "team",
+      label: "la diapositive « Notre Équipe »",
+    }),
+  );
   return card;
 };
 
@@ -2101,7 +2241,14 @@ const createBirthdaySlideCard = (globalIndex, displayNumber, autoCount, totalAut
       : "Désactivée";
   body.append(title, status);
 
-  card.append(header, body);
+  card.append(
+    header,
+    body,
+    createSlideArchiveActions({
+      type: "birthday",
+      label: "la diapositive « Anniversaire »",
+    }),
+  );
   return card;
 };
 
@@ -2133,7 +2280,14 @@ const createTimeChangeSlideCard = (globalIndex, displayNumber, autoCount, totalA
       : "Désactivée";
   body.append(title, status);
 
-  card.append(header, body);
+  card.append(
+    header,
+    body,
+    createSlideArchiveActions({
+      type: "time-change",
+      label: "la diapositive « Changement d'heure »",
+    }),
+  );
   return card;
 };
 
@@ -2165,7 +2319,14 @@ const createChristmasSlideCard = (globalIndex, displayNumber, autoCount, totalAu
       : "Désactivée";
   body.append(title, status);
 
-  card.append(header, body);
+  card.append(
+    header,
+    body,
+    createSlideArchiveActions({
+      type: "christmas",
+      label: "la diapositive « Noël »",
+    }),
+  );
   return card;
 };
 
@@ -2187,7 +2348,14 @@ const createNewsSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) =
     newsSlideSettings && newsSlideSettings.enabled ? "Activée" : "Désactivée";
   body.append(title, status);
 
-  card.append(header, body);
+  card.append(
+    header,
+    body,
+    createSlideArchiveActions({
+      type: "news",
+      label: "la diapositive « Nouvelles »",
+    }),
+  );
   return card;
 };
 
@@ -2208,7 +2376,14 @@ const createWeatherSlideCard = (globalIndex, displayNumber, autoCount, totalAuto
     weatherSlideSettings && weatherSlideSettings.enabled ? "Activée" : "Désactivée";
   body.append(title, status);
 
-  card.append(header, body);
+  card.append(
+    header,
+    body,
+    createSlideArchiveActions({
+      type: "weather",
+      label: "la diapositive « Météo »",
+    }),
+  );
   return card;
 };
 
@@ -2239,7 +2414,15 @@ const createCustomSlideCard = (slide, entryId, globalIndex, displayNumber, autoC
       : "Désactivée";
   body.append(title, status);
 
-  card.append(header, body);
+  card.append(
+    header,
+    body,
+    createSlideArchiveActions({
+      type: "custom",
+      slideId: slide?.id || null,
+      label: `la diapositive « ${slideName} »`,
+    }),
+  );
   return card;
 };
 
@@ -2295,27 +2478,22 @@ const getPlaylistEntryOrder = (entry, fallbackIndex) => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallbackIndex;
 };
 
-const hasUniquePlaylistOrders = (entries) => {
-  const orders = entries.map((entry, index) => getPlaylistEntryOrder(entry, index));
-  return new Set(orders).size === orders.length;
-};
-
 const buildMediaRenderList = () => {
   const auto = getAutoEntries();
   const media = mediaItems.map((item) => ({ type: "media", id: item.id, item }));
-  const entries = [...auto, ...media];
-
-  if (!hasUniquePlaylistOrders(entries)) {
-    return entries;
-  }
+  const entries = [...auto, ...media].map((entry, sourceIndex) => ({
+    ...entry,
+    sourceIndex,
+  }));
 
   return entries.slice().sort((a, b) => {
-    const orderA = getPlaylistEntryOrder(a, entries.indexOf(a));
-    const orderB = getPlaylistEntryOrder(b, entries.indexOf(b));
+    const orderA = getPlaylistEntryOrder(a, a.sourceIndex);
+    const orderB = getPlaylistEntryOrder(b, b.sourceIndex);
     if (orderA !== orderB) return orderA - orderB;
     const priorityA = a.type === "media" ? AUTO_ENTRY_PRIORITY.length + 1 : a.priority || 0;
     const priorityB = b.type === "media" ? AUTO_ENTRY_PRIORITY.length + 1 : b.priority || 0;
     if (priorityA !== priorityB) return priorityA - priorityB;
+    if (a.sourceIndex !== b.sourceIndex) return a.sourceIndex - b.sourceIndex;
     return String(a.id || "").localeCompare(String(b.id || ""));
   });
 };
