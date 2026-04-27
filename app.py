@@ -153,6 +153,7 @@ FRENCH_MONTHS = [
     "décembre",
 ]
 DEFAULT_DURATION_SECONDS = 10
+DEFAULT_SERVER_PORT = 39015
 QUEBEC_TZ = ZoneInfo("America/Toronto")
 TEXT_IMAGE_WIDTH = 1920
 TEXT_IMAGE_HEIGHT = 1080
@@ -8944,6 +8945,15 @@ def run() -> None:
     # Allow enabling debug/reloader via environment variable for development
     debug_env = os.environ.get("CARDINALTV_DEBUG")
     debug_mode = True if (debug_env and debug_env.lower() in ("1", "true", "yes")) else False
+    server_port = int(
+        _ensure_number(
+            os.environ.get("CARDINALTV_PORT"),
+            DEFAULT_SERVER_PORT,
+            minimum=1,
+            maximum=65535,
+            integer=True,
+        )
+    )
     # In production we prefer running with waitress to avoid the unbounded-thread dev server.
     if not debug_mode and waitress_serve is not None:
         cpu_count = os.cpu_count() or 1
@@ -8986,8 +8996,9 @@ def run() -> None:
             )
         )
         app_logger.info(
-            "Starting CardinalTV with Waitress on 0.0.0.0:39010 "
+            "Starting CardinalTV with Waitress on 0.0.0.0:%s "
             "(threads=%s, connection_limit=%s, channel_timeout=%s, backlog=%s)",
+            server_port,
             threads,
             connection_limit,
             channel_timeout,
@@ -8996,7 +9007,7 @@ def run() -> None:
         waitress_serve(
             app,
             host="0.0.0.0",
-            port=39010,
+            port=server_port,
             threads=threads,
             connection_limit=connection_limit,
             channel_timeout=channel_timeout,
@@ -9013,7 +9024,7 @@ def run() -> None:
     # When debug_mode is True, enable the reloader so file changes are picked up immediately.
     app.run(
         host="0.0.0.0",
-        port=39010,
+        port=server_port,
         debug=debug_mode,
         use_reloader=debug_mode,
         threaded=debug_mode,

@@ -35,7 +35,7 @@ Les optimisations de performance sont **maintenant actives** sur ton projet Card
 ### ✅ Serveur testé
 
 ```
-✓ Démarrage réussi sur http://127.0.0.1:39010
+✓ Démarrage réussi sur http://127.0.0.1:39015
 ✓ Aucune erreur détectée
 ✓ Slideshow accessible
 ```
@@ -45,7 +45,7 @@ Les optimisations de performance sont **maintenant actives** sur ton projet Card
 ## 🚀 Comment tester (5 minutes)
 
 ### Étape 1 : Ouvre le slideshow
-Le navigateur devrait déjà être ouvert sur : http://127.0.0.1:39010/slideshow
+Le navigateur devrait déjà être ouvert sur : http://127.0.0.1:39015/slideshow
 
 ### Étape 2 : Ouvre la console (F12)
 
@@ -66,12 +66,12 @@ Tu devrais voir un de ces badges :
 
 **Mode Low Power :**
 ```
-http://127.0.0.1:39010/slideshow?perf=low
+http://127.0.0.1:39015/slideshow?perf=low
 ```
 
 **Mode High Performance :**
 ```
-http://127.0.0.1:39010/slideshow?perf=high
+http://127.0.0.1:39015/slideshow?perf=high
 ```
 
 ---
@@ -312,7 +312,7 @@ Tu as maintenant un slideshow :
 **Date d'intégration** : 29 janvier 2026  
 **Version** : 2.0.0  
 **Status** : ✅ INTÉGRATION COMPLÉTÉE  
-**Serveur actif** : http://127.0.0.1:39010
+**Serveur actif** : http://127.0.0.1:39015
 
 ---
 

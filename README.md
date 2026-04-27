@@ -87,8 +87,8 @@ cardinaltv/
 
 ### Flux d'exécution
 
-1. **Démarrage** : Flask charge les données depuis `data/` et expose l'API sur le port 39010
-2. **Interface admin** : L'utilisateur accède au panneau via `http://[IP]:39010`
+1. **Démarrage** : Flask charge les données depuis `data/` et expose l'API sur le port 39015
+2. **Interface admin** : L'utilisateur accède au panneau via `http://[IP]:39015`
 3. **Configuration** : Téléversement de médias, gestion des employés, paramétrage des slides
 4. **Diaporama** : Accès via `/slideshow`, lecture automatique des médias actifs
 
@@ -128,14 +128,14 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Le serveur démarre sur `http://0.0.0.0:39010`.
+Le serveur démarre sur `http://0.0.0.0:39015`.
 
 ### Variables d'environnement
 
 | Variable | Description | Défaut |
 |----------|-------------|--------|
 | `CARDINALTV_DEBUG` | Active le mode debug Flask | `false` |
-| `CARDINALTV_PORT` | Port d'écoute | `39010` |
+| `CARDINALTV_PORT` | Port d'écoute | `39015` |
 | `CARDINALTV_WAITRESS_THREADS` | Threads Waitress | Auto-calculé |
 | `CARDINALTV_WAITRESS_CONNECTION_LIMIT` | Connexions max | Auto-calculé |
 | `CARDINALTV_WAITRESS_CHANNEL_TIMEOUT` | Timeout connexion (s) | `90` |
@@ -427,7 +427,7 @@ const render[Fete]Slide = (item) => {
    ```
 
 2. **Vérifier l'interface** :
-   - Accéder à `http://localhost:39010`
+   - Accéder à `http://localhost:39015`
    - Naviguer dans toutes les sections
 
 3. **Tester les diapositives** :
@@ -450,8 +450,8 @@ python -c "import app; print('OK: app.py importable')"
 python -c "import flask, waitress, fitz, PIL; print('OK: dépendances présentes')"
 
 # Tester l'API (nécessite curl et serveur démarré)
-curl -s http://localhost:39010/api/settings | python -c "import sys,json; json.load(sys.stdin); print('OK: API settings')"
-curl -s http://localhost:39010/api/media | python -c "import sys,json; json.load(sys.stdin); print('OK: API media')"
+curl -s http://localhost:39015/api/settings | python -c "import sys,json; json.load(sys.stdin); print('OK: API settings')"
+curl -s http://localhost:39015/api/media | python -c "import sys,json; json.load(sys.stdin); print('OK: API media')"
 ```
 
 ---

@@ -12,7 +12,7 @@ Les optimisations de performance sont maintenant **actives** sur ton projet Card
 
 1. **Ouvre le slideshow** :
    ```
-   http://127.0.0.1:39010/slideshow
+   http://127.0.0.1:39015/slideshow
    ```
 
 2. **Ouvre la console** (F12)
@@ -33,7 +33,7 @@ Les optimisations de performance sont maintenant **actives** sur ton projet Card
 
 1. **Ouvre avec mode forcé** :
    ```
-   http://127.0.0.1:39010/slideshow?perf=low
+   http://127.0.0.1:39015/slideshow?perf=low
    ```
 
 2. **Dans la console, tape** :
@@ -61,7 +61,7 @@ Les optimisations de performance sont maintenant **actives** sur ton projet Card
 
 1. **Ouvre avec mode forcé** :
    ```
-   http://127.0.0.1:39010/slideshow?perf=high
+   http://127.0.0.1:39015/slideshow?perf=high
    ```
 
 2. **Dans la console, tape** :
@@ -232,7 +232,7 @@ window.location = '/slideshow'
 
 1. **Lance le slideshow en mode low** :
    ```
-   http://127.0.0.1:39010/slideshow?perf=low
+   http://127.0.0.1:39015/slideshow?perf=low
    ```
 
 2. **Ouvre le Gestionnaire des tâches** (Ctrl + Shift + Esc)
@@ -294,7 +294,7 @@ Une fois tous les tests passés :
 
 ---
 
-**Serveur actuel** : http://127.0.0.1:39010/slideshow  
+**Serveur actuel** : http://127.0.0.1:39015/slideshow  
 **Date** : 29 janvier 2026  
 **Version** : 2.0.0  
 **Status** : ✅ PRÊT POUR TESTS
