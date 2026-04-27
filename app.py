@@ -25,7 +25,7 @@ import uuid
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
 from logging.handlers import TimedRotatingFileHandler
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from threading import RLock
 from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
@@ -48,6 +48,8 @@ FRONTEND_STATIC_DIR = FRONTEND_DIR / "static"
 FRONTEND_TEMPLATES_DIR = FRONTEND_DIR / "templates"
 DATA_DIR = BASE_DIR / "data"
 MEDIA_DIR = DATA_DIR / "images"
+ARCHIVED_MEDIA_FOLDER = "Archived"
+ARCHIVED_MEDIA_DIR = MEDIA_DIR / ARCHIVED_MEDIA_FOLDER
 STATE_FILE = DATA_DIR / "media.json"
 POWERPOINT_DIR = DATA_DIR / "powerpoint"
 POWERPOINT_STATE_FILE = DATA_DIR / "powerpoint.json"
@@ -486,6 +488,7 @@ def _detect_libreoffice_command() -> Optional[str]:
 LIBREOFFICE_COMMAND = _detect_libreoffice_command()
 
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+ARCHIVED_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 POWERPOINT_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 BIRTHDAY_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
@@ -2512,12 +2515,18 @@ class MediaStore:
         item["text_pages"] = text_pages
         item.setdefault("skip_rounds", 0)
         item.setdefault("muted", False)
+        item["archived"] = bool(item.get("archived", False))
         uploaded_at = item.get("uploaded_at")
         if uploaded_at:
             serialized = _serialize_datetime(uploaded_at)
             item["uploaded_at"] = serialized or _now_iso()
         else:
             item["uploaded_at"] = _now_iso()
+        archived_at = item.get("archived_at")
+        if archived_at:
+            item["archived_at"] = _serialize_datetime(archived_at)
+        else:
+            item["archived_at"] = None
         for key in ("start_at", "end_at"):
             if item.get(key):
                 serialized = _serialize_datetime(item[key])
@@ -3064,7 +3073,7 @@ class MediaStore:
 
     def add_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
-            item["order"] = self._next_order_locked()
+            item["order"] = self._next_active_order_locked()
             normalized = self._normalize_item(item)
             self._data["items"].append(normalized)
             self._save()
@@ -3093,6 +3102,7 @@ class MediaStore:
         with self._lock:
             idx = self._index_for(media_id)
             self._data["items"][idx].update(updates)
+            self._data["items"][idx] = self._normalize_item(self._data["items"][idx])
             self._save()
             return copy.deepcopy(self._data["items"][idx])
 
@@ -3103,9 +3113,36 @@ class MediaStore:
             self._save()
             return removed
 
+    def archive_item(self, media_id: str) -> Dict[str, Any]:
+        with self._lock:
+            idx = self._index_for(media_id)
+            item = self._data["items"][idx]
+            if item.get("archived"):
+                return copy.deepcopy(item)
+            self._relocate_item_resources(item, archived=True)
+            item["archived"] = True
+            item["archived_at"] = _now_iso()
+            self._data["items"][idx] = self._normalize_item(item)
+            self._save()
+            return copy.deepcopy(self._data["items"][idx])
+
+    def unarchive_item(self, media_id: str) -> Dict[str, Any]:
+        with self._lock:
+            idx = self._index_for(media_id)
+            item = self._data["items"][idx]
+            if not item.get("archived"):
+                return copy.deepcopy(item)
+            self._relocate_item_resources(item, archived=False)
+            item["archived"] = False
+            item["archived_at"] = None
+            item["order"] = self._next_active_order_locked(exclude_id=media_id)
+            self._data["items"][idx] = self._normalize_item(item)
+            self._save()
+            return copy.deepcopy(self._data["items"][idx])
+
     def set_order(self, new_order: List[str], positions: Optional[Dict[str, Any]] = None) -> None:
         with self._lock:
-            known_ids = {item["id"] for item in self._data["items"]}
+            known_ids = {item["id"] for item in self._data["items"] if not item.get("archived", False)}
             if len(new_order) != len(known_ids) or set(new_order) != known_ids:
                 raise ValueError("Order list must contain every media identifier exactly once.")
             order_map = {media_id: position for position, media_id in enumerate(new_order)}
@@ -3119,6 +3156,8 @@ class MediaStore:
                         raise ValueError("Order positions must be numeric.") from None
                     order_map[media_id] = max(0, position)
             for item in self._data["items"]:
+                if item.get("archived", False):
+                    continue
                 item["order"] = order_map[item["id"]]
             self._save()
 
@@ -3128,10 +3167,65 @@ class MediaStore:
                 return idx
         raise KeyError(media_id)
 
-    def _next_order_locked(self) -> int:
-        if not self._data["items"]:
+    def _next_active_order_locked(self, exclude_id: Optional[str] = None) -> int:
+        active_items = [
+            item
+            for item in self._data["items"]
+            if not item.get("archived", False) and item.get("id") != exclude_id
+        ]
+        if not active_items:
             return 0
-        return max(item.get("order", 0) for item in self._data["items"]) + 1
+        return max(item.get("order", 0) for item in active_items) + 1
+
+    def _normalize_resource_path(self, resource: Any) -> str:
+        path = str(resource or "").replace("\\", "/").strip("/")
+        return PurePosixPath(path).as_posix() if path else ""
+
+    def _target_resource_path(self, resource: str, archived: bool) -> str:
+        normalized = self._normalize_resource_path(resource)
+        if not normalized:
+            return ""
+        path = PurePosixPath(normalized)
+        parts = list(path.parts)
+        if archived:
+            if parts and parts[0] == ARCHIVED_MEDIA_FOLDER:
+                return path.as_posix()
+            return PurePosixPath(ARCHIVED_MEDIA_FOLDER, *parts).as_posix()
+        if parts and parts[0] == ARCHIVED_MEDIA_FOLDER:
+            parts = parts[1:]
+        return PurePosixPath(*parts).as_posix() if parts else ""
+
+    def _move_resource(self, resource: str, archived: bool) -> str:
+        normalized = self._normalize_resource_path(resource)
+        if not normalized:
+            return normalized
+        target_rel = self._target_resource_path(normalized, archived)
+        if not target_rel or target_rel == normalized:
+            return normalized
+        source_path = MEDIA_DIR / normalized
+        target_path = MEDIA_DIR / target_rel
+        if source_path.exists():
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source_path), str(target_path))
+            try:
+                parent = source_path.parent
+                if parent != MEDIA_DIR and parent.exists() and not any(parent.iterdir()):
+                    parent.rmdir()
+            except OSError:
+                pass
+        return target_rel
+
+    def _relocate_item_resources(self, item: Dict[str, Any], archived: bool) -> None:
+        if isinstance(item.get("filename"), str):
+            item["filename"] = self._move_resource(item.get("filename"), archived)
+        if isinstance(item.get("display_filename"), str):
+            item["display_filename"] = self._move_resource(item.get("display_filename"), archived)
+        page_files = item.get("page_filenames")
+        if isinstance(page_files, list):
+            item["page_filenames"] = [
+                self._move_resource(page, archived) if isinstance(page, str) else page
+                for page in page_files
+            ]
 
 
 class PowerpointStore:
@@ -3858,6 +3952,8 @@ def _item_with_urls(item: Dict[str, Any]) -> Dict[str, Any]:
     data["text_pages"] = data.get("text_pages") or []
     data["skip_rounds"] = int(data.get("skip_rounds") or 0)
     data["muted"] = bool(data.get("muted", False))
+    data["archived"] = bool(data.get("archived", False))
+    data["archived_at"] = _serialize_datetime(data.get("archived_at"))
     data["uploaded_at"] = _serialize_datetime(data.get("uploaded_at")) or _now_iso()
     data["start_at"] = _serialize_datetime(data.get("start_at"))
     data["end_at"] = _serialize_datetime(data.get("end_at"))
@@ -5789,6 +5885,9 @@ def list_media() -> Any:
     items = []
     reference_time = _now()
     for item in store.all_items():
+        if item.get("archived", False):
+            if active_only:
+                continue
         if active_only and not item.get("enabled", True):
             continue
         if active_only and not _is_item_active(item, reference_time):
@@ -8889,6 +8988,28 @@ def update_media(media_id: str) -> Any:
     except KeyError:
         abort(404, description="Media introuvable.")
 
+    return jsonify(_item_with_urls(updated))
+
+
+@bp.post("/api/media/<media_id>/archive")
+def archive_media(media_id: str) -> Any:
+    try:
+        updated = store.archive_item(media_id)
+    except KeyError:
+        abort(404, description="Media introuvable.")
+    except OSError as exc:
+        abort(500, description=f"Archivage impossible: {exc}")
+    return jsonify(_item_with_urls(updated))
+
+
+@bp.post("/api/media/<media_id>/restore")
+def restore_media(media_id: str) -> Any:
+    try:
+        updated = store.unarchive_item(media_id)
+    except KeyError:
+        abort(404, description="Media introuvable.")
+    except OSError as exc:
+        abort(500, description=f"Restauration impossible: {exc}")
     return jsonify(_item_with_urls(updated))
 
 

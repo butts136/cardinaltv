@@ -17,6 +17,8 @@ const uploadProgress = document.querySelector("#upload-progress");
 const uploadProgressBar = document.querySelector("#upload-progress-bar");
 const uploadProgressText = document.querySelector("#upload-progress-text");
 const mediaList = document.querySelector("#media-list");
+const archivedMediaList = document.querySelector("#archived-media-list");
+const archivedToggleButton = document.querySelector("#archived-toggle-button");
 const refreshButton = document.querySelector("#refresh-button");
 const hideAllButton = document.querySelector("#hide-all-button");
 const showAllButton = document.querySelector("#show-all-button");
@@ -194,6 +196,8 @@ const pptUploadFeedback = document.querySelector("#ppt-upload-feedback");
 const pptList = document.querySelector("#ppt-list");
 
 let mediaItems = [];
+let archivedMediaItems = [];
+let archivedMediaExpanded = false;
 let selectedFiles = [];
 let uploadPreviewUrls = [];
 let uploadProgressTimer = null;
@@ -904,6 +908,37 @@ const renderEmptyState = () => {
   mediaList.appendChild(placeholder);
 };
 
+const updateArchivedPanel = () => {
+  if (!archivedToggleButton || !archivedMediaList) return;
+  const count = archivedMediaItems.length;
+  archivedToggleButton.textContent = archivedMediaExpanded
+    ? `Masquer les archives (${count})`
+    : `Afficher les archives (${count})`;
+  archivedToggleButton.disabled = count === 0;
+  archivedToggleButton.setAttribute("aria-expanded", archivedMediaExpanded ? "true" : "false");
+  archivedMediaList.hidden = !archivedMediaExpanded;
+};
+
+const renderArchivedMedia = () => {
+  if (!archivedMediaList) return;
+  archivedMediaList.innerHTML = "";
+  if (!archivedMediaItems.length) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "empty-state";
+    placeholder.textContent = "Aucun média archivé.";
+    archivedMediaList.appendChild(placeholder);
+    archivedMediaExpanded = false;
+    updateArchivedPanel();
+    return;
+  }
+  archivedMediaItems.forEach((item, index) => {
+    archivedMediaList.appendChild(
+      createMediaCard(item, index, index + 1, archivedMediaItems.length, { archivedView: true }),
+    );
+  });
+  updateArchivedPanel();
+};
+
 const applyModeVisibility = (mode) => {
   if (!tickerSection) {
     return;
@@ -1374,6 +1409,49 @@ const sendOrderUpdate = async (orderOverride = null, positions = null) => {
   });
 };
 
+const splitMediaCollections = (items) => {
+  const source = Array.isArray(items) ? items : [];
+  mediaItems = source.filter((item) => !item?.archived);
+  archivedMediaItems = source.filter((item) => item?.archived);
+  archivedMediaItems.sort((a, b) => {
+    const archivedA = String(a?.archived_at || "");
+    const archivedB = String(b?.archived_at || "");
+    if (archivedA !== archivedB) {
+      return archivedB.localeCompare(archivedA);
+    }
+    return String(a?.original_name || a?.filename || "").localeCompare(
+      String(b?.original_name || b?.filename || ""),
+    );
+  });
+};
+
+const replaceMediaItemInCollections = (updated) => {
+  const replaceIn = (list) => {
+    const index = list.findIndex((item) => item.id === updated.id);
+    if (index >= 0) {
+      list[index] = updated;
+      return true;
+    }
+    return false;
+  };
+  if (updated?.archived) {
+    mediaItems = mediaItems.filter((item) => item.id !== updated.id);
+    if (!replaceIn(archivedMediaItems)) {
+      archivedMediaItems.push(updated);
+    }
+  } else {
+    archivedMediaItems = archivedMediaItems.filter((item) => item.id !== updated.id);
+    if (!replaceIn(mediaItems)) {
+      mediaItems.push(updated);
+    }
+  }
+};
+
+const removeMediaItemFromCollections = (id) => {
+  mediaItems = mediaItems.filter((item) => item.id !== id);
+  archivedMediaItems = archivedMediaItems.filter((item) => item.id !== id);
+};
+
 const saveItem = async (id, payload, options = {}) => {
   const { render = true } = options || {};
   const updated = await fetchJSON(`api/media/${id}`, {
@@ -1381,10 +1459,7 @@ const saveItem = async (id, payload, options = {}) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const index = mediaItems.findIndex((item) => item.id === id);
-  if (index >= 0) {
-    mediaItems[index] = updated;
-  }
+  replaceMediaItemInCollections(updated);
   if (render) {
     renderMedia();
   }
@@ -1392,7 +1467,23 @@ const saveItem = async (id, payload, options = {}) => {
 
 const deleteItem = async (id) => {
   await fetchJSON(`api/media/${id}`, { method: "DELETE" });
-  mediaItems = mediaItems.filter((item) => item.id !== id);
+  removeMediaItemFromCollections(id);
+  renderMedia();
+};
+
+const archiveItem = async (id) => {
+  const updated = await fetchJSON(`api/media/${id}/archive`, {
+    method: "POST",
+  });
+  replaceMediaItemInCollections(updated);
+  renderMedia();
+};
+
+const restoreArchivedItem = async (id) => {
+  const updated = await fetchJSON(`api/media/${id}/restore`, {
+    method: "POST",
+  });
+  replaceMediaItemInCollections(updated);
   renderMedia();
 };
 
@@ -1531,10 +1622,7 @@ const renameMedia = async (item) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ original_name: trimmed }),
     });
-    const index = mediaItems.findIndex((m) => m.id === item.id);
-    if (index >= 0) {
-      mediaItems[index] = updated;
-    }
+    replaceMediaItemInCollections(updated);
     renderMedia();
   } catch (error) {
     console.error("Impossible de renommer le média:", error);
@@ -1563,9 +1651,10 @@ const triggerMediaDownload = (item) => {
   link.remove();
 };
 
-const createMediaCard = (item, globalIndex, displayNumber, totalCount) => {
+const createMediaCard = (item, globalIndex, displayNumber, totalCount, options = {}) => {
+  const { archivedView = false } = options;
   const card = document.createElement("article");
-  card.className = "media-card";
+  card.className = `media-card${archivedView ? " media-card--archived" : ""}`;
   card.dataset.id = item.id;
 
   const header = document.createElement("div");
@@ -1573,31 +1662,37 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount) => {
 
   const orderColumn = document.createElement("div");
   orderColumn.className = "order-column";
+  if (archivedView) {
+    const archiveBadge = document.createElement("span");
+    archiveBadge.className = "playlist-archive-badge";
+    archiveBadge.textContent = "Archive";
+    orderColumn.append(archiveBadge);
+  } else {
+    const orderButtons = document.createElement("div");
+    orderButtons.className = "order-buttons";
 
-  const orderButtons = document.createElement("div");
-  orderButtons.className = "order-buttons";
+    const upButton = document.createElement("button");
+    upButton.type = "button";
+    upButton.className = "secondary-button icon-button";
+    upButton.textContent = "▲";
+    upButton.disabled = displayNumber <= 1;
+    upButton.addEventListener("click", () => moveEntryByDelta(item.id, -1));
 
-  const upButton = document.createElement("button");
-  upButton.type = "button";
-  upButton.className = "secondary-button icon-button";
-  upButton.textContent = "▲";
-  upButton.disabled = displayNumber <= 1;
-  upButton.addEventListener("click", () => moveEntryByDelta(item.id, -1));
+    const downButton = document.createElement("button");
+    downButton.type = "button";
+    downButton.className = "secondary-button icon-button";
+    downButton.textContent = "▼";
+    downButton.disabled = displayNumber >= totalCount;
+    downButton.addEventListener("click", () => moveEntryByDelta(item.id, 1));
 
-  const downButton = document.createElement("button");
-  downButton.type = "button";
-  downButton.className = "secondary-button icon-button";
-  downButton.textContent = "▼";
-  downButton.disabled = displayNumber >= totalCount;
-  downButton.addEventListener("click", () => moveEntryByDelta(item.id, 1));
+    const orderInput = buildOrderPicker(displayNumber, totalCount, (desiredDisplay) => {
+      if (!Number.isFinite(desiredDisplay)) return;
+      void moveEntryToPosition(item.id, desiredDisplay - 1);
+    });
 
-  const orderInput = buildOrderPicker(displayNumber, totalCount, (desiredDisplay) => {
-    if (!Number.isFinite(desiredDisplay)) return;
-    void moveEntryToPosition(item.id, desiredDisplay - 1);
-  });
-
-  orderButtons.append(upButton, orderInput, downButton);
-  orderColumn.append(orderButtons);
+    orderButtons.append(upButton, orderInput, downButton);
+    orderColumn.append(orderButtons);
+  }
 
   const titleRow = document.createElement("div");
   titleRow.className = "title-thumb-row";
@@ -1658,7 +1753,9 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount) => {
 
   const headerActions = document.createElement("div");
   headerActions.className = "media-card-header-actions";
-  headerActions.appendChild(visibilitySwitch);
+  if (!archivedView) {
+    headerActions.appendChild(visibilitySwitch);
+  }
 
   header.append(orderColumn, titleRow, headerActions);
 
@@ -1717,6 +1814,11 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount) => {
   saveButton.className = "primary-button";
   saveButton.textContent = "Enregistrer";
 
+  const archiveButton = document.createElement("button");
+  archiveButton.type = "button";
+  archiveButton.className = "secondary-button";
+  archiveButton.textContent = archivedView ? "Desarchiver" : "Archiver";
+
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
   deleteButton.className = "secondary-button";
@@ -1760,6 +1862,31 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount) => {
     }
   });
 
+  archiveButton.addEventListener("click", async () => {
+    const confirmMessage = archivedView
+      ? "Restaurer ce media dans la playlist active ?"
+      : "Archiver ce media et le retirer de la playlist active ?";
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+    archiveButton.disabled = true;
+    archiveButton.textContent = archivedView ? "Restauration..." : "Archivage...";
+    try {
+      if (archivedView) {
+        await restoreArchivedItem(item.id);
+      } else {
+        await archiveItem(item.id);
+      }
+    } catch (error) {
+      console.error(error);
+      archiveButton.textContent = "Erreur";
+      setTimeout(() => {
+        archiveButton.disabled = false;
+        archiveButton.textContent = archivedView ? "Desarchiver" : "Archiver";
+      }, 1400);
+    }
+  });
+
   deleteButton.addEventListener("click", async () => {
     if (!window.confirm("Supprimer ce média ?")) {
       return;
@@ -1781,7 +1908,7 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount) => {
   if (downloadButton) {
     actions.append(downloadButton);
   }
-  actions.append(saveButton, deleteButton);
+  actions.append(saveButton, archiveButton, deleteButton);
 
   if (controls.childElementCount > 0) {
     card.append(header, controls, grid, actions);
@@ -2200,6 +2327,7 @@ const renderMedia = () => {
   const totalCount = renderList.length;
   if (!renderList.length) {
     renderEmptyState();
+    renderArchivedMedia();
     return;
   }
 
@@ -2236,6 +2364,7 @@ const renderMedia = () => {
       mediaList.appendChild(card);
     }
   });
+  renderArchivedMedia();
 };
 
 const BIRTHDAY_WEEKDAY_KEYS = [
@@ -2659,11 +2788,18 @@ const loadMedia = async () => {
   if (!mediaList) return;
   try {
     const data = await fetchJSON("api/media");
-    mediaItems = Array.isArray(data) ? data : [];
+    splitMediaCollections(Array.isArray(data) ? data : []);
     renderMedia();
   } catch (error) {
     console.error("Impossible de charger les médias:", error);
+    mediaItems = [];
+    archivedMediaItems = [];
+    archivedMediaExpanded = false;
     mediaList.innerHTML = "";
+    if (archivedMediaList) {
+      archivedMediaList.innerHTML = "";
+    }
+    updateArchivedPanel();
     const message = document.createElement("div");
     message.className = "empty-state error";
     message.textContent = "Erreur lors du chargement des médias.";
@@ -6978,6 +7114,12 @@ dropZone.addEventListener("drop", (event) => {
 
 refreshButton?.addEventListener("click", () => {
   void loadMedia();
+});
+
+archivedToggleButton?.addEventListener("click", () => {
+  if (!archivedMediaItems.length) return;
+  archivedMediaExpanded = !archivedMediaExpanded;
+  updateArchivedPanel();
 });
 
 hideAllButton?.addEventListener("click", async () => {

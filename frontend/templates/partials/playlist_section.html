@@ -14,5 +14,17 @@
       <button id="refresh-button" class="secondary-button">Actualiser</button>
     </div>
     <div id="media-list" class="media-list" aria-live="polite"></div>
+    <section class="playlist-archived-panel" aria-labelledby="archived-media-heading">
+      <div class="playlist-archived-header">
+        <div>
+          <h3 id="archived-media-heading">Médias archivés</h3>
+          <p class="playlist-subtitle small">Les médias archivés sont retirés de la playlist active jusqu'à leur restauration.</p>
+        </div>
+        <button id="archived-toggle-button" class="secondary-button" type="button" aria-expanded="false">
+          Afficher les archivés
+        </button>
+      </div>
+      <div id="archived-media-list" class="media-list" hidden></div>
+    </section>
   </div>
 </section>
