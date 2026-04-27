@@ -3,7 +3,7 @@
  * diaporama offline-first, avec revalidation en arrière-plan.
  */
 
-const CACHE_VERSION = "v27";
+const CACHE_VERSION = "v28";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 const API_CACHE = `cardinal-api-${CACHE_VERSION}`;
@@ -112,6 +112,14 @@ const isCacheableApiRequest = (url) => {
   }
 };
 
+const shouldBypassCache = (url) => {
+  try {
+    return new URL(url).searchParams.get("sw-bypass") === "1";
+  } catch (error) {
+    return false;
+  }
+};
+
 const fetchAndUpdateApiCache = async (cache, request, cachedResponse) => {
   let networkRequest = request;
   const etag = cachedResponse ? cachedResponse.headers.get("ETag") : "";
@@ -208,6 +216,11 @@ const fetchAndCacheMedia = async (cache, url) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET" || !isSameOrigin(request.url)) {
+    return;
+  }
+
+  if (shouldBypassCache(request.url)) {
+    event.respondWith(fetch(request));
     return;
   }
 

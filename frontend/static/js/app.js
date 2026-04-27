@@ -656,6 +656,13 @@ const buildApiUrl = (path) => {
   return `${APP_BASE_URL}${path}`;
 };
 
+const buildBypassCacheUrl = (path) => {
+  const target = new URL(buildApiUrl(path), window.location.origin);
+  target.searchParams.set("sw-bypass", "1");
+  target.searchParams.set("_ts", String(Date.now()));
+  return target.toString();
+};
+
 const fetchJSON = async (url, options) => {
   const response = await fetch(buildApiUrl(url), options);
   if (!response.ok) {
@@ -2991,7 +2998,7 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
     } catch (error) {
       console.error("Erreur lors du réordonnancement de la playlist:", error);
     } finally {
-      await loadMedia();
+      await loadMedia({ bypassCache: true });
     }
     return;
   }
@@ -3014,7 +3021,7 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
   } catch (error) {
     console.error("Erreur lors du réordonnancement de la playlist:", error);
   } finally {
-    await loadMedia();
+    await loadMedia({ bypassCache: true });
   }
 };
 
@@ -3027,10 +3034,11 @@ const moveEntryByDelta = (id, delta) => {
   void moveEntryToPosition(id, newPos);
 };
 
-const loadMedia = async () => {
+const loadMedia = async (options = {}) => {
   if (!mediaList) return;
+  const { bypassCache = false } = options || {};
   try {
-    const data = await fetchJSON("api/media");
+    const data = await fetchJSON(bypassCache ? buildBypassCacheUrl("api/media") : "api/media");
     splitMediaCollections(Array.isArray(data) ? data : []);
     renderMedia();
   } catch (error) {
