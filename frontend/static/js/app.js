@@ -2478,51 +2478,71 @@ const getPlaylistEntryOrder = (entry, fallbackIndex) => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallbackIndex;
 };
 
-const buildMediaRenderList = () => {
-  const auto = getAutoEntries();
-  const media = mediaItems.map((item) => ({ type: "media", id: item.id, item }));
-  const entries = [...auto, ...media].map((entry, sourceIndex) => ({
-    ...entry,
-    sourceIndex,
-  }));
+const buildSortedMediaEntries = () =>
+  mediaItems
+    .map((item, sourceIndex) => ({ type: "media", id: item.id, item, sourceIndex }))
+    .sort((a, b) => {
+      const orderA = getPlaylistEntryOrder(a, a.sourceIndex);
+      const orderB = getPlaylistEntryOrder(b, b.sourceIndex);
+      if (orderA !== orderB) return orderA - orderB;
+      if (a.sourceIndex !== b.sourceIndex) return a.sourceIndex - b.sourceIndex;
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    });
 
-  return entries.slice().sort((a, b) => {
-    const orderA = getPlaylistEntryOrder(a, a.sourceIndex);
-    const orderB = getPlaylistEntryOrder(b, b.sourceIndex);
-    if (orderA !== orderB) return orderA - orderB;
-    const priorityA = a.type === "media" ? AUTO_ENTRY_PRIORITY.length + 1 : a.priority || 0;
-    const priorityB = b.type === "media" ? AUTO_ENTRY_PRIORITY.length + 1 : b.priority || 0;
-    if (priorityA !== priorityB) return priorityA - priorityB;
-    if (a.sourceIndex !== b.sourceIndex) return a.sourceIndex - b.sourceIndex;
-    return String(a.id || "").localeCompare(String(b.id || ""));
-  });
+const buildMediaRenderGroups = () => ({
+  autoEntries: getAutoEntries(),
+  mediaEntries: buildSortedMediaEntries(),
+});
+
+const buildMediaRenderList = () => {
+  const { autoEntries, mediaEntries } = buildMediaRenderGroups();
+  return [...autoEntries, ...mediaEntries];
+};
+
+const createPlaylistGroupHeading = (label, count) => {
+  const heading = document.createElement("p");
+  heading.className = "playlist-subtitle small";
+  heading.textContent = `${label} (${count})`;
+  return heading;
 };
 
 const renderMedia = () => {
   if (!mediaList) return;
   mediaList.innerHTML = "";
-  const renderList = buildMediaRenderList();
-  const totalCount = renderList.length;
-  if (!renderList.length) {
+  const { autoEntries, mediaEntries } = buildMediaRenderGroups();
+  const totalCount = autoEntries.length + mediaEntries.length;
+  if (!totalCount) {
     renderEmptyState();
     renderArchivedMedia();
     return;
   }
 
-  renderList.forEach((entry, index) => {
+  if (autoEntries.length) {
+    mediaList.appendChild(createPlaylistGroupHeading("Slides automatiques", autoEntries.length));
+  }
+
+  autoEntries.forEach((entry, index) => {
     const displayNumber = index + 1;
     if (entry.type === "team") {
-      mediaList.appendChild(createTeamSlideCard(index, displayNumber, totalCount, totalCount));
+      mediaList.appendChild(createTeamSlideCard(index, displayNumber, autoEntries.length, autoEntries.length));
     } else if (entry.type === "birthday") {
-      mediaList.appendChild(createBirthdaySlideCard(index, displayNumber, totalCount, totalCount));
+      mediaList.appendChild(
+        createBirthdaySlideCard(index, displayNumber, autoEntries.length, autoEntries.length),
+      );
     } else if (entry.type === "time-change") {
-      mediaList.appendChild(createTimeChangeSlideCard(index, displayNumber, totalCount, totalCount));
+      mediaList.appendChild(
+        createTimeChangeSlideCard(index, displayNumber, autoEntries.length, autoEntries.length),
+      );
     } else if (entry.type === "christmas") {
-      mediaList.appendChild(createChristmasSlideCard(index, displayNumber, totalCount, totalCount));
+      mediaList.appendChild(
+        createChristmasSlideCard(index, displayNumber, autoEntries.length, autoEntries.length),
+      );
     } else if (entry.type === "news") {
-      mediaList.appendChild(createNewsSlideCard(index, displayNumber, totalCount, totalCount));
+      mediaList.appendChild(createNewsSlideCard(index, displayNumber, autoEntries.length, autoEntries.length));
     } else if (entry.type === "weather") {
-      mediaList.appendChild(createWeatherSlideCard(index, displayNumber, totalCount, totalCount));
+      mediaList.appendChild(
+        createWeatherSlideCard(index, displayNumber, autoEntries.length, autoEntries.length),
+      );
     } else if (entry.type === "custom") {
       mediaList.appendChild(
         createCustomSlideCard(
@@ -2533,15 +2553,23 @@ const renderMedia = () => {
           entry.id,
           index,
           displayNumber,
-          totalCount,
-          totalCount,
+          autoEntries.length,
+          autoEntries.length,
         ),
       );
-    } else {
-      const card = createMediaCard(entry.item, index, displayNumber, totalCount);
-      mediaList.appendChild(card);
     }
   });
+
+  if (mediaEntries.length) {
+    mediaList.appendChild(createPlaylistGroupHeading("Slides statiques", mediaEntries.length));
+  }
+
+  mediaEntries.forEach((entry, index) => {
+    const displayNumber = index + 1;
+    const card = createMediaCard(entry.item, index, displayNumber, mediaEntries.length);
+    mediaList.appendChild(card);
+  });
+
   renderArchivedMedia();
 };
 
@@ -2878,74 +2906,110 @@ const persistCustomSlideOrderIndex = async (slideId, orderIndex) => {
 };
 
 const moveEntryToPosition = async (id, targetGlobalIndex) => {
-  const entries = buildMediaRenderList();
-  if (!entries.length) return;
+  const { autoEntries, mediaEntries } = buildMediaRenderGroups();
+  const autoEntryIndex = autoEntries.findIndex((entry) => entry.id === id);
+  const activeEntries = autoEntryIndex !== -1 ? autoEntries : mediaEntries;
+  if (!activeEntries.length) return;
 
-  const { entries: reorderedEntries, changed } = reorderById(entries, id, targetGlobalIndex);
+  const { entries: reorderedEntries, changed } = reorderById(activeEntries, id, targetGlobalIndex);
   if (!changed) return;
 
-  const mediaPositions = {};
-  const mediaOrder = [];
-  const customOrderTasks = [];
   const persistTasks = [];
+  const customOrderTasks = [];
+
+  if (autoEntryIndex !== -1) {
+    reorderedEntries.forEach((entry, position) => {
+      if (entry.type === "team" && teamSlideSettings) {
+        teamSlideSettings = {
+          ...(teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS),
+          order_index: position,
+        };
+      }
+      if (entry.type === "birthday" && birthdaySlideSettings) {
+        birthdaySlideSettings = {
+          ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS),
+          order_index: position,
+        };
+      }
+      if (entry.type === "time-change" && timeChangeSlideSettings) {
+        timeChangeSlideSettings = {
+          ...(timeChangeSlideSettings || DEFAULT_TIME_CHANGE_SETTINGS),
+          order_index: position,
+        };
+      }
+      if (entry.type === "christmas" && christmasSlideSettings) {
+        christmasSlideSettings = {
+          ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS),
+          order_index: position,
+        };
+      }
+      if (entry.type === "news" && newsSlideSettings) {
+        newsSlideSettings = {
+          ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS),
+          order_index: position,
+        };
+      }
+      if (entry.type === "weather" && weatherSlideSettings) {
+        weatherSlideSettings = {
+          ...(weatherSlideSettings || DEFAULT_WEATHER_SLIDE_SETTINGS),
+          order_index: position,
+        };
+      }
+      if (entry.type === "custom") {
+        const slideId = entry.slideId;
+        if (slideId && Array.isArray(customSlides)) {
+          const idx = customSlides.findIndex((slide) => slide && slide.id === slideId);
+          if (idx !== -1) {
+            customSlides[idx] = { ...customSlides[idx], order_index: position };
+          }
+          customOrderTasks.push(persistCustomSlideOrderIndex(slideId, position));
+        }
+      }
+    });
+
+    renderMedia();
+
+    try {
+      persistTasks.push(...customOrderTasks);
+      if (teamSlideSettings) persistTasks.push(persistTeamOrderIndex(teamSlideSettings.order_index));
+      if (birthdaySlideSettings) {
+        persistTasks.push(persistBirthdayOrderIndex(birthdaySlideSettings.order_index));
+      }
+      if (timeChangeSlideSettings) {
+        persistTasks.push(persistTimeChangeOrderIndex(timeChangeSlideSettings.order_index));
+      }
+      if (christmasSlideSettings) {
+        persistTasks.push(persistChristmasOrderIndex(christmasSlideSettings.order_index));
+      }
+      if (newsSlideSettings) persistTasks.push(persistNewsOrderIndex(newsSlideSettings.order_index));
+      if (weatherSlideSettings) {
+        persistTasks.push(persistWeatherOrderIndex(weatherSlideSettings.order_index));
+      }
+      if (persistTasks.length) {
+        await Promise.all(persistTasks);
+      }
+    } catch (error) {
+      console.error("Erreur lors du réordonnancement de la playlist:", error);
+    } finally {
+      await loadMedia();
+    }
+    return;
+  }
 
   reorderedEntries.forEach((entry, position) => {
-    if (entry.type === "media") {
-      mediaPositions[entry.id] = position;
-      mediaOrder.push(entry.id);
-      if (entry.item) {
-        entry.item.order = position;
-      }
-      return;
-    }
-
-    if (entry.type === "team" && teamSlideSettings) {
-      teamSlideSettings = { ...(teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS), order_index: position };
-    }
-    if (entry.type === "birthday" && birthdaySlideSettings) {
-      birthdaySlideSettings = { ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS), order_index: position };
-    }
-    if (entry.type === "time-change" && timeChangeSlideSettings) {
-      timeChangeSlideSettings = { ...(timeChangeSlideSettings || DEFAULT_TIME_CHANGE_SETTINGS), order_index: position };
-    }
-    if (entry.type === "christmas" && christmasSlideSettings) {
-      christmasSlideSettings = { ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS), order_index: position };
-    }
-    if (entry.type === "news" && newsSlideSettings) {
-      newsSlideSettings = { ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS), order_index: position };
-    }
-    if (entry.type === "weather" && weatherSlideSettings) {
-      weatherSlideSettings = { ...(weatherSlideSettings || DEFAULT_WEATHER_SLIDE_SETTINGS), order_index: position };
-    }
-    if (entry.type === "custom") {
-      const slideId = entry.slideId;
-      if (slideId && Array.isArray(customSlides)) {
-        const idx = customSlides.findIndex((slide) => slide && slide.id === slideId);
-        if (idx !== -1) {
-          customSlides[idx] = { ...customSlides[idx], order_index: position };
-        }
-        customOrderTasks.push(persistCustomSlideOrderIndex(slideId, position));
-      }
+    if (entry.item) {
+      entry.item.order = position;
     }
   });
 
-  mediaItems = reorderedEntries
-    .filter((entry) => entry.type === "media" && entry.item)
-    .map((entry) => entry.item);
+  mediaItems = reorderedEntries.filter((entry) => entry.item).map((entry) => entry.item);
 
   renderMedia();
 
   try {
-    persistTasks.push(...customOrderTasks);
-    if (teamSlideSettings) persistTasks.push(persistTeamOrderIndex(teamSlideSettings.order_index));
-    if (birthdaySlideSettings) persistTasks.push(persistBirthdayOrderIndex(birthdaySlideSettings.order_index));
-    if (timeChangeSlideSettings) persistTasks.push(persistTimeChangeOrderIndex(timeChangeSlideSettings.order_index));
-    if (christmasSlideSettings) persistTasks.push(persistChristmasOrderIndex(christmasSlideSettings.order_index));
-    if (newsSlideSettings) persistTasks.push(persistNewsOrderIndex(newsSlideSettings.order_index));
-    if (weatherSlideSettings) persistTasks.push(persistWeatherOrderIndex(weatherSlideSettings.order_index));
-    if (mediaOrder.length) persistTasks.push(sendOrderUpdate(mediaOrder, mediaPositions));
-    if (persistTasks.length) {
-      await Promise.all(persistTasks);
+    const mediaOrder = reorderedEntries.map((entry) => entry.id);
+    if (mediaOrder.length) {
+      await sendOrderUpdate(mediaOrder);
     }
   } catch (error) {
     console.error("Erreur lors du réordonnancement de la playlist:", error);
@@ -2955,10 +3019,11 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
 };
 
 const moveEntryByDelta = (id, delta) => {
-  const entries = buildMediaRenderList();
-  const entryIndex = entries.findIndex((entry) => entry.id === id);
+  const { autoEntries, mediaEntries } = buildMediaRenderGroups();
+  const activeEntries = autoEntries.some((entry) => entry.id === id) ? autoEntries : mediaEntries;
+  const entryIndex = activeEntries.findIndex((entry) => entry.id === id);
   if (entryIndex === -1) return;
-  const newPos = clamp(entryIndex + delta, 0, Math.max(0, entries.length - 1));
+  const newPos = clamp(entryIndex + delta, 0, Math.max(0, activeEntries.length - 1));
   void moveEntryToPosition(id, newPos);
 };
 
