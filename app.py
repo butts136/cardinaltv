@@ -3106,7 +3106,7 @@ class MediaStore:
     def set_order(self, new_order: List[str]) -> None:
         with self._lock:
             known_ids = {item["id"] for item in self._data["items"]}
-            if set(new_order) != known_ids:
+            if len(new_order) != len(known_ids) or set(new_order) != known_ids:
                 raise ValueError("Order list must contain every media identifier exactly once.")
             order_map = {media_id: position for position, media_id in enumerate(new_order)}
             for item in self._data["items"]:

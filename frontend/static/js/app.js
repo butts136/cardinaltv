@@ -239,6 +239,23 @@ let employeesSignature = "";
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const buildArray = (value) => (Array.isArray(value) ? value.slice() : []);
+const reorderById = (entries, id, targetIndex) => {
+  const list = buildArray(entries);
+  const currentIndex = list.findIndex((entry) => entry && entry.id === id);
+  if (currentIndex === -1 || list.length <= 1) {
+    return { entries: list, changed: false };
+  }
+
+  const normalizedTarget = Number.isFinite(targetIndex) ? targetIndex : currentIndex;
+  const boundedTarget = clamp(normalizedTarget, 0, list.length - 1);
+  if (boundedTarget === currentIndex) {
+    return { entries: list, changed: false };
+  }
+
+  const [entry] = list.splice(currentIndex, 1);
+  list.splice(boundedTarget, 0, entry);
+  return { entries: list, changed: true };
+};
 
 const DEFAULT_OVERLAY_SETTINGS = {
   enabled: false,
@@ -2568,14 +2585,16 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
   // Déplacement des auto-slides uniquement entre elles
   const autoIndex = autoEntries.findIndex((entry) => entry.id === id);
   if (autoIndex !== -1) {
-    const targetAutoIndex = clamp(targetGlobalIndex, 0, Math.max(autoCount - 1, 0));
-    if (targetAutoIndex === autoIndex) return;
-    const [entry] = autoEntries.splice(autoIndex, 1);
-    autoEntries.splice(targetAutoIndex, 0, entry);
+    const { entries: reorderedAutoEntries, changed } = reorderById(
+      autoEntries,
+      id,
+      targetGlobalIndex,
+    );
+    if (!changed) return;
 
     // Mettre à jour les order_index et persister
     const customOrderTasks = [];
-    autoEntries.forEach((entry, position) => {
+    reorderedAutoEntries.forEach((entry, position) => {
       if (entry.type === "team" && teamSlideSettings) {
         teamSlideSettings = { ...(teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS), order_index: position };
       }
@@ -2630,13 +2649,10 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
   // Déplacement des médias standards
   const mediaIndex = mediaEntries.findIndex((entry) => entry.id === id);
   if (mediaIndex !== -1) {
-    const targetMediaIndex = clamp(targetGlobalIndex - autoCount, 0, Math.max(mediaEntries.length - 1, 0));
-    if (targetMediaIndex === mediaIndex) return;
     const previousOrder = mediaItems.map((m) => m.id).join("|");
-
-    const entries = mediaEntries.slice();
-    const [entry] = entries.splice(mediaIndex, 1);
-    entries.splice(targetMediaIndex, 0, entry);
+    const targetMediaIndex = targetGlobalIndex - autoCount;
+    const { entries, changed } = reorderById(mediaEntries, id, targetMediaIndex);
+    if (!changed) return;
     mediaItems = entries;
 
     renderMedia();
