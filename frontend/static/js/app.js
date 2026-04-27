@@ -235,6 +235,7 @@ let weatherSlideSettings = null;
 let customSlideSettings = null;
 let customSlides = [];
 let autoSlideDisplayableMap = null;
+let employeesSignature = "";
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const buildArray = (value) => (Array.isArray(value) ? value.slice() : []);
@@ -6627,7 +6628,13 @@ const renderEmployeesList = () => {
 };
 
 const applyEmployeesState = (list) => {
-  employees = Array.isArray(list) ? list : [];
+  const nextEmployees = Array.isArray(list) ? list : [];
+  const nextSignature = JSON.stringify(nextEmployees);
+  if (nextSignature === employeesSignature) {
+    return;
+  }
+  employeesSignature = nextSignature;
+  employees = nextEmployees;
   renderEmployeesList();
   renderTeamPreview();
 };
@@ -6653,7 +6660,9 @@ const loadEmployees = async ({ useBootstrap = false, forceRefresh = false, backg
     applyEmployeesState(data.employees);
   } catch (error) {
     console.error("Erreur lors du chargement des employés:", error);
-    applyEmployeesState([]);
+    if (!employees.length) {
+      applyEmployeesState([]);
+    }
   }
 };
 

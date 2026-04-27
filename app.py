@@ -5,6 +5,7 @@ import gzip
 import calendar
 import concurrent.futures
 import copy
+import hashlib
 import html
 import io
 import json
@@ -33,7 +34,7 @@ try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError:  # pragma: no cover - pillow is optional at runtime
     Image = ImageDraw = ImageFont = None
-from flask import Blueprint, Flask, abort, jsonify, redirect, render_template, request, send_from_directory, url_for
+from flask import Blueprint, Flask, abort, jsonify, make_response, redirect, render_template, request, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 
 try:
@@ -3804,6 +3805,24 @@ temporary_slides = TemporarySlideStore(TEMP_SLIDE_STATE_FILE, TEMP_SLIDE_ASSETS_
 bp = Blueprint("main", __name__, url_prefix="/cardinaltv")
 
 
+def _json_response_with_etag(payload: Any) -> Any:
+    body = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    etag = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    if request.if_none_match.contains(etag):
+        response = make_response("", 304)
+    else:
+        response = app.response_class(f"{body}\n", mimetype="application/json")
+    response.set_etag(etag)
+    response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+    return response
+
+
 def _item_with_urls(item: Dict[str, Any]) -> Dict[str, Any]:
     data = copy.deepcopy(item)
 
@@ -4175,7 +4194,7 @@ def _save_info_bands_config(config: Dict[str, Any]) -> None:
 @bp.route("/api/info-bands", methods=["GET"])
 def api_info_bands_get() -> Any:
     """Get current info bands configuration."""
-    return jsonify(_load_info_bands_config())
+    return _json_response_with_etag(_load_info_bands_config())
 
 
 @bp.route("/api/info-bands", methods=["POST"])
@@ -5192,12 +5211,14 @@ def service_worker() -> Any:
     sw_path = FRONTEND_STATIC_DIR / "service-worker.js"
     if not sw_path.exists():
         abort(404)
-    return send_from_directory(
+    response = send_from_directory(
         str(FRONTEND_STATIC_DIR),
         "service-worker.js",
         as_attachment=False,
         mimetype="application/javascript",
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @bp.post("/api/test/background")
@@ -5548,7 +5569,7 @@ def get_settings() -> Any:
     except Exception:
         # In case anything goes wrong, return the original settings unchanged.
         pass
-    return jsonify(settings)
+    return _json_response_with_etag(settings)
 
 
 @bp.patch("/api/settings")
@@ -5603,7 +5624,7 @@ def log_key_event() -> Any:
 @bp.get("/api/employees")
 def api_list_employees() -> Any:
     employees = employee_store.list_employees()
-    return jsonify({"employees": employees})
+    return _json_response_with_etag({"employees": employees})
 
 
 @bp.post("/api/employees")
@@ -5768,7 +5789,7 @@ def list_media() -> Any:
             enriched = _temporary_slide_with_urls(slide)
             if _is_item_active(enriched, reference_time):
                 items.append(enriched)
-    return jsonify(items)
+    return _json_response_with_etag(items)
 
 
 @bp.get("/api/powerpoint")

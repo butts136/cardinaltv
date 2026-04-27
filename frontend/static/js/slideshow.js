@@ -943,10 +943,7 @@ const maybeSwapVideoToCached = async (video, url, slideId = null, { fallbackUrl 
 
 const fetchJSON = async (url, options = {}) => {
   const attempt = async () => {
-    const response = await fetch(buildApiUrl(url), {
-      cache: "no-store",
-      ...options,
-    });
+    const response = await fetch(buildApiUrl(url), options);
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || `Requête échouée (${response.status})`);
@@ -2096,7 +2093,7 @@ const collectUpcomingMediaUrls = (startIndex = currentIndex, lookahead = UPCOMIN
   return Array.from(urls);
 };
 
-const queueUpcomingSlidePreload = (startIndex = currentIndex) => {
+const queueUpcomingSlidePreload = (startIndex = currentIndex, { immediate = false } = {}) => {
   if (!PRELOAD_ENABLED || !slideshowCache?.precacheUrls) return;
   const urls = collectUpcomingMediaUrls(startIndex);
   if (!urls.length) {
@@ -2121,7 +2118,7 @@ const queueUpcomingSlidePreload = (startIndex = currentIndex) => {
       timeoutMs: UPCOMING_PRELOAD_TIMEOUT_MS,
       concurrency: UPCOMING_PRELOAD_CONCURRENCY,
     });
-  }, UPCOMING_PRELOAD_DEBOUNCE_MS);
+  }, immediate ? 0 : UPCOMING_PRELOAD_DEBOUNCE_MS);
 };
 
 const MEDIA_SWAP_FADE_MS = performanceProfile.lowPower || isTvDevice ? 0 : 220;
@@ -6278,7 +6275,7 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   });
   void preloadPromise;
   initialCacheWarmupDone = true;
-  queueUpcomingSlidePreload(currentIndex);
+  queueUpcomingSlidePreload(currentIndex, { immediate: true });
   if (kind !== "video") {
     currentVideo = null;
   }

@@ -1,11 +1,12 @@
 /* Cardinal TV Service Worker
- * Met en cache les assets statiques et les médias pour un diaporama offline-first,
- * tout en laissant les appels API se rafraîchir depuis le réseau.
+ * Met en cache les assets statiques, les APIs de lecture et les médias pour un
+ * diaporama offline-first, avec revalidation en arrière-plan.
  */
 
-const CACHE_VERSION = "v26";
+const CACHE_VERSION = "v27";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
+const API_CACHE = `cardinal-api-${CACHE_VERSION}`;
 
 const BASE_PATH = (() => {
   try {
@@ -64,7 +65,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key.startsWith("cardinal-") && key !== STATIC_CACHE && key !== MEDIA_CACHE)
+          .filter((key) => key.startsWith("cardinal-") && key !== STATIC_CACHE && key !== MEDIA_CACHE && key !== API_CACHE)
           .map((key) => caches.delete(key))
       )
     ).then(() => self.clients.claim())
@@ -86,6 +87,54 @@ const isMediaRequest = (url, request) => {
   }
   const lower = url.split("?")[0].toLowerCase();
   return MEDIA_EXTENSIONS.some((ext) => lower.endsWith(ext));
+};
+
+const CACHEABLE_API_PREFIXES = [
+  `${BASE_PATH}/api/media`,
+  `${BASE_PATH}/api/settings`,
+  `${BASE_PATH}/api/employees`,
+  `${BASE_PATH}/api/info-bands`,
+  `${BASE_PATH}/api/custom-slides`,
+  `${BASE_PATH}/api/test/slide`,
+  `${BASE_PATH}/api/birthday-slide/config`,
+  `${BASE_PATH}/api/time-change-slide/next`,
+  `${BASE_PATH}/api/christmas-slide/next`,
+  `${BASE_PATH}/api/news-slide`,
+  `${BASE_PATH}/api/weather-slide`,
+];
+
+const isCacheableApiRequest = (url) => {
+  try {
+    const pathname = new URL(url).pathname.replace(/\/+$/, "");
+    return CACHEABLE_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  } catch (error) {
+    return false;
+  }
+};
+
+const fetchAndUpdateApiCache = async (cache, request, cachedResponse) => {
+  let networkRequest = request;
+  const etag = cachedResponse ? cachedResponse.headers.get("ETag") : "";
+  if (etag) {
+    const headers = new Headers(request.headers);
+    if (!headers.has("If-None-Match")) {
+      headers.set("If-None-Match", etag);
+    }
+    networkRequest = new Request(request, { headers });
+  }
+
+  const response = await fetch(networkRequest);
+  if (response.status === 304 && cachedResponse) {
+    return cachedResponse;
+  }
+  if (response.ok && response.status === 200) {
+    try {
+      await cache.put(request, response.clone());
+    } catch (error) {
+      // Ignore cache write errors on constrained devices.
+    }
+  }
+  return response;
 };
 
 const parseRangeHeader = (value, size) => {
@@ -181,11 +230,27 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Ne pas mettre en cache les API pour toujours récupérer l'état (enabled/disabled).
-  if (request.url.includes("/api/")) {
+  // Les APIs de lecture du slideshow sont servies depuis le cache immédiatement,
+  // puis validées en arrière-plan avec ETag quand le serveur le supporte.
+  if (request.url.includes("/api/") && isCacheableApiRequest(request.url)) {
     event.respondWith(
-      fetch(request).catch(() => caches.match(request))
+      caches.open(API_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        const networkPromise = fetchAndUpdateApiCache(cache, request, cached).catch(() => cached);
+        if (cached) {
+          event.waitUntil(networkPromise);
+          return cached;
+        }
+        const response = await networkPromise;
+        if (response) return response;
+        throw new Error("API unavailable and no cache entry");
+      })
     );
+    return;
+  }
+
+  if (request.url.includes("/api/")) {
+    event.respondWith(fetch(request));
     return;
   }
 
