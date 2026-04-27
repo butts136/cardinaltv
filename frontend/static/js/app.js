@@ -1361,12 +1361,16 @@ const detectMediaKind = (item) => {
   return "other";
 };
 
-const sendOrderUpdate = async () => {
-  const order = mediaItems.map((item) => item.id);
+const sendOrderUpdate = async (orderOverride = null, positions = null) => {
+  const order = Array.isArray(orderOverride) ? orderOverride : mediaItems.map((item) => item.id);
+  const payload = { order };
+  if (positions && typeof positions === "object") {
+    payload.positions = positions;
+  }
   await fetchJSON("api/media/order", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ order }),
+    body: JSON.stringify(payload),
   });
 };
 
@@ -1559,7 +1563,7 @@ const triggerMediaDownload = (item) => {
   link.remove();
 };
 
-const createMediaCard = (item, globalIndex, displayNumber, mediaCount, autoCount = 0) => {
+const createMediaCard = (item, globalIndex, displayNumber, totalCount) => {
   const card = document.createElement("article");
   card.className = "media-card";
   card.dataset.id = item.id;
@@ -1584,13 +1588,12 @@ const createMediaCard = (item, globalIndex, displayNumber, mediaCount, autoCount
   downButton.type = "button";
   downButton.className = "secondary-button icon-button";
   downButton.textContent = "▼";
-  downButton.disabled = displayNumber === mediaCount;
+  downButton.disabled = displayNumber >= totalCount;
   downButton.addEventListener("click", () => moveEntryByDelta(item.id, 1));
 
-  const orderInput = buildOrderPicker(displayNumber, mediaCount, (desiredDisplay) => {
+  const orderInput = buildOrderPicker(displayNumber, totalCount, (desiredDisplay) => {
     if (!Number.isFinite(desiredDisplay)) return;
-    const targetIndex = autoCount + (desiredDisplay - 1);
-    void moveEntryToPosition(item.id, targetIndex);
+    void moveEntryToPosition(item.id, desiredDisplay - 1);
   });
 
   orderButtons.append(upButton, orderInput, downButton);
@@ -1863,8 +1866,6 @@ const createOrderHeader = (
   globalIndex,
   displayNumber,
   totalCountInGroup,
-  autoCount = 0,
-  entryType = "auto",
 ) => {
   const header = document.createElement("div");
   header.className = "media-card-header";
@@ -1888,9 +1889,7 @@ const createOrderHeader = (
 
   const orderInput = buildOrderPicker(displayNumber, totalCountInGroup, (desiredDisplay) => {
     if (!Number.isFinite(desiredDisplay)) return;
-    const targetIndex =
-      entryType === "media" ? autoCount + (desiredDisplay - 1) : desiredDisplay - 1;
-    void moveEntryToPosition(entryId, targetIndex);
+    void moveEntryToPosition(entryId, desiredDisplay - 1);
   });
 
   orderButtons.append(upButton, orderInput, downButton);
@@ -1929,7 +1928,7 @@ const createTeamSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) =
   card.dataset.id = TEAM_SLIDE_CARD_ID;
   applyAutoAvailability(card, "team");
 
-  const header = createOrderHeader(TEAM_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+  const header = createOrderHeader(TEAM_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto);
 
   const body = document.createElement("div");
   body.className = "media-card-body";
@@ -1956,7 +1955,7 @@ const createBirthdaySlideCard = (globalIndex, displayNumber, autoCount, totalAut
   card.dataset.id = BIRTHDAY_SLIDE_CARD_ID;
   applyAutoAvailability(card, "birthday");
 
-  const header = createOrderHeader(BIRTHDAY_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+  const header = createOrderHeader(BIRTHDAY_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto);
 
   const body = document.createElement("div");
   body.className = "media-card-body";
@@ -1985,7 +1984,7 @@ const createTimeChangeSlideCard = (globalIndex, displayNumber, autoCount, totalA
   card.dataset.id = TIME_CHANGE_SLIDE_CARD_ID;
   applyAutoAvailability(card, "time-change");
 
-  const header = createOrderHeader(TIME_CHANGE_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+  const header = createOrderHeader(TIME_CHANGE_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto);
 
   const body = document.createElement("div");
   body.className = "media-card-body";
@@ -2017,7 +2016,7 @@ const createChristmasSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   card.dataset.id = CHRISTMAS_SLIDE_CARD_ID;
   applyAutoAvailability(card, "christmas");
 
-  const header = createOrderHeader(CHRISTMAS_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+  const header = createOrderHeader(CHRISTMAS_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto);
 
   const body = document.createElement("div");
   body.className = "media-card-body";
@@ -2049,7 +2048,7 @@ const createNewsSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) =
   card.dataset.id = NEWS_SLIDE_CARD_ID;
   applyAutoAvailability(card, "news");
 
-  const header = createOrderHeader(NEWS_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+  const header = createOrderHeader(NEWS_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto);
 
   const body = document.createElement("div");
   body.className = "media-card-body";
@@ -2070,7 +2069,7 @@ const createWeatherSlideCard = (globalIndex, displayNumber, autoCount, totalAuto
   card.className = "media-card weather-slide-card auto-slide-card";
   card.dataset.id = WEATHER_SLIDE_CARD_ID;
 
-  const header = createOrderHeader(WEATHER_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+  const header = createOrderHeader(WEATHER_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto);
 
   const body = document.createElement("div");
   body.className = "media-card-body";
@@ -2094,7 +2093,7 @@ const createCustomSlideCard = (slide, entryId, globalIndex, displayNumber, autoC
   const availabilityKey = slide?.id ? buildCustomAvailabilityKey(slide.id) : "custom";
   applyAutoAvailability(card, availabilityKey);
 
-  const header = createOrderHeader(entryId, globalIndex, displayNumber, totalAuto, autoCount, "auto");
+  const header = createOrderHeader(entryId, globalIndex, displayNumber, totalAuto);
 
   const body = document.createElement("div");
   body.className = "media-card-body";
@@ -2154,71 +2153,72 @@ const getAutoEntries = () => {
       }
       return 0;
     })
-    .map(({ type, id, slideId }) => ({ type, id, slideId }));
+    .map(({ type, id, slideId, orderIndex, priority }) => ({
+      type,
+      id,
+      slideId,
+      orderIndex,
+      priority,
+    }));
+};
+
+const getPlaylistEntryOrder = (entry, fallbackIndex) => {
+  const source = entry?.type === "media" ? entry.item?.order : entry?.orderIndex;
+  const parsed = Number.parseInt(source, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallbackIndex;
+};
+
+const hasUniquePlaylistOrders = (entries) => {
+  const orders = entries.map((entry, index) => getPlaylistEntryOrder(entry, index));
+  return new Set(orders).size === orders.length;
 };
 
 const buildMediaRenderList = () => {
   const auto = getAutoEntries();
   const media = mediaItems.map((item) => ({ type: "media", id: item.id, item }));
-  return [...auto, ...media];
+  const entries = [...auto, ...media];
+
+  if (!hasUniquePlaylistOrders(entries)) {
+    return entries;
+  }
+
+  return entries.slice().sort((a, b) => {
+    const orderA = getPlaylistEntryOrder(a, entries.indexOf(a));
+    const orderB = getPlaylistEntryOrder(b, entries.indexOf(b));
+    if (orderA !== orderB) return orderA - orderB;
+    const priorityA = a.type === "media" ? AUTO_ENTRY_PRIORITY.length + 1 : a.priority || 0;
+    const priorityB = b.type === "media" ? AUTO_ENTRY_PRIORITY.length + 1 : b.priority || 0;
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    return String(a.id || "").localeCompare(String(b.id || ""));
+  });
 };
 
 const renderMedia = () => {
   if (!mediaList) return;
   mediaList.innerHTML = "";
   const renderList = buildMediaRenderList();
-  const autoEntries = getAutoEntries();
-  const autoCount = autoEntries.length;
-  const mediaCount = mediaItems.length;
-  let autoDisplay = 0;
-  let mediaDisplay = 0;
+  const totalCount = renderList.length;
   if (!renderList.length) {
     renderEmptyState();
     return;
   }
-  const autoContainer = document.createElement("div");
-  autoContainer.className = "media-auto-group";
-  if (autoCount > 0) {
-    const autoTitle = document.createElement("p");
-    autoTitle.className = "media-auto-group-title";
-    autoTitle.textContent = "Diapositives automatiques";
-    autoContainer.append(autoTitle);
-  }
 
   renderList.forEach((entry, index) => {
+    const displayNumber = index + 1;
     if (entry.type === "team") {
-      autoDisplay += 1;
-      autoContainer.appendChild(
-        createTeamSlideCard(index, autoDisplay, autoCount, autoCount),
-      );
+      mediaList.appendChild(createTeamSlideCard(index, displayNumber, totalCount, totalCount));
     } else if (entry.type === "birthday") {
-      autoDisplay += 1;
-      autoContainer.appendChild(
-        createBirthdaySlideCard(index, autoDisplay, autoCount, autoCount),
-      );
+      mediaList.appendChild(createBirthdaySlideCard(index, displayNumber, totalCount, totalCount));
     } else if (entry.type === "time-change") {
-      autoDisplay += 1;
-      autoContainer.appendChild(
-        createTimeChangeSlideCard(index, autoDisplay, autoCount, autoCount),
-      );
+      mediaList.appendChild(createTimeChangeSlideCard(index, displayNumber, totalCount, totalCount));
     } else if (entry.type === "christmas") {
-      autoDisplay += 1;
-      autoContainer.appendChild(
-        createChristmasSlideCard(index, autoDisplay, autoCount, autoCount),
-      );
+      mediaList.appendChild(createChristmasSlideCard(index, displayNumber, totalCount, totalCount));
     } else if (entry.type === "news") {
-      autoDisplay += 1;
-      autoContainer.appendChild(
-        createNewsSlideCard(index, autoDisplay, autoCount, autoCount),
-      );
+      mediaList.appendChild(createNewsSlideCard(index, displayNumber, totalCount, totalCount));
     } else if (entry.type === "weather") {
-      autoDisplay += 1;
-      autoContainer.appendChild(
-        createWeatherSlideCard(index, autoDisplay, autoCount, autoCount),
-      );
+      mediaList.appendChild(createWeatherSlideCard(index, displayNumber, totalCount, totalCount));
     } else if (entry.type === "custom") {
-      autoDisplay += 1;
-      autoContainer.appendChild(
+      mediaList.appendChild(
         createCustomSlideCard(
           (Array.isArray(customSlides)
             ? customSlides.find((slide) => slide && buildCustomCardId(slide.id) === entry.id) ||
@@ -2226,21 +2226,16 @@ const renderMedia = () => {
             : null) || null,
           entry.id,
           index,
-          autoDisplay,
-          autoCount,
-          autoCount,
+          displayNumber,
+          totalCount,
+          totalCount,
         ),
       );
     } else {
-      mediaDisplay += 1;
-      const card = createMediaCard(entry.item, index, mediaDisplay, mediaCount, autoCount);
+      const card = createMediaCard(entry.item, index, displayNumber, totalCount);
       mediaList.appendChild(card);
     }
   });
-
-  if (autoCount) {
-    mediaList.prepend(autoContainer);
-  }
 };
 
 const BIRTHDAY_WEEKDAY_KEYS = [
@@ -2576,114 +2571,88 @@ const persistCustomSlideOrderIndex = async (slideId, orderIndex) => {
 };
 
 const moveEntryToPosition = async (id, targetGlobalIndex) => {
-  const autoEntries = getAutoEntries();
-  const autoCount = autoEntries.length;
-  const mediaEntries = buildArray(mediaItems);
-  const totalCount = autoCount + mediaEntries.length;
-  if (totalCount === 0) return;
+  const entries = buildMediaRenderList();
+  if (!entries.length) return;
 
-  // Déplacement des auto-slides uniquement entre elles
-  const autoIndex = autoEntries.findIndex((entry) => entry.id === id);
-  if (autoIndex !== -1) {
-    const { entries: reorderedAutoEntries, changed } = reorderById(
-      autoEntries,
-      id,
-      targetGlobalIndex,
-    );
-    if (!changed) return;
+  const { entries: reorderedEntries, changed } = reorderById(entries, id, targetGlobalIndex);
+  if (!changed) return;
 
-    // Mettre à jour les order_index et persister
-    const customOrderTasks = [];
-    reorderedAutoEntries.forEach((entry, position) => {
-      if (entry.type === "team" && teamSlideSettings) {
-        teamSlideSettings = { ...(teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS), order_index: position };
+  const mediaPositions = {};
+  const mediaOrder = [];
+  const customOrderTasks = [];
+  const persistTasks = [];
+
+  reorderedEntries.forEach((entry, position) => {
+    if (entry.type === "media") {
+      mediaPositions[entry.id] = position;
+      mediaOrder.push(entry.id);
+      if (entry.item) {
+        entry.item.order = position;
       }
-      if (entry.type === "birthday" && birthdaySlideSettings) {
-        birthdaySlideSettings = { ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS), order_index: position };
-      }
-      if (entry.type === "time-change" && timeChangeSlideSettings) {
-        timeChangeSlideSettings = { ...(timeChangeSlideSettings || DEFAULT_TIME_CHANGE_SETTINGS), order_index: position };
-      }
-      if (entry.type === "christmas" && christmasSlideSettings) {
-        christmasSlideSettings = { ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS), order_index: position };
-      }
-      if (entry.type === "news" && newsSlideSettings) {
-        newsSlideSettings = { ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS), order_index: position };
-      }
-      if (entry.type === "weather" && weatherSlideSettings) {
-        weatherSlideSettings = { ...(weatherSlideSettings || DEFAULT_WEATHER_SLIDE_SETTINGS), order_index: position };
-      }
-      if (entry.type === "custom") {
-        const slideId = entry.slideId;
-        if (slideId && Array.isArray(customSlides)) {
-          const idx = customSlides.findIndex((slide) => slide && slide.id === slideId);
-          if (idx !== -1) {
-            customSlides[idx] = { ...customSlides[idx], order_index: position };
-          }
-          customOrderTasks.push(persistCustomSlideOrderIndex(slideId, position));
+      return;
+    }
+
+    if (entry.type === "team" && teamSlideSettings) {
+      teamSlideSettings = { ...(teamSlideSettings || DEFAULT_TEAM_SLIDE_SETTINGS), order_index: position };
+    }
+    if (entry.type === "birthday" && birthdaySlideSettings) {
+      birthdaySlideSettings = { ...(birthdaySlideSettings || DEFAULT_BIRTHDAY_SLIDE_SETTINGS), order_index: position };
+    }
+    if (entry.type === "time-change" && timeChangeSlideSettings) {
+      timeChangeSlideSettings = { ...(timeChangeSlideSettings || DEFAULT_TIME_CHANGE_SETTINGS), order_index: position };
+    }
+    if (entry.type === "christmas" && christmasSlideSettings) {
+      christmasSlideSettings = { ...(christmasSlideSettings || DEFAULT_CHRISTMAS_SETTINGS), order_index: position };
+    }
+    if (entry.type === "news" && newsSlideSettings) {
+      newsSlideSettings = { ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS), order_index: position };
+    }
+    if (entry.type === "weather" && weatherSlideSettings) {
+      weatherSlideSettings = { ...(weatherSlideSettings || DEFAULT_WEATHER_SLIDE_SETTINGS), order_index: position };
+    }
+    if (entry.type === "custom") {
+      const slideId = entry.slideId;
+      if (slideId && Array.isArray(customSlides)) {
+        const idx = customSlides.findIndex((slide) => slide && slide.id === slideId);
+        if (idx !== -1) {
+          customSlides[idx] = { ...customSlides[idx], order_index: position };
         }
+        customOrderTasks.push(persistCustomSlideOrderIndex(slideId, position));
       }
-    });
-
-    renderMedia();
-
-    try {
-      const tasks = [...customOrderTasks];
-      if (teamSlideSettings) tasks.push(persistTeamOrderIndex(teamSlideSettings.order_index));
-      if (birthdaySlideSettings) tasks.push(persistBirthdayOrderIndex(birthdaySlideSettings.order_index));
-      if (timeChangeSlideSettings) tasks.push(persistTimeChangeOrderIndex(timeChangeSlideSettings.order_index));
-      if (christmasSlideSettings) tasks.push(persistChristmasOrderIndex(christmasSlideSettings.order_index));
-      if (newsSlideSettings) tasks.push(persistNewsOrderIndex(newsSlideSettings.order_index));
-      if (weatherSlideSettings) tasks.push(persistWeatherOrderIndex(weatherSlideSettings.order_index));
-      if (tasks.length) {
-        await Promise.all(tasks);
-      }
-    } catch (error) {
-      console.error("Erreur lors du réordonnancement des diapositives automatiques:", error);
-    } finally {
-      await loadMedia();
     }
-    return;
-  }
+  });
 
-  // Déplacement des médias standards
-  const mediaIndex = mediaEntries.findIndex((entry) => entry.id === id);
-  if (mediaIndex !== -1) {
-    const previousOrder = mediaItems.map((m) => m.id).join("|");
-    const targetMediaIndex = targetGlobalIndex - autoCount;
-    const { entries, changed } = reorderById(mediaEntries, id, targetMediaIndex);
-    if (!changed) return;
-    mediaItems = entries;
+  mediaItems = reorderedEntries
+    .filter((entry) => entry.type === "media" && entry.item)
+    .map((entry) => entry.item);
 
-    renderMedia();
-    try {
-      const newOrderSignature = mediaItems.map((m) => m.id).join("|");
-      if (previousOrder !== newOrderSignature) {
-        await sendOrderUpdate();
-      }
-    } catch (error) {
-      console.error("Erreur lors du réordonnancement des médias:", error);
-    } finally {
-      await loadMedia();
+  renderMedia();
+
+  try {
+    persistTasks.push(...customOrderTasks);
+    if (teamSlideSettings) persistTasks.push(persistTeamOrderIndex(teamSlideSettings.order_index));
+    if (birthdaySlideSettings) persistTasks.push(persistBirthdayOrderIndex(birthdaySlideSettings.order_index));
+    if (timeChangeSlideSettings) persistTasks.push(persistTimeChangeOrderIndex(timeChangeSlideSettings.order_index));
+    if (christmasSlideSettings) persistTasks.push(persistChristmasOrderIndex(christmasSlideSettings.order_index));
+    if (newsSlideSettings) persistTasks.push(persistNewsOrderIndex(newsSlideSettings.order_index));
+    if (weatherSlideSettings) persistTasks.push(persistWeatherOrderIndex(weatherSlideSettings.order_index));
+    if (mediaOrder.length) persistTasks.push(sendOrderUpdate(mediaOrder, mediaPositions));
+    if (persistTasks.length) {
+      await Promise.all(persistTasks);
     }
+  } catch (error) {
+    console.error("Erreur lors du réordonnancement de la playlist:", error);
+  } finally {
+    await loadMedia();
   }
 };
 
 const moveEntryByDelta = (id, delta) => {
-  const autoEntries = getAutoEntries();
-  const autoIndex = autoEntries.findIndex((entry) => entry.id === id);
-  if (autoIndex !== -1) {
-    const newPos = clamp(autoIndex + delta, 0, Math.max(0, autoEntries.length - 1));
-    void moveEntryToPosition(id, newPos);
-    return;
-  }
-
-  const mediaIndex = mediaItems.findIndex((entry) => entry.id === id);
-  if (mediaIndex !== -1) {
-    const newPos = clamp(mediaIndex + delta, 0, Math.max(0, mediaItems.length - 1));
-    const targetIndex = getAutoEntries().length + newPos;
-    void moveEntryToPosition(id, targetIndex);
-  }
+  const entries = buildMediaRenderList();
+  const entryIndex = entries.findIndex((entry) => entry.id === id);
+  if (entryIndex === -1) return;
+  const newPos = clamp(entryIndex + delta, 0, Math.max(0, entries.length - 1));
+  void moveEntryToPosition(id, newPos);
 };
 
 const loadMedia = async () => {

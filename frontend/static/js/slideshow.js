@@ -6032,8 +6032,8 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     fetchCustomSlidesList(),
   ]);
 
-  // Les diapos "auto" sont affichées en premier, puis la playlist des médias dans son ordre.
-  // On conserve `order_index` uniquement pour ordonner les diapos auto entre elles.
+  // Les nouvelles playlists utilisent un ordre global; les anciennes données avec
+  // positions dupliquées gardent le rendu historique auto puis médias.
   const normalizedOrderIndex = (value, fallbackIndex = 1_000_000) => {
     const parsed = Number.parseInt(value, 10);
     if (Number.isFinite(parsed) && parsed >= 0) return parsed;
@@ -6148,7 +6148,22 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     if (oa === ob) return String(a.id || "").localeCompare(String(b.id || ""));
     return oa - ob;
   });
-  return [...autoEntries, ...enhancedBase];
+
+  const combinedEntries = [...autoEntries, ...enhancedBase];
+  const combinedOrders = combinedEntries.map((item, index) => {
+    const parsed = Number(item?.order);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : index;
+  });
+  if (new Set(combinedOrders).size !== combinedOrders.length) {
+    return [...autoEntries, ...enhancedBase];
+  }
+
+  return combinedEntries.sort((a, b) => {
+    const oa = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
+    const ob = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
+    if (oa === ob) return String(a.id || "").localeCompare(String(b.id || ""));
+    return oa - ob;
+  });
 };
 
 const handleEmptyPlaylist = () => {

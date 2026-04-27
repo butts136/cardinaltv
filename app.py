@@ -3103,12 +3103,21 @@ class MediaStore:
             self._save()
             return removed
 
-    def set_order(self, new_order: List[str]) -> None:
+    def set_order(self, new_order: List[str], positions: Optional[Dict[str, Any]] = None) -> None:
         with self._lock:
             known_ids = {item["id"] for item in self._data["items"]}
             if len(new_order) != len(known_ids) or set(new_order) != known_ids:
                 raise ValueError("Order list must contain every media identifier exactly once.")
             order_map = {media_id: position for position, media_id in enumerate(new_order)}
+            if isinstance(positions, dict):
+                for media_id in known_ids:
+                    if media_id not in positions:
+                        continue
+                    try:
+                        position = int(positions[media_id])
+                    except (TypeError, ValueError):
+                        raise ValueError("Order positions must be numeric.") from None
+                    order_map[media_id] = max(0, position)
             for item in self._data["items"]:
                 item["order"] = order_map[item["id"]]
             self._save()
@@ -8930,8 +8939,12 @@ def set_media_order() -> Any:
     if not isinstance(order, list) or not all(isinstance(item, str) for item in order):
         abort(400, description="L'ordre doit être une liste d'identifiants.")
 
+    positions = payload.get("positions")
+    if positions is not None and not isinstance(positions, dict):
+        abort(400, description="Les positions doivent être un objet.")
+
     try:
-        store.set_order(order)
+        store.set_order(order, positions)
     except ValueError as exc:
         abort(400, description=str(exc))
 
