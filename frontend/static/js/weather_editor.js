@@ -60,11 +60,11 @@
   const weatherIcon = document.getElementById('weather-icon');
   const weatherTemp = document.getElementById('weather-temp');
   const weatherCondition = document.getElementById('weather-condition');
-  const weatherTempDay = document.getElementById('weather-temp-day');
+  const weatherTempMorning = document.getElementById('weather-temp-morning');
+  const weatherTempAfternoon = document.getElementById('weather-temp-afternoon');
   const weatherTempEvening = document.getElementById('weather-temp-evening');
   const weatherTempNight = document.getElementById('weather-temp-night');
-  const weatherTempMax = document.getElementById('weather-temp-max');
-  const weatherTempMin = document.getElementById('weather-temp-min');
+  const weatherTempRange = document.getElementById('weather-temp-range');
   const weatherHumidity = document.getElementById('weather-humidity');
   const weatherWind = document.getElementById('weather-wind');
   const weatherForecast = document.getElementById('weather-forecast');
@@ -170,18 +170,32 @@
         </span>
       `;
     };
+    const formatPeriod = (day, key, tempKey, feelsKey) => {
+      const period = day?.periods?.[key] || {};
+      const icon = period.icon ? `<span class="forecast-period-icon">${period.icon}</span>` : '';
+      const temp = period.temperature ?? day?.[tempKey];
+      const feels = period.feels_like ?? day?.[feelsKey];
+      return `${icon}${formatTemp(temp, feels)}`;
+    };
+    const formatRange = (max, min) => {
+      const maxLabel = max != null ? Math.round(max) : '--';
+      const minLabel = min != null ? Math.round(min) : '--';
+      return `${maxLabel}/${minLabel}°C`;
+    };
 
-    if (weatherTempDay) {
-      weatherTempDay.innerHTML = todayForecast ? formatTemp(todayForecast.temp_day, todayForecast.feels_day) : '--°C';
+    if (weatherTempMorning) {
+      weatherTempMorning.innerHTML = todayForecast ? formatPeriod(todayForecast, 'morning', 'temp_morning', 'feels_morning') : '--°C';
+    }
+    if (weatherTempAfternoon) {
+      weatherTempAfternoon.innerHTML = todayForecast ? formatPeriod(todayForecast, 'afternoon', 'temp_afternoon', 'feels_afternoon') : '--°C';
     }
     if (weatherTempEvening) {
-      weatherTempEvening.innerHTML = todayForecast ? formatTemp(todayForecast.temp_evening, todayForecast.feels_evening) : '--°C';
+      weatherTempEvening.innerHTML = todayForecast ? formatPeriod(todayForecast, 'evening', 'temp_evening', 'feels_evening') : '--°C';
     }
     if (weatherTempNight) {
-      weatherTempNight.innerHTML = todayForecast ? formatTemp(todayForecast.temp_night, todayForecast.feels_night) : '--°C';
+      weatherTempNight.innerHTML = todayForecast ? formatPeriod(todayForecast, 'night', 'temp_night', 'feels_night') : '--°C';
     }
-    if (weatherTempMax) weatherTempMax.textContent = current.temp_max != null ? `${Math.round(current.temp_max)}°C` : '--°C';
-    if (weatherTempMin) weatherTempMin.textContent = current.temp_min != null ? `${Math.round(current.temp_min)}°C` : '--°C';
+    if (weatherTempRange) weatherTempRange.textContent = formatRange(current.temp_max, current.temp_min);
     if (weatherHumidity) weatherHumidity.textContent = current.humidity != null ? `${current.humidity}%` : '--%';
     if (weatherWind) weatherWind.textContent = current.wind_speed != null ? `${Math.round(current.wind_speed)} km/h` : '-- km/h';
 
@@ -229,16 +243,27 @@
       const feelsLabel = feels != null ? Math.round(feels) : '--';
       return `${tempLabel} <span class="temp-feels">(${feelsLabel})</span>`;
     };
+    const formatPeriod = (day, key, tempKey, feelsKey) => {
+      const period = day?.periods?.[key] || {};
+      const icon = period.icon || '🌤️';
+      const temp = period.temperature ?? day?.[tempKey];
+      const feels = period.feels_like ?? day?.[feelsKey];
+      return `<span class="forecast-period"><span class="forecast-period-icon">${icon}</span><span>${formatTemp(temp, feels)}</span></span>`;
+    };
+    const formatRange = (max, min) => {
+      const maxLabel = max != null ? Math.round(max) : '--';
+      const minLabel = min != null ? Math.round(min) : '--';
+      return `${maxLabel}/${minLabel}°`;
+    };
 
     const rows = forecast.map(day => `
       <tr>
         <td class="forecast-cell weekday">${day.weekday || '--'}</td>
-        <td class="forecast-cell icon">${day.icon || '🌤️'}</td>
-        <td class="forecast-cell number">${formatTemp(day.temp_day, day.feels_day)}</td>
-        <td class="forecast-cell number">${formatTemp(day.temp_evening, day.feels_evening)}</td>
-        <td class="forecast-cell number">${formatTemp(day.temp_night, day.feels_night)}</td>
-        <td class="forecast-cell number">${day.temp_max != null ? Math.round(day.temp_max) : '--'}°</td>
-        <td class="forecast-cell number">${day.temp_min != null ? Math.round(day.temp_min) : '--'}°</td>
+        <td class="forecast-cell number">${formatPeriod(day, 'morning', 'temp_morning', 'feels_morning')}</td>
+        <td class="forecast-cell number">${formatPeriod(day, 'afternoon', 'temp_afternoon', 'feels_afternoon')}</td>
+        <td class="forecast-cell number">${formatPeriod(day, 'evening', 'temp_evening', 'feels_evening')}</td>
+        <td class="forecast-cell number">${formatPeriod(day, 'night', 'temp_night', 'feels_night')}</td>
+        <td class="forecast-cell number">${formatRange(day.temp_max, day.temp_min)}</td>
         <td class="forecast-cell number">${day.wind_max != null ? `${Math.round(day.wind_max)} km/h${day.wind_peak ? ` (${day.wind_peak})` : ''}` : '-- km/h'}</td>
       </tr>
     `).join('');
@@ -249,23 +274,21 @@
         <table class="forecast-table">
           <colgroup>
             <col class="col-day" />
-            <col class="col-icon" />
             <col class="col-temp" />
             <col class="col-temp" />
             <col class="col-temp" />
-            <col class="col-max" />
-            <col class="col-min" />
+            <col class="col-temp" />
+            <col class="col-range" />
             <col class="col-wind" />
           </colgroup>
           <thead>
             <tr>
               <th>Jour</th>
-              <th></th>
-              <th>Jour</th>
+              <th>Matin</th>
+              <th>Après-midi</th>
               <th>Soir</th>
               <th>Nuit</th>
-              <th>Max</th>
-              <th>Min</th>
+              <th>Max/Min</th>
               <th>Vent</th>
             </tr>
           </thead>

@@ -8439,7 +8439,7 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}"
         f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m"
-        f"&hourly=temperature_2m,apparent_temperature,wind_speed_10m"
+        f"&hourly=temperature_2m,apparent_temperature,wind_speed_10m,weather_code"
         f"&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum"
         f"&timezone=America/Toronto"
         f"&forecast_days=8"
@@ -8507,7 +8507,8 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
     hourly_temps = hourly.get("temperature_2m", [])
     hourly_feels = hourly.get("apparent_temperature", [])
     hourly_winds = hourly.get("wind_speed_10m", [])
-    hourly_buckets: Dict[str, Dict[str, List[float]]] = {}
+    hourly_codes = hourly.get("weather_code", [])
+    hourly_buckets: Dict[str, Dict[str, List[Any]]] = {}
     wind_peaks: Dict[str, Tuple[float, int]] = {}
 
     for i, timestamp in enumerate(hourly_times):
@@ -8516,6 +8517,7 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
         temp = hourly_temps[i]
         feels = hourly_feels[i] if i < len(hourly_feels) else None
         wind = hourly_winds[i] if i < len(hourly_winds) else None
+        period_code = hourly_codes[i] if i < len(hourly_codes) else None
         if temp is None:
             continue
         if isinstance(timestamp, str) and "T" in timestamp:
@@ -8530,23 +8532,33 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
 
         if hour < 6:
             bucket = "night"
+        elif hour < 12:
+            bucket = "morning"
         elif hour < 18:
-            bucket = "day"
+            bucket = "afternoon"
         else:
             bucket = "evening"
 
         day_bucket = hourly_buckets.setdefault(date_part, {
-            "day": [],
+            "morning": [],
+            "afternoon": [],
             "evening": [],
             "night": [],
-            "day_feels": [],
+            "morning_feels": [],
+            "afternoon_feels": [],
             "evening_feels": [],
             "night_feels": [],
+            "morning_codes": [],
+            "afternoon_codes": [],
+            "evening_codes": [],
+            "night_codes": [],
             "winds": [],
         })
         day_bucket[bucket].append(temp)
         if feels is not None:
             day_bucket[f"{bucket}_feels"].append(feels)
+        if period_code is not None:
+            day_bucket[f"{bucket}_codes"].append(period_code)
         if wind is not None:
             day_bucket["winds"].append(wind)
             peak = wind_peaks.get(date_part)
@@ -8574,20 +8586,36 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
             if apparent_maxs[i] is not None and apparent_mins[i] is not None:
                 feels_like = (apparent_maxs[i] + apparent_mins[i]) / 2
         bucket = hourly_buckets.get(dates[i], {})
-        day_temps = bucket.get("day", [])
+        morning_temps = bucket.get("morning", [])
+        afternoon_temps = bucket.get("afternoon", [])
         evening_temps = bucket.get("evening", [])
         night_temps = bucket.get("night", [])
-        day_feels = bucket.get("day_feels", [])
+        morning_feels = bucket.get("morning_feels", [])
+        afternoon_feels = bucket.get("afternoon_feels", [])
         evening_feels = bucket.get("evening_feels", [])
         night_feels = bucket.get("night_feels", [])
         wind_values = bucket.get("winds", [])
 
-        temp_day = sum(day_temps) / len(day_temps) if day_temps else None
+        temp_morning = sum(morning_temps) / len(morning_temps) if morning_temps else None
+        temp_afternoon = sum(afternoon_temps) / len(afternoon_temps) if afternoon_temps else None
         temp_evening = sum(evening_temps) / len(evening_temps) if evening_temps else None
         temp_night = sum(night_temps) / len(night_temps) if night_temps else None
-        feels_day = sum(day_feels) / len(day_feels) if day_feels else None
+        feels_morning = sum(morning_feels) / len(morning_feels) if morning_feels else None
+        feels_afternoon = sum(afternoon_feels) / len(afternoon_feels) if afternoon_feels else None
         feels_evening = sum(evening_feels) / len(evening_feels) if evening_feels else None
         feels_night = sum(night_feels) / len(night_feels) if night_feels else None
+        temp_day = temp_afternoon if temp_afternoon is not None else temp_morning
+        feels_day = feels_afternoon if feels_afternoon is not None else feels_morning
+        period_codes = {
+            "morning": bucket.get("morning_codes", []),
+            "afternoon": bucket.get("afternoon_codes", []),
+            "evening": bucket.get("evening_codes", []),
+            "night": bucket.get("night_codes", []),
+        }
+        period_conditions: Dict[str, str] = {}
+        for period_name, values in period_codes.items():
+            code_value = max(set(values), key=values.count) if values else day_code
+            period_conditions[period_name] = WEATHER_CODE_MAP.get(code_value, day_condition)
         wind_max = max(wind_values) if wind_values else None
         wind_peak = None
         peak_info = wind_peaks.get(dates[i])
@@ -8595,8 +8623,10 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
             peak_hour = peak_info[1]
             if peak_hour < 6:
                 wind_peak = "nuit"
+            elif peak_hour < 12:
+                wind_peak = "matin"
             elif peak_hour < 18:
-                wind_peak = "jour"
+                wind_peak = "après-midi"
             else:
                 wind_peak = "soir"
 
@@ -8608,11 +8638,41 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
             "temp_avg": temp_avg,
             "feels_like": feels_like,
             "temp_day": temp_day,
+            "temp_morning": temp_morning,
+            "temp_afternoon": temp_afternoon,
             "temp_evening": temp_evening,
             "temp_night": temp_night,
             "feels_day": feels_day,
+            "feels_morning": feels_morning,
+            "feels_afternoon": feels_afternoon,
             "feels_evening": feels_evening,
             "feels_night": feels_night,
+            "periods": {
+                "morning": {
+                    "temperature": temp_morning,
+                    "feels_like": feels_morning,
+                    "condition": period_conditions.get("morning", day_condition),
+                    "icon": WEATHER_CONDITION_ICONS.get(period_conditions.get("morning", day_condition), "🌤️"),
+                },
+                "afternoon": {
+                    "temperature": temp_afternoon,
+                    "feels_like": feels_afternoon,
+                    "condition": period_conditions.get("afternoon", day_condition),
+                    "icon": WEATHER_CONDITION_ICONS.get(period_conditions.get("afternoon", day_condition), "🌤️"),
+                },
+                "evening": {
+                    "temperature": temp_evening,
+                    "feels_like": feels_evening,
+                    "condition": period_conditions.get("evening", day_condition),
+                    "icon": WEATHER_CONDITION_ICONS.get(period_conditions.get("evening", day_condition), "🌤️"),
+                },
+                "night": {
+                    "temperature": temp_night,
+                    "feels_like": feels_night,
+                    "condition": period_conditions.get("night", day_condition),
+                    "icon": WEATHER_CONDITION_ICONS.get(period_conditions.get("night", day_condition), "🌤️"),
+                },
+            },
             "wind_max": wind_max,
             "wind_peak": wind_peak,
             "precipitation": precips[i] if i < len(precips) else 0,

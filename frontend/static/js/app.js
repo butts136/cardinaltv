@@ -19,6 +19,9 @@ const uploadProgressText = document.querySelector("#upload-progress-text");
 const mediaList = document.querySelector("#media-list");
 const archivedMediaList = document.querySelector("#archived-media-list");
 const archivedToggleButton = document.querySelector("#archived-toggle-button");
+const playlistUploadButton = document.querySelector("#playlist-upload-button");
+const uploadModal = document.querySelector("#upload-modal");
+const uploadModalCloseButtons = uploadModal ? uploadModal.querySelectorAll("[data-upload-modal-close]") : [];
 const refreshButton = document.querySelector("#refresh-button");
 const hideAllButton = document.querySelector("#hide-all-button");
 const showAllButton = document.querySelector("#show-all-button");
@@ -927,6 +930,8 @@ const updateArchivedPanel = () => {
   archivedToggleButton.disabled = count === 0;
   archivedToggleButton.setAttribute("aria-expanded", archivedMediaExpanded ? "true" : "false");
   archivedMediaList.hidden = !archivedMediaExpanded;
+  archivedMediaList.setAttribute("aria-hidden", archivedMediaExpanded ? "false" : "true");
+  archivedMediaList.classList.toggle("is-collapsed", !archivedMediaExpanded);
 };
 
 const renderArchivedMedia = () => {
@@ -938,6 +943,10 @@ const renderArchivedMedia = () => {
     placeholder.textContent = "Aucun média archivé.";
     archivedMediaList.appendChild(placeholder);
     archivedMediaExpanded = false;
+    updateArchivedPanel();
+    return;
+  }
+  if (!archivedMediaExpanded) {
     updateArchivedPanel();
     return;
   }
@@ -3141,6 +3150,7 @@ const performUpload = async () => {
       setUploadProgress(0, { active: false });
     }, 700);
     await loadMedia();
+    closeUploadModal();
   } catch (error) {
     console.error("Erreur lors du téléversement:", error);
     const errorMessage = error?.message || "Erreur inconnue";
@@ -3150,6 +3160,19 @@ const performUpload = async () => {
     });
     setUploadProgress(0, { active: false });
   }
+};
+
+const openUploadModal = () => {
+  if (!uploadModal) return;
+  uploadModal.classList.remove("hidden");
+  uploadModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => fileInput?.focus(), 0);
+};
+
+const closeUploadModal = () => {
+  if (!uploadModal) return;
+  uploadModal.classList.add("hidden");
+  uploadModal.setAttribute("aria-hidden", "true");
 };
 
 // ---------------------------------------------------------------------------
@@ -6829,8 +6852,10 @@ const renderEmployeesList = () => {
 
     const editBtn = document.createElement("button");
     editBtn.type = "button";
-    editBtn.className = "secondary-button";
-    editBtn.textContent = "Modifier";
+    editBtn.className = "secondary-button employee-action-button";
+    editBtn.title = "Modifier";
+    editBtn.setAttribute("aria-label", `Modifier ${emp.name || "cet employé"}`);
+    editBtn.textContent = "✎";
     const editPanel = document.createElement("div");
     editPanel.className = "employee-edit-panel";
     editPanel.style.maxHeight = "0px";
@@ -6975,8 +7000,10 @@ const renderEmployeesList = () => {
 
     const delBtn = document.createElement("button");
     delBtn.type = "button";
-    delBtn.className = "secondary-button danger";
-    delBtn.textContent = "Supprimer";
+    delBtn.className = "secondary-button danger employee-action-button";
+    delBtn.title = "Supprimer";
+    delBtn.setAttribute("aria-label", `Supprimer ${emp.name || "cet employé"}`);
+    delBtn.textContent = "×";
     delBtn.addEventListener("click", async () => {
       if (!window.confirm("Supprimer cet employé ?")) return;
       try {
@@ -7415,7 +7442,17 @@ refreshButton?.addEventListener("click", () => {
 archivedToggleButton?.addEventListener("click", () => {
   if (!archivedMediaItems.length) return;
   archivedMediaExpanded = !archivedMediaExpanded;
-  updateArchivedPanel();
+  renderArchivedMedia();
+});
+
+playlistUploadButton?.addEventListener("click", openUploadModal);
+uploadModalCloseButtons.forEach((button) => {
+  button.addEventListener("click", closeUploadModal);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && uploadModal && !uploadModal.classList.contains("hidden")) {
+    closeUploadModal();
+  }
 });
 
 hideAllButton?.addEventListener("click", async () => {

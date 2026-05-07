@@ -1,13 +1,14 @@
 <section class="card playlist-card compact playlist-section" id="playlist-section">
   <div class="section-header playlist-header">
     <div>
-      <h2>Playlist des m&eacute;dias</h2>
+      <h2>Ordre des diapositives</h2>
       <p class="playlist-subtitle">Organisez vos m&eacute;dias et ajustez leurs param&egrave;tres.</p>
     </div>
   </div>
 
   <div class="section-content">
     <div class="playlist-actions">
+      <button id="playlist-upload-button" class="primary-button" type="button">T&eacute;l&eacute;verser une nouvelle slide</button>
       <button id="hide-all-button" class="secondary-button">Masquer tout</button>
       <button id="show-all-button" class="secondary-button">Afficher tout</button>
       <button id="slideshow-button" class="primary-button">Lancer le diaporama</button>
@@ -21,7 +22,7 @@
           <p class="playlist-subtitle small">Les médias archivés sont retirés de la playlist active jusqu'à leur restauration.</p>
         </div>
         <button id="archived-toggle-button" class="secondary-button" type="button" aria-expanded="false">
-          Afficher les archivés
+          Afficher les archives
         </button>
       </div>
       <div id="archived-media-list" class="media-list" hidden></div>

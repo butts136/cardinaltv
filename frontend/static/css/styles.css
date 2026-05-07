@@ -3175,15 +3175,11 @@ input[type="datetime-local"]:focus {
 }
 
 .weather-slide-overlay .forecast-table col.col-temp {
-  width: 14%;
+  width: 12%;
 }
 
-.weather-slide-overlay .forecast-table col.col-max {
-  width: 10%;
-}
-
-.weather-slide-overlay .forecast-table col.col-min {
-  width: 10%;
+.weather-slide-overlay .forecast-table col.col-range {
+  width: 12%;
 }
 
 .weather-slide-overlay .forecast-table col.col-wind {
@@ -3241,6 +3237,18 @@ input[type="datetime-local"]:focus {
 .weather-slide-overlay .forecast-cell.number {
   text-align: center;
   min-width: 7ch;
+}
+
+.weather-slide-overlay .forecast-period {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.weather-slide-overlay .forecast-period-icon {
+  font-size: var(--weather-slide-forecast-icon-size, 35px);
+  line-height: 1;
 }
 
 .weather-slide-overlay .forecast-cell.weekday {

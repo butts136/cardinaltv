@@ -2900,6 +2900,22 @@ details.collapsible:not([open]) .birthday-text-footer {
   height: 90%;
 }
 
+.upload-modal-content {
+  width: min(92vw, 780px);
+}
+
+.upload-modal-inner {
+  display: block;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+}
+
+.upload-section--modal {
+  padding: 1.5rem;
+  width: 100%;
+}
+
 /* ========== BIRTHDAY MODAL - MODERN DESIGN ========== */
 
 .birthday-modal.hidden {
@@ -4237,8 +4253,9 @@ details.collapsible:not([open]) .birthday-text-footer {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px 18px;
-  border-radius: 14px;
+  min-height: 88px;
+  padding: 12px 14px;
+  border-radius: 8px;
   background: radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.05), transparent 30%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -4254,8 +4271,8 @@ details.collapsible:not([open]) .birthday-text-footer {
 }
 
 .employee-avatar {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
@@ -4284,6 +4301,9 @@ details.collapsible:not([open]) .birthday-text-footer {
 .employees-row .info strong {
   font-weight: 700;
   color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .employees-row .meta {
@@ -4297,8 +4317,21 @@ details.collapsible:not([open]) .birthday-text-footer {
 .employees-item-actions {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.employee-action-button {
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 1.25rem;
 }
 
 .employees-empty {
@@ -5126,8 +5159,7 @@ details.collapsible:not([open]) .birthday-text-footer {
   }
 
   .playlist-section .playlist-actions button,
-  .playlist-section .media-card-actions button,
-  .employees-item-actions button {
+  .playlist-section .media-card-actions button {
     width: 100%;
     min-height: 42px;
   }
@@ -5208,11 +5240,13 @@ details.collapsible:not([open]) .birthday-text-footer {
 
   .employees-row {
     padding: 12px;
-    border-radius: 12px;
+    border-radius: 8px;
+    min-height: 88px;
   }
 
   .employee-main {
-    align-items: flex-start;
+    align-items: center;
+    min-width: 0;
   }
 
   .employee-avatar {
@@ -5221,14 +5255,19 @@ details.collapsible:not([open]) .birthday-text-footer {
   }
 
   .employees-row .meta {
-    white-space: normal;
-    overflow: visible;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   .employees-item-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    justify-content: stretch;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .employee-action-button {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
   }
 
   .employee-inline-row {
@@ -5253,7 +5292,8 @@ details.collapsible:not([open]) .birthday-text-footer {
 @media (max-width: 430px) {
   .playlist-section .playlist-actions,
   .playlist-section .media-card-actions,
-  .employees-item-actions {
+  .employee-edit-form,
+  .employee-inline-row {
     grid-template-columns: 1fr;
   }
 }
@@ -6034,15 +6074,11 @@ details.collapsible:not([open]) .birthday-text-footer {
 }
 
 .forecast-table col.col-temp {
-  width: 14%;
+  width: 12%;
 }
 
-.forecast-table col.col-max {
-  width: 10%;
-}
-
-.forecast-table col.col-min {
-  width: 10%;
+.forecast-table col.col-range {
+  width: 12%;
 }
 
 .forecast-table col.col-wind {
@@ -6100,6 +6136,18 @@ details.collapsible:not([open]) .birthday-text-footer {
 .forecast-cell.number {
   text-align: center;
   min-width: 7ch;
+}
+
+.forecast-period {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.forecast-period-icon {
+  font-size: var(--weather-preview-forecast-icon-size, 1.5rem);
+  line-height: 1;
 }
 
 .forecast-cell.weekday {

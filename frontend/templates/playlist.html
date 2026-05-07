@@ -1,8 +1,8 @@
 {% extends "diaporama_base.html" %}
 
-{% block title %}Playlist · Cardinal TV{% endblock %}
+{% block title %}Ordre des diapositives · Cardinal TV{% endblock %}
 
-{% block page_title %}Playlist des médias{% endblock %}
+{% block page_title %}Ordre des diapositives{% endblock %}
 {% block page_subtitle %}
   <p class="page-subtitle">Réorganisez, activez/désactivez et prévisualisez vos médias.</p>
 {% endblock %}
@@ -16,4 +16,42 @@
 
 {% block modals %}
   {% include "partials/modals.html" %}
+  <div id="upload-modal" class="media-modal upload-modal hidden" role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
+    <div class="media-modal-backdrop" data-upload-modal-close></div>
+    <div class="media-modal-content upload-modal-content">
+      <button type="button" class="media-modal-close" id="upload-modal-close" data-upload-modal-close aria-label="Fermer">×</button>
+      <div class="media-modal-inner upload-modal-inner">
+        <section class="upload-section upload-section--modal" id="upload-section">
+          <div class="section-header">
+            <div>
+              <h2 id="upload-modal-title">T&eacute;l&eacute;verser une nouvelle slide</h2>
+              <p class="playlist-subtitle">Ajoutez des fichiers &agrave; l'ordre des diapositives.</p>
+            </div>
+          </div>
+          <div class="section-content">
+            <form id="upload-form" class="upload-inline">
+              <label for="file-input" id="drop-zone">
+                <span class="drop-zone-title">Cliquez ou d&eacute;posez vos fichiers</span>
+                <span class="drop-zone-subtitle">Images, vid&eacute;os, PDF ou documents compatibles.</span>
+              </label>
+              <input id="file-input" name="files" type="file" multiple />
+              <div id="upload-preview" class="upload-preview hidden"></div>
+              <div id="upload-progress" class="upload-progress hidden">
+                <div id="upload-progress-bar" class="upload-progress-bar"></div>
+                <span id="upload-progress-text">0%</span>
+              </div>
+              <div id="upload-feedback" class="upload-feedback hidden">
+                <span id="upload-feedback-icon"></span>
+                <div>
+                  <strong id="upload-feedback-title"></strong>
+                  <p id="upload-feedback-subtitle"></p>
+                </div>
+              </div>
+              <button type="submit" class="primary-button">T&eacute;l&eacute;verser</button>
+            </form>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
 {% endblock %}

@@ -14,17 +14,17 @@
     .page-subtitle,.playlist-subtitle,.employees-row .meta{color:rgba(226,232,240,.72)}
     .card{background:rgba(16,26,44,.94);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}
     .employees-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
-    .employees-row{padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.04)}
+    .employees-row{min-height:88px;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.04)}
     .employees-list-header,.employee-top,.employee-main,.employees-item-actions{display:flex;gap:10px}
     .employees-list-header,.employee-top{justify-content:space-between;align-items:center}
-    .employee-main{align-items:center;min-width:0}.employees-row .info{min-width:0}
+    .employee-main{align-items:center;min-width:0}.employees-row .info{min-width:0}.employees-row .info strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .employee-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 44px;overflow:hidden;background:rgba(255,255,255,.1);font-weight:700}
     .employee-avatar img{width:100%;height:100%;object-fit:cover;display:block}
     .employees-row .meta{display:block;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .primary-button,.secondary-button{min-height:38px;border-radius:8px;border:1px solid rgba(255,255,255,.16);padding:8px 12px;color:#f8fafc;background:rgba(255,255,255,.08);font:inherit;font-weight:600}
-    .primary-button{background:#f06595;border-color:transparent}.icon-button{width:38px;padding-inline:0}.employee-edit-panel{overflow:hidden;max-height:0}
+    .primary-button{background:#f06595;border-color:transparent}.icon-button,.employee-action-button{width:38px;height:38px;min-height:38px;padding:0;display:inline-flex;align-items:center;justify-content:center}.employee-edit-panel{overflow:hidden;max-height:0}
     @media (min-width:1081px){body.app-shell{display:grid;grid-template-columns:280px 1fr}.app-sidebar{display:block;min-height:100vh;padding:20px;background:rgba(5,9,18,.96);border-right:1px solid rgba(255,255,255,.08)}.app-surface{padding:32px}}
-    @media (max-width:760px){.employees-list-header,.employee-top{align-items:stretch;flex-direction:column}.employees-item-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.employees-row .meta{white-space:normal;overflow:visible}}
+    @media (max-width:760px){.employees-list-header{align-items:stretch;flex-direction:column}.employee-top{align-items:center}.employees-item-actions{display:flex;justify-content:flex-end}.employees-row .meta{white-space:nowrap;overflow:hidden}}
   </style>
   {{ super() }}
 {% endblock %}

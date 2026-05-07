@@ -37,8 +37,8 @@
                     </div>
                   </div>
                   <div class="employees-item-actions">
-                    <button type="button" class="secondary-button">Modifier</button>
-                    <button type="button" class="secondary-button danger">Supprimer</button>
+                    <button type="button" class="secondary-button employee-action-button" aria-label="Modifier {{ employee.name }}" title="Modifier">✎</button>
+                    <button type="button" class="secondary-button danger employee-action-button" aria-label="Supprimer {{ employee.name }}" title="Supprimer">×</button>
                     <button type="button" class="secondary-button icon-button" {% if loop.first %}disabled{% endif %}>▲</button>
                     <button type="button" class="secondary-button icon-button" {% if loop.last %}disabled{% endif %}>▼</button>
                   </div>

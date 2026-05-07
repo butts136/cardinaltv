@@ -29,7 +29,6 @@
       {% set endpoint = request.endpoint or "" %}
 {% set diapo_endpoints = [
         'main.slideshow_overview',
-        'main.upload',
         'main.playlist',
         'main.employees',
         'main.team',
@@ -43,6 +42,7 @@
         'main.temporary',
       ] %}
 {% set fetes_endpoints = [
+        'main.team',
         'main.birthday',
         'main.time_change',
         'main.christmas',
@@ -72,18 +72,17 @@
           >
             Vue générale
           </a>
-          <a class="nav-sublink {% if endpoint == 'main.upload' %}is-active{% endif %}" href="{{ url_for('main.upload') }}">Téléversement</a>
-          <a class="nav-sublink {% if endpoint == 'main.playlist' %}is-active{% endif %}" href="{{ url_for('main.playlist') }}">Playlist</a>
+          <a class="nav-sublink {% if endpoint == 'main.playlist' %}is-active{% endif %}" href="{{ url_for('main.playlist') }}">Ordre des diapositives</a>
           <a class="nav-sublink {% if endpoint == 'main.employees' %}is-active{% endif %}" href="{{ url_for('main.employees') }}">Employés</a>
-          <a class="nav-sublink {% if endpoint == 'main.team' %}is-active{% endif %}" href="{{ url_for('main.team') }}">Notre Équipe</a>
           <a class="nav-sublink {% if endpoint == 'main.info_bands' %}is-active{% endif %}" href="{{ url_for('main.info_bands') }}">Bandes informatives</a>
 
           <div class="nav-submenu {% if endpoint in fetes_endpoints %}is-expanded{% endif %}">
             <button type="button" class="nav-submenu-toggle {% if endpoint in fetes_endpoints %}is-active{% endif %}" aria-expanded="{{ 'true' if endpoint in fetes_endpoints else 'false' }}">
-              <span>Fêtes et évènements</span>
+              <span>Diapositive Dynamique</span>
               <span class="nav-submenu-arrow">▼</span>
             </button>
             <div class="nav-submenu-content {% if endpoint in fetes_endpoints %}is-open{% endif %}">
+              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.team' %}is-active{% endif %}" href="{{ url_for('main.team') }}">Notre Équipe</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.birthday' %}is-active{% endif %}" href="{{ url_for('main.birthday') }}">Anniversaire</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.time_change' %}is-active{% endif %}" href="{{ url_for('main.time_change') }}">Changement d'heure</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.christmas' %}is-active{% endif %}" href="{{ url_for('main.christmas') }}">Noël</a>
@@ -123,7 +122,7 @@
         </div>
         <div class="sidebar-meta-row">
           <span class="meta-label">Serveur</span>
-          <span class="meta-value">Port 39010</span>
+          <span class="meta-value">Port 39015</span>
         </div>
       </div>
     </aside>

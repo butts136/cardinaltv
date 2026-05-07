@@ -5531,40 +5531,59 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
         </span>
       `;
     };
+    const formatPeriod = (day, key, tempKey, feelsKey) => {
+      const period = day?.periods?.[key] || {};
+      const iconLabel = period.icon ? `<span class="forecast-period-icon">${period.icon}</span>` : "";
+      const tempValue = period.temperature ?? day?.[tempKey];
+      const feelsValue = period.feels_like ?? day?.[feelsKey];
+      return `${iconLabel}${formatTemp(tempValue, feelsValue)}`;
+    };
+    const formatForecastPeriod = (day, key, tempKey, feelsKey) => {
+      const period = day?.periods?.[key] || {};
+      const iconLabel = period.icon || WEATHER_ICONS[period.condition] || WEATHER_ICONS.default;
+      const tempValue = period.temperature ?? day?.[tempKey];
+      const feelsValue = period.feels_like ?? day?.[feelsKey];
+      return `<span class="forecast-period"><span class="forecast-period-icon">${iconLabel}</span><span>${formatTemp(tempValue, feelsValue)}</span></span>`;
+    };
+    const formatRange = (max, min) => {
+      const maxLabel = max != null ? Math.round(max) : "--";
+      const minLabel = min != null ? Math.round(min) : "--";
+      return `${maxLabel}/${minLabel}°`;
+    };
 
-    if (todayForecast?.temp_day !== undefined) {
-      const tempDay = document.createElement("div");
-      tempDay.className = "weather-detail";
-      tempDay.innerHTML = `<span class="detail-label">Jour</span><span class="detail-value">${formatTemp(todayForecast.temp_day, todayForecast.feels_day)}</span>`;
-      details.appendChild(tempDay);
+    if (todayForecast?.temp_morning !== undefined || todayForecast?.periods?.morning) {
+      const tempMorning = document.createElement("div");
+      tempMorning.className = "weather-detail";
+      tempMorning.innerHTML = `<span class="detail-label">Matin</span><span class="detail-value">${formatPeriod(todayForecast, "morning", "temp_morning", "feels_morning")}</span>`;
+      details.appendChild(tempMorning);
+    }
+
+    if (todayForecast?.temp_afternoon !== undefined || todayForecast?.periods?.afternoon) {
+      const tempAfternoon = document.createElement("div");
+      tempAfternoon.className = "weather-detail";
+      tempAfternoon.innerHTML = `<span class="detail-label">Après-midi</span><span class="detail-value">${formatPeriod(todayForecast, "afternoon", "temp_afternoon", "feels_afternoon")}</span>`;
+      details.appendChild(tempAfternoon);
     }
 
     if (todayForecast?.temp_evening !== undefined) {
       const tempEvening = document.createElement("div");
       tempEvening.className = "weather-detail";
-      tempEvening.innerHTML = `<span class="detail-label">Soir</span><span class="detail-value">${formatTemp(todayForecast.temp_evening, todayForecast.feels_evening)}</span>`;
+      tempEvening.innerHTML = `<span class="detail-label">Soir</span><span class="detail-value">${formatPeriod(todayForecast, "evening", "temp_evening", "feels_evening")}</span>`;
       details.appendChild(tempEvening);
     }
 
     if (todayForecast?.temp_night !== undefined) {
       const tempNight = document.createElement("div");
       tempNight.className = "weather-detail";
-      tempNight.innerHTML = `<span class="detail-label">Nuit</span><span class="detail-value">${formatTemp(todayForecast.temp_night, todayForecast.feels_night)}</span>`;
+      tempNight.innerHTML = `<span class="detail-label">Nuit</span><span class="detail-value">${formatPeriod(todayForecast, "night", "temp_night", "feels_night")}</span>`;
       details.appendChild(tempNight);
     }
 
     if (current.temp_max !== undefined || current.temp_min !== undefined) {
       const range = document.createElement("div");
       range.className = "weather-detail";
-      const maxLabel = current.temp_max != null ? Math.round(current.temp_max) : "--";
-      const minLabel = current.temp_min != null ? Math.round(current.temp_min) : "--";
-      range.innerHTML = `<span class="detail-label">Max</span><span class="detail-value">${maxLabel}°C</span>`;
+      range.innerHTML = `<span class="detail-label">Max/Min</span><span class="detail-value">${formatRange(current.temp_max, current.temp_min)}C</span>`;
       details.appendChild(range);
-
-      const min = document.createElement("div");
-      min.className = "weather-detail";
-      min.innerHTML = `<span class="detail-label">Min</span><span class="detail-value">${minLabel}°C</span>`;
-      details.appendChild(min);
     }
 
     if (settings.show_humidity && current.humidity !== undefined) {
@@ -5590,12 +5609,11 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
       const rows = data.forecast.slice(1, (settings.forecast_days || 5) + 1).map((day) => `
         <tr>
           <td class="forecast-cell weekday">${day.weekday || "--"}</td>
-          <td class="forecast-cell icon">${day.icon || WEATHER_ICONS[day.condition] || WEATHER_ICONS.default}</td>
-          <td class="forecast-cell number">${formatTemp(day.temp_day, day.feels_day)}</td>
-          <td class="forecast-cell number">${formatTemp(day.temp_evening, day.feels_evening)}</td>
-          <td class="forecast-cell number">${formatTemp(day.temp_night, day.feels_night)}</td>
-          <td class="forecast-cell number">${day.temp_max != null ? Math.round(day.temp_max) : "--"}°</td>
-          <td class="forecast-cell number">${day.temp_min != null ? Math.round(day.temp_min) : "--"}°</td>
+          <td class="forecast-cell number">${formatForecastPeriod(day, "morning", "temp_morning", "feels_morning")}</td>
+          <td class="forecast-cell number">${formatForecastPeriod(day, "afternoon", "temp_afternoon", "feels_afternoon")}</td>
+          <td class="forecast-cell number">${formatForecastPeriod(day, "evening", "temp_evening", "feels_evening")}</td>
+          <td class="forecast-cell number">${formatForecastPeriod(day, "night", "temp_night", "feels_night")}</td>
+          <td class="forecast-cell number">${formatRange(day.temp_max, day.temp_min)}</td>
           <td class="forecast-cell number">${day.wind_max != null ? `${Math.round(day.wind_max)} km/h${day.wind_peak ? ` (${day.wind_peak})` : ""}` : "-- km/h"}</td>
         </tr>
       `).join("");
@@ -5607,23 +5625,21 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
         <table class="forecast-table">
           <colgroup>
             <col class="col-day" />
-            <col class="col-icon" />
             <col class="col-temp" />
             <col class="col-temp" />
             <col class="col-temp" />
-            <col class="col-max" />
-            <col class="col-min" />
+            <col class="col-temp" />
+            <col class="col-range" />
             <col class="col-wind" />
           </colgroup>
           <thead>
             <tr>
               <th>Jour</th>
-              <th></th>
-              <th>Jour</th>
+              <th>Matin</th>
+              <th>Après-midi</th>
               <th>Soir</th>
               <th>Nuit</th>
-              <th>Max</th>
-              <th>Min</th>
+              <th>Max/Min</th>
               <th>Vent</th>
             </tr>
           </thead>
