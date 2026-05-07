@@ -2,6 +2,33 @@
 
 {% block title %}Employés · Cardinal TV{% endblock %}
 
+{% block head_extra %}
+  <style>
+    *{box-sizing:border-box}
+    body.app-shell{margin:0;background:#050912;color:#f8fafc;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+    .app-surface{padding:16px;min-width:0}
+    .app-sidebar{display:none}
+    .page-header{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .page-title{display:flex;gap:10px}
+    .page-title h1,.card h2,.employees-list-header h3{margin:0}
+    .page-subtitle,.playlist-subtitle,.employees-row .meta{color:rgba(226,232,240,.72)}
+    .card{background:rgba(16,26,44,.94);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}
+    .employees-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+    .employees-row{padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.04)}
+    .employees-list-header,.employee-top,.employee-main,.employees-item-actions{display:flex;gap:10px}
+    .employees-list-header,.employee-top{justify-content:space-between;align-items:center}
+    .employee-main{align-items:center;min-width:0}.employees-row .info{min-width:0}
+    .employee-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 44px;overflow:hidden;background:rgba(255,255,255,.1);font-weight:700}
+    .employee-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+    .employees-row .meta{display:block;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .primary-button,.secondary-button{min-height:38px;border-radius:8px;border:1px solid rgba(255,255,255,.16);padding:8px 12px;color:#f8fafc;background:rgba(255,255,255,.08);font:inherit;font-weight:600}
+    .primary-button{background:#f06595;border-color:transparent}.icon-button{width:38px;padding-inline:0}.employee-edit-panel{overflow:hidden;max-height:0}
+    @media (min-width:1081px){body.app-shell{display:grid;grid-template-columns:280px 1fr}.app-sidebar{display:block;min-height:100vh;padding:20px;background:rgba(5,9,18,.96);border-right:1px solid rgba(255,255,255,.08)}.app-surface{padding:32px}}
+    @media (max-width:760px){.employees-list-header,.employee-top{align-items:stretch;flex-direction:column}.employees-item-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.employees-row .meta{white-space:normal;overflow:visible}}
+  </style>
+  {{ super() }}
+{% endblock %}
+
 {% block page_title %}Employés{% endblock %}
 {% block page_subtitle %}
   <p class="page-subtitle">Gérez la base d'employés utilisée pour les slides automatisées.</p>
@@ -16,4 +43,38 @@
 
 {% block modals %}
   {% include "partials/modals.html" %}
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    (function () {
+      const loadScript = (src, options = {}) =>
+        new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = src;
+          script.async = false;
+          if (options.type) script.type = options.type;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+
+      const loadAdminScripts = async () => {
+        try {
+          await loadScript("{{ url_for('static', filename='js/slideshow/constants.js') }}");
+          await loadScript("{{ url_for('static', filename='js/slideshow/birthday_config.js') }}");
+          await loadScript("{{ url_for('static', filename='js/slide_renderers.js') }}");
+          await loadScript("{{ url_for('static', filename='js/slideshow_preview.js') }}");
+          await loadScript("{{ url_for('static', filename='js/app.js') }}?v=20260507-04", { type: "module" });
+        } catch (error) {
+          console.error("Impossible de charger les scripts de la page Employés:", error);
+        }
+      };
+
+      const schedule = window.requestIdleCallback
+        ? () => window.requestIdleCallback(loadAdminScripts, { timeout: 900 })
+        : () => window.setTimeout(loadAdminScripts, 80);
+      window.requestAnimationFrame(schedule);
+    })();
+  </script>
 {% endblock %}

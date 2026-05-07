@@ -12,8 +12,43 @@
           <h3>Liste des employ&eacute;s</h3>
           <button id="employees-add-button" class="primary-button" type="button">+ Ajouter un employ&eacute;</button>
         </div>
-        <ul id="employees-list" class="employees-list" aria-live="polite">
-          <li class="employees-row employees-empty">Chargement des employ&eacute;s...</li>
+        {% set employee_rows = initial_employee_rows|default([], true) %}
+        <ul id="employees-list" class="employees-list" aria-live="polite" data-ssr-ready="{{ '1' if employee_rows else '0' }}">
+          {% if employee_rows %}
+            {% for employee in employee_rows %}
+              <li class="employees-row" data-id="{{ employee.id }}">
+                <div class="employee-top">
+                  <div class="employee-main">
+                    <div class="employee-avatar">
+                      {% if employee.avatar_base64 %}
+                        <img
+                          src="data:image/*;base64,{{ employee.avatar_base64 }}"
+                          alt="Avatar de {{ employee.name }}"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      {% else %}
+                        {{ employee.initials }}
+                      {% endif %}
+                    </div>
+                    <div class="info">
+                      <strong>{{ employee.name }}</strong>
+                      <span class="meta">{{ employee.meta }}</span>
+                    </div>
+                  </div>
+                  <div class="employees-item-actions">
+                    <button type="button" class="secondary-button">Modifier</button>
+                    <button type="button" class="secondary-button danger">Supprimer</button>
+                    <button type="button" class="secondary-button icon-button" {% if loop.first %}disabled{% endif %}>▲</button>
+                    <button type="button" class="secondary-button icon-button" {% if loop.last %}disabled{% endif %}>▼</button>
+                  </div>
+                </div>
+                <div class="employee-edit-panel" style="max-height: 0px;"></div>
+              </li>
+            {% endfor %}
+          {% else %}
+            <li class="employees-row employees-empty">Aucun employ&eacute; enregistr&eacute;.</li>
+          {% endif %}
         </ul>
         <script
           id="employees-bootstrap-data"

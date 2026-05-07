@@ -2489,6 +2489,90 @@ def _years_of_service(created_at: Optional[str]) -> int:
     return years
 
 
+_EMPLOYEE_MONTH_LABELS = [
+    "janv.",
+    "févr.",
+    "mars",
+    "avr.",
+    "mai",
+    "juin",
+    "juil.",
+    "août",
+    "sept.",
+    "oct.",
+    "nov.",
+    "déc.",
+]
+
+
+def _employee_initials(name: str) -> str:
+    parts = [part for part in str(name or "").strip().split() if part]
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][:1].upper()
+    return f"{parts[0][:1]}{parts[1][:1]}".upper()
+
+
+def _format_employee_date_label(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    parts = raw.split("-")
+    if len(parts) == 3:
+        year, month, day = parts
+        if month and day:
+            month_index = _safe_int(month, 0) - 1
+            month_label = _EMPLOYEE_MONTH_LABELS[month_index] if 0 <= month_index < 12 else month
+            day_label = str(_safe_int(day, 0) or day)
+            return f"{day_label} {month_label} {year}".strip()
+    if len(parts) == 2:
+        month, day = parts
+        month_index = _safe_int(month, 0) - 1
+        month_label = _EMPLOYEE_MONTH_LABELS[month_index] if 0 <= month_index < 12 else month
+        day_label = str(_safe_int(day, 0) or day)
+        return f"{day_label} {month_label}".strip()
+    return raw
+
+
+def _employee_service_label(employee: Dict[str, Any]) -> str:
+    years = employee.get("years_of_service_years")
+    months = employee.get("years_of_service_months")
+    if not isinstance(years, int) or not isinstance(months, int):
+        return ""
+    parts: List[str] = []
+    if years > 0:
+        parts.append(f"{years} an{'s' if years > 1 else ''}")
+    if months > 0:
+        parts.append(f"{months} mois")
+    if not parts and (years > 0 or months > 0):
+        parts.append("0 mois")
+    return f"{' et '.join(parts)} de service" if parts else ""
+
+
+def _employee_summary_view(employee: Dict[str, Any]) -> Dict[str, Any]:
+    meta_parts = []
+    role = str(employee.get("role") or "").strip()
+    if role:
+        meta_parts.append(role)
+    service_label = _employee_service_label(employee)
+    if service_label:
+        meta_parts.append(service_label)
+    birthday_label = _format_employee_date_label(employee.get("birthday"))
+    if birthday_label:
+        meta_parts.append(f"Anniversaire: {birthday_label}")
+    hire_label = _format_employee_date_label(employee.get("hire_date"))
+    if hire_label:
+        meta_parts.append(f"Embauche: {hire_label}")
+    return {
+        "id": str(employee.get("id") or ""),
+        "name": str(employee.get("name") or "Employé"),
+        "avatar_base64": employee.get("avatar_base64") or "",
+        "initials": _employee_initials(str(employee.get("name") or "")),
+        "meta": " • ".join(meta_parts),
+    }
+
+
 class MediaStore:
     def __init__(self, state_path: Path) -> None:
         self._path = state_path
@@ -4118,10 +4202,13 @@ def playlist() -> Any:
 
 @bp.route("/diaporama/employes")
 def employees() -> Any:
+    initial_employees = employee_store.list_employees()
     return render_template(
         "employees.html",
-        initial_employees=employee_store.list_employees(),
+        initial_employees=initial_employees,
         initial_employees_etag=employee_store.etag_token(),
+        initial_employee_rows=[_employee_summary_view(employee) for employee in initial_employees],
+        defer_admin_css=True,
     )
 
 

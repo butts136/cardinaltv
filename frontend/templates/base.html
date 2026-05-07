@@ -7,10 +7,13 @@
     <meta name="description" content="Cardinal TV - Système de diaporama et affichage dynamique" />
     <title>{% block title %}Cardinal TV{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
-    <!-- Préchargement des ressources critiques -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260507-01' %}
+    {% if defer_admin_css|default(false) %}
+      <link rel="preload" href="{{ core_css_url }}" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+      <noscript><link rel="stylesheet" href="{{ core_css_url }}" /></noscript>
+    {% else %}
+      <link rel="stylesheet" href="{{ core_css_url }}" />
+    {% endif %}
     {% block head_extra %}{% endblock %}
   </head>
   <body class="app-shell {% block body_class %}{% endblock %}" data-base-url="{{ url_for('main.index') }}">
@@ -225,7 +228,7 @@
       <script defer src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}"></script>
       <script defer src="{{ url_for('static', filename='js/slide_renderers.js') }}"></script>
       <script defer src="{{ url_for('static', filename='js/slideshow_preview.js') }}"></script>
-      <script defer type="module" src="{{ url_for('static', filename='js/app.js') }}?v=20260426-02"></script>
+      <script defer type="module" src="{{ url_for('static', filename='js/app.js') }}?v=20260507-03"></script>
     {% endblock %}
   </body>
 </html>
