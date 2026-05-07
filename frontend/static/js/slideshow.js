@@ -5521,12 +5521,12 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
     details.className = "weather-details";
     const todayForecast = Array.isArray(data.forecast) ? data.forecast[0] : null;
 
-    const formatTemp = (value, feels) => {
+    const formatTemp = (value, feels, { unit = "°C" } = {}) => {
       const tempLabel = value != null ? Math.round(value) : "--";
       const feelsLabel = feels != null ? Math.round(feels) : "--";
       return `
         <span class="temp-split">
-          <span class="temp-value">${tempLabel}°C</span>
+          <span class="temp-value">${tempLabel}${unit}</span>
           <span class="temp-feels">(${feelsLabel})</span>
         </span>
       `;
@@ -5543,7 +5543,7 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
       const iconLabel = period.icon || WEATHER_ICONS[period.condition] || WEATHER_ICONS.default;
       const tempValue = period.temperature ?? day?.[tempKey];
       const feelsValue = period.feels_like ?? day?.[feelsKey];
-      return `<span class="forecast-period"><span class="forecast-period-icon">${iconLabel}</span><span>${formatTemp(tempValue, feelsValue)}</span></span>`;
+      return `<span class="forecast-period"><span class="forecast-period-icon">${iconLabel}</span>${formatTemp(tempValue, feelsValue, { unit: "" })}</span>`;
     };
     const formatRange = (max, min) => {
       const maxLabel = max != null ? Math.round(max) : "--";

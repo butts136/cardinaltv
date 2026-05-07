@@ -160,12 +160,12 @@
     if (weatherLocationLabel) weatherLocationLabel.textContent = weatherData.location || locationName?.value || '—';
     const todayForecast = Array.isArray(weatherData.forecast) ? weatherData.forecast[0] : null;
 
-    const formatTemp = (value, feels) => {
+    const formatTemp = (value, feels, { unit = '°C' } = {}) => {
       const tempLabel = value != null ? Math.round(value) : '--';
       const feelsLabel = feels != null ? Math.round(feels) : '--';
       return `
         <span class="temp-split">
-          <span class="temp-value">${tempLabel}°C</span>
+          <span class="temp-value">${tempLabel}${unit}</span>
           <span class="temp-feels">(${feelsLabel})</span>
         </span>
       `;
@@ -241,14 +241,14 @@
     const formatTemp = (value, feels) => {
       const tempLabel = value != null ? Math.round(value) : '--';
       const feelsLabel = feels != null ? Math.round(feels) : '--';
-      return `${tempLabel} <span class="temp-feels">(${feelsLabel})</span>`;
+      return `<span class="temp-split"><span class="temp-value">${tempLabel}</span><span class="temp-feels">(${feelsLabel})</span></span>`;
     };
     const formatPeriod = (day, key, tempKey, feelsKey) => {
       const period = day?.periods?.[key] || {};
       const icon = period.icon || '🌤️';
       const temp = period.temperature ?? day?.[tempKey];
       const feels = period.feels_like ?? day?.[feelsKey];
-      return `<span class="forecast-period"><span class="forecast-period-icon">${icon}</span><span>${formatTemp(temp, feels)}</span></span>`;
+      return `<span class="forecast-period"><span class="forecast-period-icon">${icon}</span>${formatTemp(temp, feels)}</span>`;
     };
     const formatRange = (max, min) => {
       const maxLabel = max != null ? Math.round(max) : '--';

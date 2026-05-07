@@ -6142,7 +6142,8 @@ details.collapsible:not([open]) .birthday-text-footer {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
+  white-space: nowrap;
 }
 
 .forecast-period-icon {
@@ -6165,12 +6166,19 @@ details.collapsible:not([open]) .birthday-text-footer {
 }
 
 .temp-split {
-  display: grid;
-  grid-template-columns: 4.5ch 5.5ch;
+  display: inline-flex;
   align-items: baseline;
-  gap: 0.6rem;
+  gap: 0.08em;
   justify-content: center;
-  justify-items: center;
+  white-space: nowrap;
+}
+
+.detail-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18em;
+  white-space: nowrap;
 }
 
 .temp-value {
