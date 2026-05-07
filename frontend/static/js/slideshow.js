@@ -5524,12 +5524,7 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
     const formatTemp = (value, feels, { unit = "°C" } = {}) => {
       const tempLabel = value != null ? Math.round(value) : "--";
       const feelsLabel = feels != null ? Math.round(feels) : "--";
-      return `
-        <span class="temp-split">
-          <span class="temp-value">${tempLabel}${unit}</span>
-          <span class="temp-feels">(${feelsLabel})</span>
-        </span>
-      `;
+      return `<span class="temp-split"><span class="temp-value">${tempLabel}${unit}</span><span class="temp-feels">(${feelsLabel})</span></span>`;
     };
     const formatPeriod = (day, key, tempKey, feelsKey) => {
       const period = day?.periods?.[key] || {};
