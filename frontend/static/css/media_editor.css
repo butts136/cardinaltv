@@ -5110,6 +5110,156 @@ details.collapsible:not([open]) .birthday-text-footer {
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.7);
 }
+
+@media (max-width: 760px) {
+  .playlist-section .section-header,
+  .employees-section .section-header,
+  .team-section .section-header,
+  .upload-section .section-header {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .playlist-section .playlist-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    padding: 10px 0 14px;
+  }
+
+  .playlist-section .playlist-actions button,
+  .playlist-section .media-card-actions button,
+  .employees-item-actions button {
+    width: 100%;
+    min-height: 42px;
+  }
+
+  .playlist-section .media-list {
+    gap: 0.75rem;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) {
+    padding: 0.8rem;
+    border-radius: 12px;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) .media-card-header--with-thumb {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) .order-column,
+  .playlist-section .media-card:not(.auto-slide-card) .media-card-header-actions {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) .order-buttons {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) .title-thumb-row {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .playlist-section .compact-thumb,
+  .playlist-section .title-thumb-row .thumb-wrapper {
+    width: 100%;
+    flex: 0 0 auto;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) .media-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .playlist-section .media-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .playlist-archived-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .playlist-archived-header .secondary-button {
+    width: 100%;
+    white-space: normal;
+  }
+
+  .employees-list-column {
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .employees-list-header,
+  .employee-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .employees-list-header .primary-button {
+    width: 100%;
+  }
+
+  .employees-row {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .employee-main {
+    align-items: flex-start;
+  }
+
+  .employee-avatar {
+    width: 42px;
+    height: 42px;
+  }
+
+  .employees-row .meta {
+    white-space: normal;
+    overflow: visible;
+  }
+
+  .employees-item-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .employee-inline-row {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-edit-panel.open {
+    padding-inline: 0;
+  }
+
+  .employee-modal-content {
+    width: min(96vw, 600px);
+    max-height: 92vh;
+  }
+
+  .section-stack {
+    padding: 16px;
+    max-height: 68vh;
+  }
+}
+
+@media (max-width: 430px) {
+  .playlist-section .playlist-actions,
+  .playlist-section .media-card-actions,
+  .employees-item-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .team-section input[type="color"] {
   appearance: none;
   -webkit-appearance: none;

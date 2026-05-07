@@ -240,6 +240,8 @@ let customSlideSettings = null;
 let customSlides = [];
 let autoSlideDisplayableMap = null;
 let employeesSignature = "";
+let employeesETag = "";
+let employeesRefreshTimer = 0;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const buildArray = (value) => (Array.isArray(value) ? value.slice() : []);
@@ -732,6 +734,7 @@ window.CardinalApp = {
 };
 const LIVE_EDITOR_ACTIVE = Boolean(document.querySelector("[data-editor-kind]"));
 const initialEmployeesData = readBootstrapJSON("employees-bootstrap-data", null);
+employeesETag = document.getElementById("employees-bootstrap-data")?.dataset?.etag || employeesETag;
 let employeesBootstrapHydrated = false;
 
 // ---------------------------------------------------------------------------
@@ -6766,15 +6769,15 @@ const uploadEmployeeAvatarInline = async (employeeId, file) => {
 
 const renderEmployeesList = () => {
   if (!employeesList) return;
-  employeesList.innerHTML = "";
   if (!employees.length) {
     const empty = document.createElement("li");
     empty.className = "employees-row employees-empty";
     empty.textContent = "Aucun employé enregistré.";
-    employeesList.appendChild(empty);
+    employeesList.replaceChildren(empty);
     return;
   }
 
+  const fragment = document.createDocumentFragment();
   employees.forEach((emp, index) => {
     const li = document.createElement("li");
     li.className = "employees-row";
@@ -6789,6 +6792,8 @@ const renderEmployeesList = () => {
       const img = document.createElement("img");
       img.src = `data:image/*;base64,${emp.avatar_base64}`;
       img.alt = `Avatar de ${emp.name || "Employé"}`;
+      img.loading = "lazy";
+      img.decoding = "async";
       avatar.appendChild(img);
     } else {
       avatar.textContent = initialsFromName(emp.name || "");
@@ -6829,12 +6834,17 @@ const renderEmployeesList = () => {
     const editPanel = document.createElement("div");
     editPanel.className = "employee-edit-panel";
     editPanel.style.maxHeight = "0px";
+    let editPanelHydrated = false;
 
     const togglePanel = (open) => {
       const willOpen = typeof open === "boolean" ? open : !editPanel.classList.contains("open");
       editPanel.classList.toggle("open", willOpen);
       editPanel.style.maxHeight = willOpen ? `${editPanel.scrollHeight}px` : "0px";
     };
+
+    const hydrateEditPanel = () => {
+      if (editPanelHydrated) return;
+      editPanelHydrated = true;
 
     const nameInput = document.createElement("input");
     nameInput.type = "text";
@@ -6956,8 +6966,12 @@ const renderEmployeesList = () => {
 
     form.append(birthdayGroup, hireGroup, avatarGroup, saveBtn);
     editPanel.append(form);
+    };
 
-    editBtn.addEventListener("click", () => togglePanel());
+    editBtn.addEventListener("click", () => {
+      hydrateEditPanel();
+      togglePanel();
+    });
 
     const delBtn = document.createElement("button");
     delBtn.type = "button";
@@ -6995,8 +7009,10 @@ const renderEmployeesList = () => {
     topRow.append(main, actions);
 
     li.append(topRow, editPanel);
-    employeesList.appendChild(li);
+    fragment.appendChild(li);
   });
+
+  employeesList.replaceChildren(fragment);
 };
 
 const applyEmployeesState = (list) => {
@@ -7011,6 +7027,19 @@ const applyEmployeesState = (list) => {
   renderTeamPreview();
 };
 
+const scheduleEmployeesBackgroundRefresh = () => {
+  if (employeesRefreshTimer) return;
+  const refresh = () => {
+    employeesRefreshTimer = 0;
+    void loadEmployees({ forceRefresh: true });
+  };
+  if ("requestIdleCallback" in window) {
+    employeesRefreshTimer = window.requestIdleCallback(refresh, { timeout: 1800 });
+    return;
+  }
+  employeesRefreshTimer = window.setTimeout(refresh, 350);
+};
+
 const loadEmployees = async ({ useBootstrap = false, forceRefresh = false, backgroundRefresh = false } = {}) => {
   const canUseBootstrap =
     useBootstrap &&
@@ -7022,13 +7051,29 @@ const loadEmployees = async ({ useBootstrap = false, forceRefresh = false, backg
     employeesBootstrapHydrated = true;
     applyEmployeesState(initialEmployeesData);
     if (backgroundRefresh) {
-      void loadEmployees({ forceRefresh: true });
+      scheduleEmployeesBackgroundRefresh();
     }
     return;
   }
 
   try {
-    const data = await fetchJSON("api/employees");
+    const headers = {};
+    if (employeesETag) {
+      headers["If-None-Match"] =
+        employeesETag.startsWith('"') || employeesETag.startsWith("W/")
+          ? employeesETag
+          : `"${employeesETag}"`;
+    }
+    const response = await fetch(buildApiUrl("api/employees"), { headers });
+    if (response.status === 304) {
+      return;
+    }
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "Requête échouée");
+    }
+    employeesETag = response.headers.get("ETag") || employeesETag;
+    const data = await response.json();
     applyEmployeesState(data.employees);
   } catch (error) {
     console.error("Erreur lors du chargement des employés:", error);

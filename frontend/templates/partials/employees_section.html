@@ -15,7 +15,11 @@
         <ul id="employees-list" class="employees-list" aria-live="polite">
           <li class="employees-row employees-empty">Chargement des employ&eacute;s...</li>
         </ul>
-        <script id="employees-bootstrap-data" type="application/json">{{ initial_employees|default([], true)|tojson }}</script>
+        <script
+          id="employees-bootstrap-data"
+          type="application/json"
+          data-etag="{{ initial_employees_etag|default('', true) }}"
+        >{{ initial_employees|default([], true)|tojson }}</script>
       </div>
     </div>
   </div>

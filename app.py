@@ -3476,6 +3476,14 @@ class EmployeeStore:
             )
             return copy.deepcopy(ordered)
 
+    def etag_token(self) -> str:
+        with self._lock:
+            self._maybe_reload_from_disk()
+            signature = self._json_signature
+            if signature:
+                return f"employees-{signature[0]}-{signature[1]}"
+            return f"employees-empty-{len(self._employees)}"
+
     def add_employee(self, name: str, birthday: str, role: str, description: str, hire_date: str | None = None) -> Dict[str, Any]:
         name = (name or "").strip()
         if not name:
@@ -4110,7 +4118,11 @@ def playlist() -> Any:
 
 @bp.route("/diaporama/employes")
 def employees() -> Any:
-    return render_template("employees.html", initial_employees=employee_store.list_employees())
+    return render_template(
+        "employees.html",
+        initial_employees=employee_store.list_employees(),
+        initial_employees_etag=employee_store.etag_token(),
+    )
 
 
 @bp.route("/diaporama/team")
@@ -5729,8 +5741,24 @@ def log_key_event() -> Any:
 
 @bp.get("/api/employees")
 def api_list_employees() -> Any:
+    etag = employee_store.etag_token()
+    if request.if_none_match.contains(etag):
+        response = make_response("", 304)
+        response.set_etag(etag)
+        response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+        return response
     employees = employee_store.list_employees()
-    return _json_response_with_etag({"employees": employees})
+    body = json.dumps(
+        {"employees": employees},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    response = app.response_class(f"{body}\n", mimetype="application/json")
+    response.set_etag(etag)
+    response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+    return response
 
 
 @bp.post("/api/employees")
