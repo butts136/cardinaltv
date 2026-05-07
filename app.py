@@ -4207,7 +4207,6 @@ def employees() -> Any:
         "employees.html",
         initial_employees=initial_employees,
         initial_employees_etag=employee_store.etag_token(),
-        initial_employee_rows=[_employee_summary_view(employee) for employee in initial_employees],
         defer_admin_css=True,
     )
 

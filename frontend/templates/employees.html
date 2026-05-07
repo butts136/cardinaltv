@@ -48,6 +48,111 @@
 {% block scripts %}
   <script>
     (function () {
+      const list = document.getElementById("employees-list");
+      const dataEl = document.getElementById("employees-bootstrap-data");
+      if (!list || !dataEl) return;
+      const formatDate = (value) => {
+        if (!value) return "";
+        const parts = String(value).split("-").filter(Boolean);
+        if (parts.length >= 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        if (parts.length === 2) return `${parts[1]}/${parts[0]}`;
+        return value;
+      };
+      const serviceLabel = (employee) => {
+        const service = employee.service || employee.department || "";
+        return service ? `Service: ${service}` : "";
+      };
+      const escapeHTML = (value) =>
+        String(value ?? "").replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[char]);
+      const initials = (name) =>
+        String(name || "")
+          .trim()
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part.charAt(0).toUpperCase())
+          .join("") || "E";
+      const metaFor = (employee) => {
+        const bits = [];
+        if (employee.role) bits.push(employee.role);
+        const service = serviceLabel(employee);
+        if (service) bits.push(service);
+        const birthday = formatDate(employee.birthday);
+        if (birthday) bits.push(`Anniversaire: ${birthday}`);
+        const hireDate = formatDate(employee.hire_date);
+        if (hireDate) bits.push(`Embauche: ${hireDate}`);
+        return bits.join(" • ");
+      };
+      const render = (employees) => {
+        if (!employees.length) {
+          list.innerHTML = '<li class="employees-row employees-empty">Aucun employ&eacute; enregistr&eacute;.</li>';
+          return;
+        }
+        list.replaceChildren(...employees.map((employee, index) => {
+          const row = document.createElement("li");
+          row.className = "employees-row";
+          row.dataset.id = employee.id;
+          const safeName = escapeHTML(employee.name || "Employé");
+          const safeMeta = escapeHTML(metaFor(employee));
+          const avatar = employee.avatar_base64
+            ? `<img src="data:image/*;base64,${escapeHTML(employee.avatar_base64)}" alt="Avatar de ${safeName}" loading="lazy" decoding="async" />`
+            : escapeHTML(initials(employee.name));
+          row.innerHTML = `
+            <div class="employee-top">
+              <div class="employee-main">
+                <div class="employee-avatar">${avatar}</div>
+                <div class="info">
+                  <strong>${safeName}</strong>
+                  <span class="meta">${safeMeta}</span>
+                </div>
+              </div>
+              <div class="employees-item-actions">
+                <button type="button" class="secondary-button employee-action-button" aria-label="Modifier ${safeName}" title="Modifier">✎</button>
+                <button type="button" class="secondary-button danger employee-action-button" aria-label="Supprimer ${safeName}" title="Supprimer">×</button>
+                <button type="button" class="secondary-button icon-button" data-fast-move="-1" ${index === 0 ? "disabled" : ""}>▲</button>
+                <button type="button" class="secondary-button icon-button" data-fast-move="1" ${index === employees.length - 1 ? "disabled" : ""}>▼</button>
+              </div>
+            </div>
+            <div class="employee-edit-panel" style="max-height: 0px;"></div>
+          `;
+          return row;
+        }));
+        list.dataset.jsReady = "1";
+      };
+      let employees = [];
+      try {
+        employees = JSON.parse(dataEl.textContent || "[]");
+      } catch {
+        employees = [];
+      }
+      render(employees);
+      list.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-fast-move]");
+        if (!button) return;
+        const row = button.closest(".employees-row");
+        const id = row?.dataset?.id;
+        const index = employees.findIndex((employee) => String(employee.id) === String(id));
+        const target = index + Number(button.dataset.fastMove || 0);
+        if (index < 0 || target < 0 || target >= employees.length) return;
+        const next = employees.slice();
+        const [item] = next.splice(index, 1);
+        next.splice(target, 0, item);
+        employees = next;
+        render(employees);
+        fetch("api/employees/reorder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order: employees.map((employee) => employee.id) }),
+        }).catch(() => {});
+      });
+    })();
+
+    (function () {
       const loadScript = (src, options = {}) =>
         new Promise((resolve, reject) => {
           const script = document.createElement("script");
