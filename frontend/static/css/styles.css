@@ -3252,6 +3252,44 @@ input[type="datetime-local"]:focus {
   line-height: 1;
 }
 
+.weather-slide-overlay .forecast-cell-wind {
+  text-align: left;
+}
+
+.weather-slide-overlay .forecast-wind {
+  --wind-level: 0;
+  --wind-hue: 120;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  min-width: 8.2ch;
+  white-space: nowrap;
+  color: #f8fafc;
+}
+
+.weather-slide-overlay .wind-dot {
+  width: 0.72em;
+  height: 0.72em;
+  flex: 0 0 0.72em;
+  border-radius: 999px;
+  background: hsl(var(--wind-hue), 86%, 52%);
+  box-shadow: 0 0 0.55em hsla(var(--wind-hue), 86%, 52%, 0.55);
+}
+
+.weather-slide-overlay .wind-warning {
+  color: #ff4d4d;
+  font-weight: 900;
+  animation: weather-wind-warning 0.75s steps(2, start) infinite;
+  filter: drop-shadow(0 0 0.35rem rgba(255, 77, 77, 0.7));
+}
+
+@keyframes weather-wind-warning {
+  50% {
+    opacity: 0.2;
+  }
+}
+
 .weather-slide-overlay .forecast-cell.weekday {
   font-weight: 700;
 }

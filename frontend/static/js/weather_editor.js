@@ -250,6 +250,23 @@
       const minLabel = min != null ? Math.round(min) : '--';
       return `${maxLabel}/${minLabel}°`;
     };
+    const formatWind = (day) => {
+      const speed = Number(day?.wind_max);
+      if (!Number.isFinite(speed)) {
+        return '<span class="forecast-wind forecast-wind--empty">-- km/h</span>';
+      }
+      const rounded = Math.round(speed);
+      const level = Math.max(0, Math.min(100, ((speed - 30) / 30) * 100));
+      const hue = Math.round(120 - level * 1.2);
+      const warning = speed > 80 ? '<span class="wind-warning" aria-label="Avertissement vent fort">⚠</span>' : '';
+      return `
+        <span class="forecast-wind" style="--wind-level: ${level}; --wind-hue: ${hue}">
+          <span class="wind-dot" aria-hidden="true"></span>
+          <span class="wind-value">${rounded} km/h</span>
+          ${warning}
+        </span>
+      `;
+    };
 
     const rows = forecast.map(day => `
       <tr>
@@ -259,7 +276,7 @@
         <td class="forecast-cell number">${formatPeriod(day, 'evening', 'temp_evening', 'feels_evening')}</td>
         <td class="forecast-cell number">${formatPeriod(day, 'night', 'temp_night', 'feels_night')}</td>
         <td class="forecast-cell number">${formatRange(day.temp_max, day.temp_min)}</td>
-        <td class="forecast-cell number">${day.wind_max != null ? `${Math.round(day.wind_max)} km/h${day.wind_peak ? ` (${day.wind_peak})` : ''}` : '-- km/h'}</td>
+        <td class="forecast-cell number forecast-cell-wind">${formatWind(day)}</td>
       </tr>
     `).join('');
 

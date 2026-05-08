@@ -8365,6 +8365,36 @@ WEATHER_CONDITION_ICONS = {
     "default": "🌤️",
 }
 
+MOON_PHASE_ICONS = ("🌑", "🌘", "🌓", "🌖", "🌕", "🌖", "🌓", "🌘")
+
+
+def _moon_phase_icon(date_value: str) -> str:
+    try:
+        dt = datetime.strptime(date_value, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        dt = _now().replace(tzinfo=None)
+    # Reference new moon: 2000-01-06 18:14 UTC. Good enough for display icons.
+    reference = datetime(2000, 1, 6, 18, 14)
+    days = (dt - reference).total_seconds() / 86400
+    phase = (days % 29.530588853) / 29.530588853
+    return MOON_PHASE_ICONS[int(round(phase * 8)) % 8]
+
+
+def _weather_period_icon(condition: str, period: str, date_value: str) -> str:
+    if period not in {"evening", "night"}:
+        return WEATHER_CONDITION_ICONS.get(condition, "🌤️")
+
+    moon = _moon_phase_icon(date_value)
+    if condition == "sunny":
+        return moon
+    if condition == "cloudy":
+        return f"{moon}☁️"
+    if condition == "foggy":
+        return f"{moon}🌫️"
+    if condition == "windy":
+        return f"{moon}💨"
+    return WEATHER_CONDITION_ICONS.get(condition, moon)
+
 
 def _get_current_season() -> str:
     """Retourne la saison actuelle."""
@@ -8651,25 +8681,25 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
                     "temperature": temp_morning,
                     "feels_like": feels_morning,
                     "condition": period_conditions.get("morning", day_condition),
-                    "icon": WEATHER_CONDITION_ICONS.get(period_conditions.get("morning", day_condition), "🌤️"),
+                    "icon": _weather_period_icon(period_conditions.get("morning", day_condition), "morning", dates[i]),
                 },
                 "afternoon": {
                     "temperature": temp_afternoon,
                     "feels_like": feels_afternoon,
                     "condition": period_conditions.get("afternoon", day_condition),
-                    "icon": WEATHER_CONDITION_ICONS.get(period_conditions.get("afternoon", day_condition), "🌤️"),
+                    "icon": _weather_period_icon(period_conditions.get("afternoon", day_condition), "afternoon", dates[i]),
                 },
                 "evening": {
                     "temperature": temp_evening,
                     "feels_like": feels_evening,
                     "condition": period_conditions.get("evening", day_condition),
-                    "icon": WEATHER_CONDITION_ICONS.get(period_conditions.get("evening", day_condition), "🌤️"),
+                    "icon": _weather_period_icon(period_conditions.get("evening", day_condition), "evening", dates[i]),
                 },
                 "night": {
                     "temperature": temp_night,
                     "feels_like": feels_night,
                     "condition": period_conditions.get("night", day_condition),
-                    "icon": WEATHER_CONDITION_ICONS.get(period_conditions.get("night", day_condition), "🌤️"),
+                    "icon": _weather_period_icon(period_conditions.get("night", day_condition), "night", dates[i]),
                 },
             },
             "wind_max": wind_max,
