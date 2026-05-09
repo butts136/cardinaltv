@@ -96,6 +96,19 @@
 
   const CHRISTMAS_TEXT_OPTIONS_DEFAULT = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" };
 
+  const VACATIONS_TEXT_OPTIONS_DEFAULT = {
+    ...BIRTHDAY_TEXT_OPTIONS_DEFAULT,
+    font_size_auto: false,
+    font_size: 62,
+    font_family: "Poppins",
+    width_percent: 88,
+    height_percent: 12,
+    color: "#ffffff",
+    bold: true,
+    line_height: 1,
+    offset_y_percent: -44,
+  };
+
   const DEFAULT_CHRISTMAS_SLIDE = {
     enabled: false,
     order_index: 0,
@@ -117,6 +130,33 @@
       { text: "🎄 Joyeux Noël ! 🎄", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, font_size: 64, color: "#f8fafc", offset_y_percent: -15 } },
       { text: "Plus que [days_until] [days_label] avant Noël !", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, font_size: 36, color: "#fbbf24" } },
       { text: "Toute l'équipe vous souhaite de joyeuses fêtes !", options: { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, font_size: 28, color: "#f8fafc", offset_y_percent: 15 } },
+    ],
+  };
+
+  const DEFAULT_VACATIONS_SLIDE = {
+    enabled: false,
+    order_index: 0,
+    duration: 20,
+    background_url: null,
+    background_mimetype: null,
+    background_path: null,
+    initial_full_weeks: 8,
+    months_to_show: 12,
+    scroll_start_delay_ms: 4500,
+    scroll_speed_px_per_second: 26,
+    pause_at_bottom_ms: 5000,
+    pause_at_top_ms: 3000,
+    text1: "Calendrier des vacances",
+    text2: "",
+    text3: "",
+    text1_options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT },
+    text2_options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT, font_size: 34, bold: false, offset_y_percent: 34 },
+    text3_options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT, font_size: 28, bold: false, offset_y_percent: 42 },
+    lines: [
+      {
+        text: "Calendrier des vacances",
+        options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT },
+      },
     ],
   };
 
@@ -192,6 +232,7 @@
   const BIRTHDAY_SLIDE_ID = "__birthday_slide_auto__";
   const TIME_CHANGE_SLIDE_ID = "__time_change_slide_auto__";
   const CHRISTMAS_SLIDE_ID = "__christmas_slide_auto__";
+  const VACATIONS_SLIDE_ID = "__vacations_slide_auto__";
   const CUSTOM_SLIDE_ID = "__custom_slide_auto__";
   const NEWS_SLIDE_ID = "__news_slide_auto__";
   const WEATHER_SLIDE_ID = "__weather_slide_auto__";
@@ -265,6 +306,7 @@
     DEFAULT_OVERLAY,
     DEFAULT_TEAM_SLIDE,
     DEFAULT_TIME_CHANGE_SLIDE,
+    DEFAULT_VACATIONS_SLIDE,
     DEFAULT_WEATHER_SLIDE,
     NEWS_SLIDE_ID,
     TEAM_CARDS_PER_PAGE,
@@ -275,6 +317,8 @@
     TEAM_TITLE_HOLD_MS,
     TIME_CHANGE_SLIDE_ID,
     TIME_CHANGE_TEXT_OPTIONS_DEFAULT,
+    VACATIONS_SLIDE_ID,
+    VACATIONS_TEXT_OPTIONS_DEFAULT,
     WEATHER_SLIDE_ID,
     WEEKDAY_KEYS,
     WEEKDAY_LABELS_FR,

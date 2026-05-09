@@ -35,6 +35,7 @@
         'main.custom_slides',
         'main.custom_slide',
         'main.birthday',
+  'main.vacations',
         'main.time_change',
         'main.christmas',
         'main.news',
@@ -44,6 +45,7 @@
 {% set fetes_endpoints = [
         'main.team',
         'main.birthday',
+  'main.vacations',
         'main.time_change',
         'main.christmas',
         'main.news',
@@ -84,6 +86,7 @@
             <div class="nav-submenu-content {% if endpoint in fetes_endpoints %}is-open{% endif %}">
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.team' %}is-active{% endif %}" href="{{ url_for('main.team') }}">Notre Équipe</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.birthday' %}is-active{% endif %}" href="{{ url_for('main.birthday') }}">Anniversaire</a>
+              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.vacations' %}is-active{% endif %}" href="{{ url_for('main.vacations') }}">Vacances</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.time_change' %}is-active{% endif %}" href="{{ url_for('main.time_change') }}">Changement d'heure</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.christmas' %}is-active{% endif %}" href="{{ url_for('main.christmas') }}">Noël</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.news' %}is-active{% endif %}" href="{{ url_for('main.news') }}">Nouvelles</a>

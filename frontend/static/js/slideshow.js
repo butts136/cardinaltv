@@ -49,6 +49,9 @@ const normalizeSingleSlideType = (value) => {
     case "christmas":
     case "noel":
       return "christmas";
+    case "vacations":
+    case "vacances":
+      return "vacations";
     case "custom":
       return "custom";
     case "test":
@@ -156,6 +159,7 @@ const {
   DEFAULT_OVERLAY,
   DEFAULT_TEAM_SLIDE,
   DEFAULT_TIME_CHANGE_SLIDE,
+  DEFAULT_VACATIONS_SLIDE,
   DEFAULT_WEATHER_SLIDE,
   NEWS_SLIDE_ID,
   TEAM_CARDS_PER_PAGE,
@@ -166,6 +170,8 @@ const {
   TEAM_TITLE_HOLD_MS,
   TIME_CHANGE_SLIDE_ID,
   TIME_CHANGE_TEXT_OPTIONS_DEFAULT,
+  VACATIONS_SLIDE_ID,
+  VACATIONS_TEXT_OPTIONS_DEFAULT,
   WEATHER_SLIDE_ID,
   WEEKDAY_KEYS,
   WEEKDAY_LABELS_FR,
@@ -257,6 +263,7 @@ let timeChangeInfo = null;
 let lastTimeChangeFetch = 0;
 const TIME_CHANGE_REFRESH_MS = 60 * 60 * 1000;
 let christmasSlideSettings = { ...DEFAULT_CHRISTMAS_SLIDE };
+let vacationsSlideSettings = { ...DEFAULT_VACATIONS_SLIDE };
 let christmasInfo = null;
 let lastChristmasFetch = 0;
 const CHRISTMAS_REFRESH_MS = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -331,6 +338,69 @@ const normalizeOverlayFontFamily = (fontFamily) => {
 const getBirthdayFontStack = (fontFamily) => {
   const primary = normalizeOverlayFontFamily(fontFamily);
   return `"${primary}", "CardinalPoppins", "Poppins", "Helvetica Neue", Arial, sans-serif`;
+};
+const VACATIONS_WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const vacationsMonthFormatter = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+});
+const vacationsRangeFormatter = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: "UTC",
+  month: "short",
+  year: "numeric",
+});
+const vacationsDayFormatter = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "short",
+});
+const capitalizeFrench = (value) => {
+  const text = String(value || "").trim();
+  return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : "";
+};
+const startOfUtcDay = (value) => {
+  const source = value instanceof Date ? value : new Date(value);
+  return new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), source.getUTCDate()));
+};
+const startOfUtcMonth = (value) => {
+  const source = startOfUtcDay(value);
+  return new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), 1));
+};
+const addUtcDays = (value, days) => {
+  const source = startOfUtcDay(value);
+  source.setUTCDate(source.getUTCDate() + Number(days || 0));
+  return source;
+};
+const addUtcMonths = (value, months) => {
+  const source = startOfUtcDay(value);
+  return new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth() + Number(months || 0), 1));
+};
+const endOfUtcMonth = (value) => addUtcDays(addUtcMonths(startOfUtcMonth(value), 1), -1);
+const startOfUtcWeekMonday = (value) => {
+  const source = startOfUtcDay(value);
+  const weekday = source.getUTCDay() || 7;
+  return addUtcDays(source, 1 - weekday);
+};
+const endOfUtcWeekSunday = (value) => addUtcDays(startOfUtcWeekMonday(value), 6);
+const toIsoUtcDate = (value) => startOfUtcDay(value).toISOString().slice(0, 10);
+const parseIsoUtcDate = (value) => {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const parsed = new Date(`${text}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+const hashString = (value) => {
+  const text = String(value || "");
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+};
+const colorForVacationEntry = (employeeId, vacationId, fallbackIndex = 0) => {
+  const hue = hashString(`${employeeId || "employee"}:${vacationId || fallbackIndex}`) % 360;
+  return `hsl(${hue} 68% 58%)`;
 };
 let overlayFontReadyPromise = null;
 const ensureCoreOverlayFontsLoaded = async () => {
@@ -1979,6 +2049,10 @@ const refreshOverlaySettings = async () => {
         ...DEFAULT_CHRISTMAS_SLIDE,
         ...(data && data.christmas_slide ? data.christmas_slide : {}),
       };
+      vacationsSlideSettings = {
+        ...DEFAULT_VACATIONS_SLIDE,
+        ...(data && data.vacations_slide ? data.vacations_slide : {}),
+      };
       testSlideSettings = {
         ...DEFAULT_CUSTOM_SLIDE,
         ...(data && data.test_slide ? data.test_slide : {}),
@@ -2955,6 +3029,9 @@ const detectMediaKind = (item) => {
   if (item.christmas_slide) {
     return "christmas";
   }
+  if (item.vacations_slide) {
+    return "vacations";
+  }
   if (item.custom_slide) {
     return "custom";
   }
@@ -3018,6 +3095,10 @@ const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
   if (type === "team") {
     await ensureTeamEmployeesData();
     return buildTeamSlideItem();
+  }
+  if (type === "vacations") {
+    const payload = await getVacationsDisplayPayload({ previewFallback: true, forceEmployees: true });
+    return buildVacationsSlideItem(payload);
   }
   if (type === "time-change") {
     const change = await fetchTimeChangeInfo(true);
@@ -4814,6 +4895,228 @@ const normalizeChristmasLines = (settings) => {
     }));
 };
 
+const buildVacationsPreviewEmployees = () => {
+  const today = startOfUtcDay(new Date());
+  const thisMonth = startOfUtcMonth(today);
+  const nextMonth = addUtcMonths(thisMonth, 1);
+  const thirdMonth = addUtcMonths(thisMonth, 2);
+  return [
+    {
+      id: "preview_sophie",
+      name: "Sophie Bernard",
+      role: "Direction",
+      vacations: [
+        {
+          id: "preview_sophie_1",
+          start_date: toIsoUtcDate(addUtcDays(thisMonth, 6)),
+          end_date: toIsoUtcDate(addUtcDays(thisMonth, 12)),
+          label: "Vacances d'été",
+          notes: "Exemple d'aperçu",
+        },
+      ],
+    },
+    {
+      id: "preview_marc",
+      name: "Marc Gagnon",
+      role: "Maintenance",
+      vacations: [
+        {
+          id: "preview_marc_1",
+          start_date: toIsoUtcDate(addUtcDays(nextMonth, 2)),
+          end_date: toIsoUtcDate(addUtcDays(nextMonth, 9)),
+          label: "Congé annuel",
+          notes: "Exemple d'aperçu",
+        },
+      ],
+    },
+    {
+      id: "preview_chloe",
+      name: "Chloé Tremblay",
+      role: "RH",
+      vacations: [
+        {
+          id: "preview_chloe_1",
+          start_date: toIsoUtcDate(addUtcDays(thirdMonth, 10)),
+          end_date: toIsoUtcDate(addUtcDays(thirdMonth, 18)),
+          label: "Relâche",
+          notes: "Exemple d'aperçu",
+        },
+      ],
+    },
+  ];
+};
+
+const buildVacationsDisplayPayload = (employeesList, settings, { previewFallback = false } = {}) => {
+  let sourceEmployees = Array.isArray(employeesList) && employeesList.length
+    ? employeesList
+    : [];
+  if (previewFallback) {
+    const hasPreviewableVacations = sourceEmployees.some((employee) => (
+      Array.isArray(employee?.vacations) && employee.vacations.length
+    ));
+    if (!hasPreviewableVacations) {
+      sourceEmployees = buildVacationsPreviewEmployees();
+    }
+  }
+  const normalizedSettings = {
+    ...DEFAULT_VACATIONS_SLIDE,
+    ...(settings || {}),
+  };
+  const monthsToShow = Math.max(1, Math.min(24, Number(normalizedSettings.months_to_show) || DEFAULT_VACATIONS_SLIDE.months_to_show || 12));
+  const rangeStart = startOfUtcMonth(new Date());
+  const rangeEnd = addUtcDays(addUtcMonths(rangeStart, monthsToShow), -1);
+
+  const entries = [];
+  sourceEmployees.forEach((employee, employeeIndex) => {
+    const periods = Array.isArray(employee?.vacations) ? employee.vacations : [];
+    periods.forEach((vacation, periodIndex) => {
+      const rawStart = parseIsoUtcDate(vacation?.start_date || vacation?.start);
+      const rawEnd = parseIsoUtcDate(vacation?.end_date || vacation?.end);
+      if (!rawStart || !rawEnd) return;
+      const startDate = rawStart <= rawEnd ? rawStart : rawEnd;
+      const endDate = rawStart <= rawEnd ? rawEnd : rawStart;
+      if (endDate < rangeStart || startDate > rangeEnd) return;
+      const employeeId = String(employee?.id || `employee_${employeeIndex}`);
+      const entryId = String(vacation?.id || `${employeeId}_${periodIndex}`);
+      const startIso = toIsoUtcDate(startDate);
+      const endIso = toIsoUtcDate(endDate);
+      const rangeLabel = startIso === endIso
+        ? vacationsDayFormatter.format(startDate)
+        : `${vacationsDayFormatter.format(startDate)} au ${vacationsDayFormatter.format(endDate)}`;
+      entries.push({
+        id: entryId,
+        employeeId,
+        employeeName: String(employee?.name || `Employé ${employeeIndex + 1}`),
+        employeeRole: String(employee?.role || ""),
+        label: String(vacation?.label || "Vacances").trim() || "Vacances",
+        notes: String(vacation?.notes || "").trim(),
+        startDate,
+        endDate,
+        startIso,
+        endIso,
+        rangeLabel,
+        color: colorForVacationEntry(employeeId, entryId, periodIndex),
+      });
+    });
+  });
+
+  entries.sort((left, right) => {
+    if (left.startIso === right.startIso) {
+      if (left.endIso === right.endIso) {
+        return left.employeeName.localeCompare(right.employeeName, "fr", { sensitivity: "base" });
+      }
+      return left.endIso.localeCompare(right.endIso);
+    }
+    return left.startIso.localeCompare(right.startIso);
+  });
+
+  const months = Array.from({ length: monthsToShow }, (_, index) => {
+    const monthStart = addUtcMonths(rangeStart, index);
+    const monthEnd = endOfUtcMonth(monthStart);
+    const gridStart = startOfUtcWeekMonday(monthStart);
+    const gridEnd = endOfUtcWeekSunday(monthEnd);
+    const dayCounts = new Map();
+    const monthEntries = entries
+      .filter((entry) => entry.endDate >= monthStart && entry.startDate <= monthEnd)
+      .map((entry) => {
+        const segmentStart = entry.startDate > monthStart ? startOfUtcDay(entry.startDate) : startOfUtcDay(monthStart);
+        const segmentEnd = entry.endDate < monthEnd ? startOfUtcDay(entry.endDate) : startOfUtcDay(monthEnd);
+        for (let cursor = segmentStart; cursor <= segmentEnd; cursor = addUtcDays(cursor, 1)) {
+          const iso = toIsoUtcDate(cursor);
+          dayCounts.set(iso, (dayCounts.get(iso) || 0) + 1);
+        }
+        const segmentStartIso = toIsoUtcDate(segmentStart);
+        const segmentEndIso = toIsoUtcDate(segmentEnd);
+        const monthRangeLabel = segmentStartIso === segmentEndIso
+          ? vacationsDayFormatter.format(segmentStart)
+          : `${vacationsDayFormatter.format(segmentStart)} au ${vacationsDayFormatter.format(segmentEnd)}`;
+        return {
+          ...entry,
+          monthRangeLabel,
+          segmentStartIso,
+          segmentEndIso,
+        };
+      });
+
+    const days = [];
+    for (let cursor = gridStart; cursor <= gridEnd; cursor = addUtcDays(cursor, 1)) {
+      const iso = toIsoUtcDate(cursor);
+      days.push({
+        iso,
+        dayNumber: cursor.getUTCDate(),
+        inMonth: cursor.getUTCMonth() === monthStart.getUTCMonth(),
+        isToday: iso === toIsoUtcDate(new Date()),
+        isWeekend: [0, 6].includes(cursor.getUTCDay()),
+        vacationCount: dayCounts.get(iso) || 0,
+      });
+    }
+
+    return {
+      key: toIsoUtcDate(monthStart),
+      label: capitalizeFrench(vacationsMonthFormatter.format(monthStart)),
+      entryCount: monthEntries.length,
+      days,
+      entries: monthEntries,
+    };
+  });
+
+  const uniqueEmployees = new Set(entries.map((entry) => entry.employeeId));
+  const rangeLabel = `${capitalizeFrench(vacationsRangeFormatter.format(rangeStart))} - ${capitalizeFrench(vacationsRangeFormatter.format(addUtcMonths(rangeStart, monthsToShow - 1)))}`;
+
+  return {
+    entries,
+    months,
+    employeeCount: uniqueEmployees.size,
+    vacationCount: entries.length,
+    periodCount: entries.length,
+    monthRange: rangeLabel,
+    year: rangeStart.getUTCFullYear(),
+  };
+};
+
+const getVacationsDisplayPayload = async ({ previewFallback = false, forceEmployees = false } = {}) => {
+  const employees = await ensureTeamEmployeesData(forceEmployees);
+  return buildVacationsDisplayPayload(employees, vacationsSlideSettings || DEFAULT_VACATIONS_SLIDE, {
+    previewFallback,
+  });
+};
+
+const normalizeVacationsLines = (settings) => {
+  const base = Array.isArray(settings.lines) ? settings.lines : [];
+  const normalized = base
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      text: typeof entry.text === "string" ? entry.text : "",
+      options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT, ...(entry.options || {}) },
+    }))
+    .filter((entry) => (entry.text || "").trim().length);
+  if (normalized.length) return normalized;
+  const legacy = [
+    { text: settings.text1 || DEFAULT_VACATIONS_SLIDE.text1, options: settings.text1_options || {} },
+    { text: settings.text2 || DEFAULT_VACATIONS_SLIDE.text2, options: settings.text2_options || {} },
+    { text: settings.text3 || DEFAULT_VACATIONS_SLIDE.text3, options: settings.text3_options || {} },
+  ];
+  return legacy
+    .filter((entry) => (entry.text || "").trim().length)
+    .map((entry) => ({
+      text: entry.text,
+      options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT, ...(entry.options || {}) },
+    }));
+};
+
+const formatVacationsOverlayMessage = (template, payload) => {
+  const replacements = {
+    employee_count: payload?.employeeCount ?? 0,
+    vacation_count: payload?.vacationCount ?? 0,
+    period_count: payload?.periodCount ?? 0,
+    month_range: payload?.monthRange || "",
+    year: payload?.year || new Date().getFullYear(),
+  };
+  return String(template || "").replace(/\[([^\]]+)\]/g, (match, key) => (
+    replacements[key] !== undefined && replacements[key] !== null ? String(replacements[key]) : ""
+  ));
+};
+
 const fetchChristmasInfo = async (force = false) => {
   const now = Date.now();
   if (!force && christmasInfo && now - lastChristmasFetch < CHRISTMAS_REFRESH_MS) {
@@ -5709,6 +6012,340 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
   scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
+const renderVacationsSlide = (item) => {
+  currentVideo = null;
+  const settings = vacationsSlideSettings || DEFAULT_VACATIONS_SLIDE;
+  const payload = item.vacations_data || buildVacationsDisplayPayload([], settings, {
+    previewFallback: isEditorPreview || isPreviewMode,
+  });
+  const durationSeconds = Math.max(
+    1,
+    Math.round(Number(item.duration) || settings.duration || DEFAULT_VACATIONS_SLIDE.duration),
+  );
+
+  const viewport = document.createElement("div");
+  viewport.className = "vacations-slide-viewport";
+
+  const frame = document.createElement("div");
+  frame.className = "vacations-slide-frame";
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "vacations-slide-backdrop";
+  const bgUrl = item.background_url || settings.background_url;
+  const mime = (item.background_mimetype || settings.background_mimetype || "").toLowerCase();
+  const isVideo = isVideoBackground(bgUrl, mime);
+  if (bgUrl && isVideo) {
+    const video = document.createElement("video");
+    video.className = "vacations-slide-media vacations-slide-video";
+    video.src = bgUrl;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    setupBackgroundVideo(video, {
+      fallbackEl: backdrop,
+      fallbackClass: "vacations-slide-backdrop--fallback",
+      cacheUrl: bgUrl,
+      slideId: item.id || null,
+    });
+    backdrop.appendChild(video);
+    currentVideo = video;
+  } else if (bgUrl) {
+    const img = document.createElement("img");
+    img.className = "vacations-slide-media vacations-slide-image";
+    img.src = bgUrl;
+    img.alt = "Arrière-plan vacances";
+    setupBackgroundImage(img, { priority: "high" });
+    backdrop.appendChild(img);
+  } else {
+    backdrop.classList.add("vacations-slide-backdrop--fallback");
+  }
+
+  const shell = document.createElement("div");
+  shell.className = "vacations-slide-shell";
+
+  const topbar = document.createElement("div");
+  topbar.className = "vacations-slide-topbar";
+  const badge = document.createElement("div");
+  badge.className = "vacations-slide-badge";
+  badge.textContent = "Planification RH";
+  const stats = document.createElement("div");
+  stats.className = "vacations-slide-stats";
+  const buildStat = (label, value) => {
+    const chip = document.createElement("div");
+    chip.className = "vacations-slide-stat";
+    const valueEl = document.createElement("strong");
+    valueEl.textContent = String(value);
+    const labelEl = document.createElement("span");
+    labelEl.textContent = label;
+    chip.append(valueEl, labelEl);
+    return chip;
+  };
+  stats.append(
+    buildStat("Périodes", payload?.periodCount ?? 0),
+    buildStat("Employés", payload?.employeeCount ?? 0),
+    buildStat("Fenêtre", payload?.monthRange || "12 mois"),
+  );
+  topbar.append(badge, stats);
+
+  const scroller = document.createElement("div");
+  scroller.className = "vacations-slide-scroller";
+  const monthsGrid = document.createElement("div");
+  monthsGrid.className = "vacations-slide-months";
+
+  if (Array.isArray(payload?.months) && payload.months.length) {
+    payload.months.forEach((month) => {
+      const card = document.createElement("section");
+      card.className = "vacations-slide-month";
+
+      const header = document.createElement("div");
+      header.className = "vacations-slide-month-header";
+      const title = document.createElement("h3");
+      title.textContent = month.label || "";
+      const meta = document.createElement("span");
+      meta.className = "vacations-slide-month-meta";
+      meta.textContent = month.entryCount ? `${month.entryCount} période${month.entryCount > 1 ? "s" : ""}` : "Aucune période";
+      header.append(title, meta);
+
+      const weekdays = document.createElement("div");
+      weekdays.className = "vacations-slide-weekdays";
+      VACATIONS_WEEKDAY_LABELS.forEach((label) => {
+        const cell = document.createElement("span");
+        cell.textContent = label;
+        weekdays.appendChild(cell);
+      });
+
+      const days = document.createElement("div");
+      days.className = "vacations-slide-days";
+      (month.days || []).forEach((day) => {
+        const cell = document.createElement("div");
+        cell.className = "vacations-slide-day";
+        if (!day.inMonth) cell.classList.add("is-outside-month");
+        if (day.isToday) cell.classList.add("is-today");
+        if (day.isWeekend) cell.classList.add("is-weekend");
+        if (day.vacationCount) cell.classList.add("has-vacation");
+
+        const number = document.createElement("span");
+        number.className = "vacations-slide-day-number";
+        number.textContent = String(day.dayNumber || "");
+        cell.appendChild(number);
+
+        if (day.vacationCount) {
+          const badgeEl = document.createElement("span");
+          badgeEl.className = "vacations-slide-day-badge";
+          badgeEl.textContent = String(day.vacationCount);
+          cell.appendChild(badgeEl);
+        }
+        days.appendChild(cell);
+      });
+
+      const periodList = document.createElement("div");
+      periodList.className = "vacations-slide-period-list";
+      if (Array.isArray(month.entries) && month.entries.length) {
+        month.entries.forEach((entry) => {
+          const row = document.createElement("article");
+          row.className = "vacations-slide-period";
+          row.style.setProperty("--vacations-accent", entry.color || "#14b8a6");
+
+          const swatch = document.createElement("span");
+          swatch.className = "vacations-slide-period-swatch";
+
+          const content = document.createElement("div");
+          content.className = "vacations-slide-period-content";
+          const titleRow = document.createElement("div");
+          titleRow.className = "vacations-slide-period-title";
+          const employee = document.createElement("strong");
+          employee.textContent = entry.employeeName || "Employé";
+          const label = document.createElement("span");
+          label.textContent = entry.label || "Vacances";
+          titleRow.append(employee, label);
+
+          const metaRow = document.createElement("div");
+          metaRow.className = "vacations-slide-period-meta";
+          metaRow.textContent = entry.monthRangeLabel || entry.rangeLabel || "";
+
+          content.append(titleRow, metaRow);
+          if (entry.notes) {
+            const note = document.createElement("p");
+            note.className = "vacations-slide-period-note";
+            note.textContent = entry.notes;
+            content.appendChild(note);
+          }
+
+          row.append(swatch, content);
+          periodList.appendChild(row);
+        });
+      } else {
+        const empty = document.createElement("p");
+        empty.className = "vacations-slide-period-empty";
+        empty.textContent = "Aucune absence planifiée sur ce mois.";
+        periodList.appendChild(empty);
+      }
+
+      card.append(header, weekdays, days, periodList);
+      monthsGrid.appendChild(card);
+    });
+  }
+
+  if (!payload?.entries?.length) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "vacations-slide-empty";
+    const emptyTitle = document.createElement("strong");
+    emptyTitle.textContent = "Aucune période de vacances dans la fenêtre affichée.";
+    const emptyText = document.createElement("span");
+    emptyText.textContent = payload?.monthRange || "Modifiez les périodes depuis l’admin pour alimenter le calendrier.";
+    emptyState.append(emptyTitle, emptyText);
+    monthsGrid.prepend(emptyState);
+  }
+
+  scroller.appendChild(monthsGrid);
+  shell.append(topbar, scroller);
+  frame.append(backdrop, shell);
+
+  if (!isEditorPreview) {
+    const overlay = document.createElement("div");
+    overlay.className = "vacations-slide-overlay";
+    const linesWrapper = document.createElement("div");
+    linesWrapper.className = "vacations-lines";
+    const overlayWidth = BASE_CANVAS_WIDTH;
+    const overlayHeight = BASE_CANVAS_HEIGHT;
+    const lines = normalizeVacationsLines(settings);
+    lines.forEach((line, index) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = `vacations-line ${index === 0 ? "vacations-line--primary" : ""}`.trim();
+      const opts = line.options || VACATIONS_TEXT_OPTIONS_DEFAULT;
+      const content = document.createElement("span");
+      content.className = "vacations-line-content";
+      content.textContent = formatVacationsOverlayMessage(line.text || "", payload);
+      wrapper.style.color = opts.color || "#ffffff";
+      wrapper.style.fontWeight = opts.bold ? "700" : "400";
+      wrapper.style.fontStyle = opts.italic ? "italic" : "normal";
+      wrapper.style.textDecoration = opts.underline ? "underline" : "none";
+      wrapper.style.fontSize = `${opts.font_size || VACATIONS_TEXT_OPTIONS_DEFAULT.font_size}px`;
+      applyLineBackground(wrapper, opts);
+      const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
+      const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
+      wrapper.style.left = `${Math.min(100, Math.max(0, 50 + offsetX))}%`;
+      wrapper.style.top = `${Math.min(100, Math.max(0, 50 - offsetY))}%`;
+      const renderedText = content.textContent || "";
+      if (sharedRenderers?.layoutOverlayTextLine) {
+        sharedRenderers.layoutOverlayTextLine(
+          wrapper,
+          content,
+          renderedText,
+          line.text || "",
+          opts,
+          overlayWidth,
+          overlayHeight,
+        );
+      } else {
+        layoutOverlayLine(wrapper, content, renderedText, opts, overlayWidth, overlayHeight);
+      }
+      wrapper.appendChild(content);
+      linesWrapper.appendChild(wrapper);
+    });
+    overlay.appendChild(linesWrapper);
+    frame.appendChild(overlay);
+  }
+
+  viewport.appendChild(frame);
+
+  const startScrollAnimation = () => {
+    if (!scroller.isConnected) return;
+    const firstDayCell = monthsGrid.querySelector(".vacations-slide-day");
+    const initialWeeks = Math.max(
+      1,
+      Number(settings.initial_full_weeks) || DEFAULT_VACATIONS_SLIDE.initial_full_weeks || 8,
+    );
+    const dayHeight = firstDayCell?.getBoundingClientRect?.().height || 48;
+    const targetHeight = Math.max(360, Math.round(dayHeight * initialWeeks + 280));
+    scroller.style.height = `${Math.min(monthsGrid.scrollHeight, targetHeight)}px`;
+
+    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    if (maxScroll <= 6) {
+      scroller.scrollTop = 0;
+      return;
+    }
+
+    const speed = Math.max(
+      1,
+      Number(settings.scroll_speed_px_per_second) || DEFAULT_VACATIONS_SLIDE.scroll_speed_px_per_second || 26,
+    );
+    const startDelay = Math.max(
+      0,
+      Number(settings.scroll_start_delay_ms) || DEFAULT_VACATIONS_SLIDE.scroll_start_delay_ms || 4500,
+    );
+    const pauseBottom = Math.max(
+      0,
+      Number(settings.pause_at_bottom_ms) || DEFAULT_VACATIONS_SLIDE.pause_at_bottom_ms || 5000,
+    );
+    const pauseTop = Math.max(
+      0,
+      Number(settings.pause_at_top_ms) || DEFAULT_VACATIONS_SLIDE.pause_at_top_ms || 3000,
+    );
+    const slideId = item.id || null;
+
+    let direction = 1;
+    let phase = "delay";
+    let phaseStartedAt = performance.now();
+    let lastTick = performance.now();
+
+    const step = (timestamp) => {
+      if (!scroller.isConnected) return;
+      if (slideId && currentId && currentId !== slideId) return;
+
+      if (phase === "delay") {
+        if (timestamp - phaseStartedAt >= startDelay) {
+          phase = "scroll";
+          lastTick = timestamp;
+        }
+      } else if (phase === "pause-bottom") {
+        if (timestamp - phaseStartedAt >= pauseBottom) {
+          direction = -1;
+          phase = "scroll";
+          lastTick = timestamp;
+        }
+      } else if (phase === "pause-top") {
+        if (timestamp - phaseStartedAt >= pauseTop) {
+          direction = 1;
+          phase = "scroll";
+          lastTick = timestamp;
+        }
+      } else {
+        const deltaSeconds = Math.max(0, timestamp - lastTick) / 1000;
+        lastTick = timestamp;
+        scroller.scrollTop += direction * speed * deltaSeconds;
+        if (direction > 0 && scroller.scrollTop >= maxScroll - 1) {
+          scroller.scrollTop = maxScroll;
+          phase = "pause-bottom";
+          phaseStartedAt = timestamp;
+        } else if (direction < 0 && scroller.scrollTop <= 1) {
+          scroller.scrollTop = 0;
+          phase = "pause-top";
+          phaseStartedAt = timestamp;
+        }
+      }
+
+      requestAnimationFrame(step);
+    };
+
+    requestAnimationFrame(step);
+  };
+
+  const swapPromise = setMediaContent(viewport, { waitForReady: true });
+  if (swapPromise && typeof swapPromise.then === "function") {
+    swapPromise.then(() => {
+      markSlideVisible(item);
+      requestAnimationFrame(startScrollAnimation);
+    });
+  } else {
+    markSlideVisible(item);
+    requestAnimationFrame(startScrollAnimation);
+  }
+  scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
+};
+
 const renderTimeChangeSlide = (item) => {
   currentVideo = null;
   const settings = timeChangeSlideSettings || DEFAULT_TIME_CHANGE_SLIDE;
@@ -5937,6 +6574,30 @@ const buildChristmasSlideItem = (christmasData) => {
   };
 };
 
+const buildVacationsSlideItem = (payload) => {
+  const filename = vacationsSlideSettings.background_path || VACATIONS_SLIDE_ID;
+  const mimetype = vacationsSlideSettings.background_mimetype || "application/x-vacations-slide";
+  const duration = Math.max(
+    1,
+    Number(vacationsSlideSettings.duration) || DEFAULT_VACATIONS_SLIDE.duration,
+  );
+  return {
+    id: VACATIONS_SLIDE_ID,
+    vacations_slide: true,
+    original_name: "Vacances",
+    filename,
+    duration,
+    enabled: true,
+    skip_rounds: 0,
+    mimetype,
+    display_mimetype: mimetype,
+    background_url: vacationsSlideSettings.background_url || null,
+    background_mimetype: vacationsSlideSettings.background_mimetype || null,
+    order: Number(vacationsSlideSettings.order_index) || 0,
+    vacations_data: payload || buildVacationsDisplayPayload([], vacationsSlideSettings, { previewFallback: true }),
+  };
+};
+
 const fetchTestSlide = async (force = false) => {
   const now = Date.now();
   if (!force && testSlidePayload && now - lastTestSlideFetch < TEST_SLIDE_REFRESH_MS) {
@@ -6078,6 +6739,7 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     timeChangeData,
     christmasData,
     birthdayList,
+    vacationsData,
     teamEmployees,
     testData,
     customSlides,
@@ -6085,6 +6747,7 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
     timeChangeSlideSettings.enabled ? fetchTimeChangeInfo() : Promise.resolve(null),
     christmasSlideSettings.enabled ? fetchChristmasInfo() : Promise.resolve(null),
     birthdaySlideSettings.enabled ? ensureBirthdayEmployeesData() : Promise.resolve([]),
+    vacationsSlideSettings.enabled ? getVacationsDisplayPayload() : Promise.resolve(null),
     teamSlideSettings.enabled ? ensureTeamEmployeesData() : Promise.resolve([]),
     testSlideSettings.enabled ? fetchTestSlide() : Promise.resolve(null),
     fetchCustomSlidesList(),
@@ -6143,6 +6806,16 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
       autoEntries.push({
         ...teamItem,
         order: normalizedOrderIndex(teamSlideSettings.order_index),
+      });
+    }
+  }
+
+  if (vacationsSlideSettings.enabled) {
+    if (vacationsData?.entries?.length) {
+      const vacationsItem = buildVacationsSlideItem(vacationsData);
+      autoEntries.push({
+        ...vacationsItem,
+        order: normalizedOrderIndex(vacationsSlideSettings.order_index),
       });
     }
   }
@@ -6355,6 +7028,10 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
   }
   if (kind === "christmas") {
     renderChristmasSlide(item);
+    return;
+  }
+  if (kind === "vacations") {
+    renderVacationsSlide(item);
     return;
   }
   if (kind === "custom") {

@@ -147,6 +147,11 @@
           ...(slideshowDefaults.CHRISTMAS_TEXT_OPTIONS_DEFAULT || {}),
         };
       }
+      if (kind === "vacations") {
+        return {
+          ...(slideshowDefaults.VACATIONS_TEXT_OPTIONS_DEFAULT || {}),
+        };
+      }
       return {
         ...DEFAULT_LINE_OPTIONS,
         color:
@@ -272,6 +277,7 @@
       birthday: "birthday_slide",
       time_change: "time_change_slide",
       christmas: "christmas_slide",
+      vacations: "vacations_slide",
       custom: "custom_slide",
     };
     const createEditorAdapter = (kind, variant) => {
@@ -466,6 +472,8 @@
             ? "api/birthday-slide"
             : kind === "time_change"
             ? "api/time-change-slide"
+            : kind === "vacations"
+            ? "api/vacations-slide"
             : "api/christmas-slide";
 
         const listEndpoint = `${endpointPrefix}/backgrounds`;
@@ -1846,7 +1854,7 @@
     return { x: snappedX, y: snappedY };
   };
 
-  const OVERLAY_LAYOUT_KINDS = new Set(["birthday", "time_change", "christmas"]);
+  const OVERLAY_LAYOUT_KINDS = new Set(["birthday", "time_change", "christmas", "vacations"]);
 
   const getOverlayLayoutOptions = (card) => ({
     width_percent: Number(card?.dataset?.width) || DEFAULT_TEXT_SIZE.width,
@@ -3111,6 +3119,75 @@
         "[christmas_weekday]": info?.weekday_label || "",
         "[year]": year,
       },
+      };
+    };
+
+  const buildVacationsTokenContext = async () => {
+    const settings = (await editorAdapter.fetchSettings().catch(() => ({}))) || {};
+    const monthsToShow = Math.max(1, Math.min(24, Number(settings?.months_to_show) || 12));
+    const now = new Date();
+    const rangeStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+    const rangeEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + monthsToShow, 0));
+    let employees = await ensureEmployees();
+    const hasRealVacations = (Array.isArray(employees) ? employees : []).some((employee) => (
+      Array.isArray(employee?.vacations) && employee.vacations.length
+    ));
+    if (!hasRealVacations) {
+      const nextMonth = new Date(Date.UTC(rangeStart.getUTCFullYear(), rangeStart.getUTCMonth() + 1, 1));
+      const thirdMonth = new Date(Date.UTC(rangeStart.getUTCFullYear(), rangeStart.getUTCMonth() + 2, 1));
+      const toIso = (date) => date.toISOString().slice(0, 10);
+      employees = [
+        {
+          id: "preview_sophie",
+          name: "Sophie Bernard",
+          vacations: [{ id: "preview_sophie_1", start_date: toIso(new Date(rangeStart.getTime() + 6 * 86400000)), end_date: toIso(new Date(rangeStart.getTime() + 12 * 86400000)) }],
+        },
+        {
+          id: "preview_marc",
+          name: "Marc Gagnon",
+          vacations: [{ id: "preview_marc_1", start_date: toIso(new Date(nextMonth.getTime() + 2 * 86400000)), end_date: toIso(new Date(nextMonth.getTime() + 9 * 86400000)) }],
+        },
+        {
+          id: "preview_chloe",
+          name: "Chloe Tremblay",
+          vacations: [{ id: "preview_chloe_1", start_date: toIso(new Date(thirdMonth.getTime() + 10 * 86400000)), end_date: toIso(new Date(thirdMonth.getTime() + 18 * 86400000)) }],
+        },
+      ];
+    }
+    const entries = [];
+
+    (Array.isArray(employees) ? employees : []).forEach((employee) => {
+      const periods = Array.isArray(employee?.vacations) ? employee.vacations : [];
+      periods.forEach((vacation) => {
+        const start = parseEventDateString(vacation?.start_date || vacation?.start);
+        const end = parseEventDateString(vacation?.end_date || vacation?.end);
+        if (!start || !end) return;
+        const startDate = start <= end ? start : end;
+        const endDate = start <= end ? end : start;
+        if (endDate < rangeStart || startDate > rangeEnd) return;
+        entries.push({ employeeId: employee?.id || employee?.name || "", startDate, endDate });
+      });
+    });
+
+    const employeeCount = new Set(entries.map((entry) => entry.employeeId)).size;
+    const monthFormat = new Intl.DateTimeFormat("fr-CA", {
+      timeZone: "UTC",
+      month: "short",
+      year: "numeric",
+    });
+    const capitalize = (value) => String(value || "").replace(/^\p{Ll}/u, (char) => char.toUpperCase());
+    const monthRange = `${capitalize(monthFormat.format(rangeStart))} - ${capitalize(monthFormat.format(rangeEnd))}`;
+
+    return {
+      withinWindow: entries.length > 0,
+      mode: entries.length ? "live" : "next",
+      tokens: {
+        "[employee_count]": String(employeeCount),
+        "[vacation_count]": String(entries.length),
+        "[period_count]": String(entries.length),
+        "[month_range]": monthRange,
+        "[year]": String(rangeStart.getUTCFullYear()),
+      },
     };
   };
 
@@ -3130,13 +3207,15 @@
 
     tokenRefreshInFlight = (async () => {
       let context = { tokens: {}, withinWindow: null, mode: "live" };
-      if (editorKind === "birthday") {
-        context = await buildBirthdayTokenContext();
-      } else if (editorKind === "time_change") {
-        context = await buildTimeChangeTokenContext();
-      } else if (editorKind === "christmas") {
-        context = await buildChristmasTokenContext();
-      }
+        if (editorKind === "birthday") {
+          context = await buildBirthdayTokenContext();
+        } else if (editorKind === "time_change") {
+          context = await buildTimeChangeTokenContext();
+        } else if (editorKind === "christmas") {
+          context = await buildChristmasTokenContext();
+        } else if (editorKind === "vacations") {
+          context = await buildVacationsTokenContext();
+        }
       tokenPreview = { ...context, updatedAt: Date.now() };
       if (editorKind === "time_change") {
         updateTimeChangeNextSubtitle(context);

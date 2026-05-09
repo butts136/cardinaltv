@@ -66,6 +66,8 @@ TIME_CHANGE_SLIDE_ASSETS_DIR = DATA_DIR / "time_change" / "background"
 TIME_CHANGE_CONFIG_FILE = DATA_DIR / "time_change" / "config.json"
 CHRISTMAS_SLIDE_ASSETS_DIR = DATA_DIR / "christmas" / "background"
 CHRISTMAS_CONFIG_FILE = DATA_DIR / "christmas" / "config.json"
+VACATIONS_SLIDE_DIR = DATA_DIR / "vacations"
+VACATIONS_SLIDE_ASSETS_DIR = VACATIONS_SLIDE_DIR / "background"
 NEWS_SLIDE_DIR = DATA_DIR / "news"
 NEWS_CONFIG_FILE = NEWS_SLIDE_DIR / "news.json"
 LEGACY_NEWS_CONFIG_FILE = NEWS_SLIDE_DIR / "config.json"
@@ -333,6 +335,71 @@ DEFAULT_SETTINGS = {
             },
         ],
     },
+    "vacations_slide": {
+        "enabled": False,
+        "order_index": 0,
+        "duration": 20.0,
+        "background_path": None,
+        "background_mimetype": None,
+        "initial_full_weeks": 8,
+        "months_to_show": 12,
+        "scroll_start_delay_ms": 4500,
+        "scroll_speed_px_per_second": 26.0,
+        "pause_at_bottom_ms": 5000,
+        "pause_at_top_ms": 3000,
+        "text1": "Calendrier des vacances",
+        "text2": "",
+        "text3": "",
+        "text1_options": {
+            "font_size_auto": False,
+            "font_size": 62.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "font_family": "Poppins",
+            "width_percent": 88.0,
+            "height_percent": 12.0,
+            "color": "#ffffff",
+            "underline": False,
+            "bold": True,
+            "italic": False,
+            "letter_spacing": 0.0,
+            "line_height": 1.0,
+            "background_color": None,
+            "background_opacity": 0.0,
+            "offset_x_percent": 0.0,
+            "offset_y_percent": -44.0,
+            "curve": 0.0,
+            "angle": 0.0,
+        },
+        "text2_options": None,
+        "text3_options": None,
+        "lines": [
+            {
+                "text": "Calendrier des vacances",
+                "options": {
+                    "font_size_auto": False,
+                    "font_size": 62.0,
+                    "scale_x": 1.0,
+                    "scale_y": 1.0,
+                    "font_family": "Poppins",
+                    "width_percent": 88.0,
+                    "height_percent": 12.0,
+                    "color": "#ffffff",
+                    "underline": False,
+                    "bold": True,
+                    "italic": False,
+                    "letter_spacing": 0.0,
+                    "line_height": 1.0,
+                    "background_color": None,
+                    "background_opacity": 0.0,
+                    "offset_x_percent": 0.0,
+                    "offset_y_percent": -44.0,
+                    "curve": 0.0,
+                    "angle": 0.0,
+                },
+            },
+        ],
+    },
     "news_slide": {
         "enabled": False,
         "order_index": 0,
@@ -498,6 +565,7 @@ TIME_CHANGE_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 TIME_CHANGE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 CHRISTMAS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+VACATIONS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 NEWS_SLIDE_DIR.mkdir(parents=True, exist_ok=True)
 WEATHER_SLIDE_DIR.mkdir(parents=True, exist_ok=True)
 WEATHER_BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
@@ -614,6 +682,28 @@ TIME_CHANGE_TEXT_OPTIONS_DEFAULT = {
     "angle": 0.0,
 }
 TIME_CHANGE_MAX_LINES = BIRTHDAY_MAX_LINES
+VACATIONS_TEXT_OPTIONS_DEFAULT = {
+    "font_size_auto": False,
+    "font_size": 62.0,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
+    "font_family": "Poppins",
+    "width_percent": 88.0,
+    "height_percent": 12.0,
+    "color": "#ffffff",
+    "underline": False,
+    "bold": True,
+    "italic": False,
+    "letter_spacing": 0.0,
+    "line_height": 1.0,
+    "background_color": None,
+    "background_opacity": 0.0,
+    "offset_x_percent": 0.0,
+    "offset_y_percent": -44.0,
+    "curve": 0.0,
+    "angle": 0.0,
+}
+VACATIONS_MAX_LINES = BIRTHDAY_MAX_LINES
 
 
 def _strip_html(raw: Any) -> str:
@@ -1398,6 +1488,192 @@ def _normalize_time_change_config(
             result["text3_options"] = _normalize_time_change_text_options(value)
 
     result["lines"] = _normalize_time_change_lines(source.get("lines"), result)
+
+    if result["lines"]:
+        result["text1"] = result["lines"][0]["text"]
+        result["text1_options"] = result["lines"][0]["options"]
+    if len(result["lines"]) > 1:
+        result["text2"] = result["lines"][1]["text"]
+        result["text2_options"] = result["lines"][1]["options"]
+    if len(result["lines"]) > 2:
+        result["text3"] = result["lines"][2]["text"]
+        result["text3_options"] = result["lines"][2]["options"]
+    return result
+
+
+def _normalize_vacations_text_options(raw: Any) -> Dict[str, Any]:
+    options = copy.deepcopy(VACATIONS_TEXT_OPTIONS_DEFAULT)
+    if isinstance(raw, dict):
+        if isinstance(raw.get("font_size_auto"), bool):
+            options["font_size_auto"] = raw["font_size_auto"]
+        if isinstance(raw.get("font_size"), (int, float)):
+            options["font_size"] = max(6.0, min(220.0, float(raw["font_size"])))
+        if isinstance(raw.get("scale_x"), (int, float)):
+            scale_x = float(raw["scale_x"])
+            if scale_x > 0:
+                options["scale_x"] = max(0.1, min(4.0, scale_x))
+        if isinstance(raw.get("scale_y"), (int, float)):
+            scale_y = float(raw["scale_y"])
+            if scale_y > 0:
+                options["scale_y"] = max(0.1, min(4.0, scale_y))
+        if isinstance(raw.get("font_family"), str):
+            options["font_family"] = raw["font_family"]
+        if isinstance(raw.get("width_percent"), (int, float)):
+            options["width_percent"] = float(raw["width_percent"])
+        if isinstance(raw.get("height_percent"), (int, float)):
+            options["height_percent"] = float(raw["height_percent"])
+        if isinstance(raw.get("color"), str):
+            options["color"] = raw["color"]
+        if isinstance(raw.get("underline"), bool):
+            options["underline"] = raw["underline"]
+        if isinstance(raw.get("bold"), bool):
+            options["bold"] = raw["bold"]
+        if isinstance(raw.get("italic"), bool):
+            options["italic"] = raw["italic"]
+        if isinstance(raw.get("background_color"), str):
+            options["background_color"] = raw["background_color"] or None
+        if isinstance(raw.get("background_opacity"), (int, float)):
+            try:
+                opacity = float(raw["background_opacity"])
+            except (TypeError, ValueError):
+                opacity = options["background_opacity"]
+            if opacity < 0.0:
+                opacity = 0.0
+            if opacity > 1.0:
+                opacity = 1.0
+            options["background_opacity"] = opacity
+        if isinstance(raw.get("offset_x_percent"), (int, float)):
+            options["offset_x_percent"] = float(raw["offset_x_percent"])
+        if isinstance(raw.get("offset_y_percent"), (int, float)):
+            options["offset_y_percent"] = float(raw["offset_y_percent"])
+        if isinstance(raw.get("curve"), (int, float)):
+            options["curve"] = float(raw["curve"])
+        if isinstance(raw.get("angle"), (int, float)):
+            options["angle"] = float(raw["angle"])
+    return options
+
+
+def _normalize_vacations_lines(raw_lines: Any, fallback: Dict[str, Any]) -> List[Dict[str, Any]]:
+    lines: List[Dict[str, Any]] = []
+    if isinstance(raw_lines, list):
+        for entry in raw_lines:
+            if not isinstance(entry, dict):
+                continue
+            text_val = entry.get("text")
+            try:
+                text = str(text_val or "")
+            except Exception:
+                text = ""
+            options = _normalize_vacations_text_options(entry.get("options"))
+            lines.append({"text": text, "options": options})
+            if len(lines) >= VACATIONS_MAX_LINES:
+                break
+    if lines:
+        return lines
+
+    fallback_candidates = [
+        (fallback.get("text1"), fallback.get("text1_options")),
+        (fallback.get("text2"), fallback.get("text2_options")),
+        (fallback.get("text3"), fallback.get("text3_options")),
+    ]
+    for text_val, options_val in fallback_candidates:
+        try:
+            text = str(text_val or "")
+        except Exception:
+            text = ""
+        options = _normalize_vacations_text_options(options_val)
+        lines.append({"text": text, "options": options})
+    return lines
+
+
+def _normalize_vacations_config(
+    raw: Any, base: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    result = copy.deepcopy(base or DEFAULT_SETTINGS["vacations_slide"])
+    source = raw if isinstance(raw, dict) else {}
+
+    for key, value in source.items():
+        if key == "enabled":
+            result["enabled"] = bool(value)
+        elif key == "order_index":
+            try:
+                index = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["order_index"] = max(0, index)
+        elif key == "duration":
+            try:
+                duration = float(value)
+            except (TypeError, ValueError):
+                continue
+            result["duration"] = max(1.0, min(600.0, duration))
+        elif key == "background_path":
+            if value is None:
+                result["background_path"] = None
+            else:
+                try:
+                    text = str(value).strip()
+                except Exception:
+                    continue
+                result["background_path"] = text or None
+        elif key == "background_mimetype":
+            if value is None:
+                result["background_mimetype"] = None
+            elif isinstance(value, str) and value.strip():
+                result["background_mimetype"] = value.strip()
+        elif key == "initial_full_weeks":
+            try:
+                weeks = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["initial_full_weeks"] = max(0, min(52, weeks))
+        elif key == "months_to_show":
+            try:
+                months = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["months_to_show"] = max(1, min(24, months))
+        elif key == "scroll_start_delay_ms":
+            try:
+                delay = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["scroll_start_delay_ms"] = max(0, min(60000, delay))
+        elif key == "scroll_speed_px_per_second":
+            try:
+                speed = float(value)
+            except (TypeError, ValueError):
+                continue
+            result["scroll_speed_px_per_second"] = max(1.0, min(300.0, speed))
+        elif key == "pause_at_bottom_ms":
+            try:
+                delay = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["pause_at_bottom_ms"] = max(0, min(60000, delay))
+        elif key == "pause_at_top_ms":
+            try:
+                delay = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["pause_at_top_ms"] = max(0, min(60000, delay))
+        elif key == "text1":
+            if isinstance(value, str):
+                result["text1"] = value
+        elif key == "text2":
+            if isinstance(value, str):
+                result["text2"] = value
+        elif key == "text3":
+            if isinstance(value, str):
+                result["text3"] = value
+        elif key == "text1_options":
+            result["text1_options"] = _normalize_vacations_text_options(value)
+        elif key == "text2_options":
+            result["text2_options"] = _normalize_vacations_text_options(value)
+        elif key == "text3_options":
+            result["text3_options"] = _normalize_vacations_text_options(value)
+
+    result["lines"] = _normalize_vacations_lines(source.get("lines"), result)
 
     if result["lines"]:
         result["text1"] = result["lines"][0]["text"]
@@ -2985,6 +3261,15 @@ class MediaStore:
         base_config = base or persisted_config or DEFAULT_SETTINGS["christmas_slide"]
         return _normalize_christmas_config(merged, base_config)
 
+    def _normalize_vacations_slide(
+        self, vacations_slide: Dict[str, Any], base: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        merged: Dict[str, Any] = {}
+        if isinstance(vacations_slide, dict):
+            merged.update(vacations_slide)
+        base_config = base or DEFAULT_SETTINGS["vacations_slide"]
+        return _normalize_vacations_config(merged, base_config)
+
     def _ensure_settings(self) -> bool:
         settings = self._data.get("settings")
         if not isinstance(settings, dict):
@@ -3007,6 +3292,9 @@ class MediaStore:
         christmas_slide = settings.get("christmas_slide")
         if not isinstance(christmas_slide, dict):
             christmas_slide = {}
+        vacations_slide = settings.get("vacations_slide")
+        if not isinstance(vacations_slide, dict):
+            vacations_slide = {}
         normalized_overlay = self._normalize_overlay(overlay, DEFAULT_SETTINGS["overlay"])
         normalized_team = self._normalize_team_slide(team_slide, DEFAULT_SETTINGS["team_slide"])
         normalized_test = self._normalize_test_slide(test_slide, DEFAULT_SETTINGS["test_slide"])
@@ -3019,6 +3307,9 @@ class MediaStore:
         normalized_christmas = self._normalize_christmas_slide(
             christmas_slide, DEFAULT_SETTINGS["christmas_slide"]
         )
+        normalized_vacations = self._normalize_vacations_slide(
+            vacations_slide, DEFAULT_SETTINGS["vacations_slide"]
+        )
         normalized_settings = {
             "overlay": normalized_overlay,
             "team_slide": normalized_team,
@@ -3026,6 +3317,7 @@ class MediaStore:
             "birthday_slide": normalized_birthday,
             "time_change_slide": normalized_time_change,
             "christmas_slide": normalized_christmas,
+            "vacations_slide": normalized_vacations,
         }
         changed = self._data.get("settings") != normalized_settings
         self._data["settings"] = normalized_settings
@@ -3101,6 +3393,18 @@ class MediaStore:
                 )
                 normalized_christmas = _write_christmas_config_file(normalized_christmas)
                 self._data["settings"]["christmas_slide"] = normalized_christmas
+                handled = True
+            if "vacations_slide" in updates:
+                vacations_updates = updates["vacations_slide"]
+                if not isinstance(vacations_updates, dict):
+                    raise ValueError("Le bloc vacations_slide doit être un objet.")
+                current_vacations = (
+                    self._data["settings"].get("vacations_slide") or DEFAULT_SETTINGS["vacations_slide"]
+                )
+                normalized_vacations = self._normalize_vacations_slide(
+                    vacations_updates, current_vacations
+                )
+                self._data["settings"]["vacations_slide"] = normalized_vacations
                 handled = True
             if not handled:
                 raise ValueError("Aucun paramètre à mettre à jour.")
@@ -3462,6 +3766,62 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _normalize_iso_date_string(value: Any) -> str:
+    try:
+        text = str(value or "").strip()
+    except Exception:
+        return ""
+    if not text:
+        return ""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        return ""
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        return ""
+
+
+def _normalize_employee_vacations(raw: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    normalized: List[Dict[str, Any]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        start_date = _normalize_iso_date_string(entry.get("start_date") or entry.get("start"))
+        end_date = _normalize_iso_date_string(entry.get("end_date") or entry.get("end"))
+        if not start_date or not end_date:
+            continue
+        if end_date < start_date:
+            start_date, end_date = end_date, start_date
+        try:
+            label = str(entry.get("label") or "").strip()
+        except Exception:
+            label = ""
+        try:
+            notes = str(entry.get("notes") or "").strip()
+        except Exception:
+            notes = ""
+        normalized.append(
+            {
+                "id": str(entry.get("id") or uuid.uuid4().hex),
+                "start_date": start_date,
+                "end_date": end_date,
+                "label": label,
+                "notes": notes,
+            }
+        )
+    normalized.sort(
+        key=lambda vacation: (
+            vacation.get("start_date") or "",
+            vacation.get("end_date") or "",
+            (vacation.get("label") or "").lower(),
+            vacation.get("id") or "",
+        )
+    )
+    return normalized
+
+
 class EmployeeStore:
     def __init__(self, db_path: Path) -> None:
         self._json_path = EMPLOYEE_JSON_PATH
@@ -3544,6 +3904,7 @@ class EmployeeStore:
             "role": str(entry.get("role") or "").strip(),
             "description": str(entry.get("description") or "").strip(),
             "avatar_base64": entry.get("avatar_base64") or "",
+            "vacations": _normalize_employee_vacations(entry.get("vacations")),
             "sort_order": _safe_int(entry.get("sort_order"), fallback_order + 1),
             "created_at": str(entry.get("created_at") or now_iso),
             "updated_at": str(entry.get("updated_at") or now_iso),
@@ -3614,6 +3975,8 @@ class EmployeeStore:
                         updated["role"] = str(updates["role"] or "").strip()
                     if "description" in updates:
                         updated["description"] = str(updates["description"] or "").strip()
+                    if "vacations" in updates:
+                        updated["vacations"] = _normalize_employee_vacations(updates.get("vacations"))
                     updated["updated_at"] = _now_iso()
                     updated = self._normalize_entry(updated, _safe_int(updated.get("sort_order"), idx + 1))
                     self._employees[idx] = updated
@@ -4229,6 +4592,11 @@ def birthday() -> Any:
 @bp.route("/diaporama/changement-heure")
 def time_change() -> Any:
     return render_template("time_change.html")
+
+
+@bp.route("/diaporama/vacances", endpoint="vacations")
+def vacations_page() -> Any:
+    return render_template("vacations.html")
 
 
 @bp.route("/diaporama/noel")
@@ -5409,6 +5777,19 @@ def serve_time_change_slide_asset(filename: str) -> Any:
     )
 
 
+@bp.route("/vacations-slide-assets/<path:filename>")
+def serve_vacations_slide_asset(filename: str) -> Any:
+    target = VACATIONS_SLIDE_ASSETS_DIR / filename
+    if not target.exists():
+        abort(404, description="Fichier introuvable.")
+    mimetype = _guess_mimetype(filename) or "application/octet-stream"
+    return _send_cached_directory_file(
+        VACATIONS_SLIDE_ASSETS_DIR,
+        filename,
+        mimetype=mimetype,
+    )
+
+
 @bp.route("/service-worker.js")
 def service_worker() -> Any:
     # Servez le service worker depuis la racine pour couvrir tout le scope.
@@ -5754,6 +6135,18 @@ def get_settings() -> Any:
             christmas_slide["background_path"] = None
         christmas_slide["background_url"] = christmas_background_url
         settings["christmas_slide"] = christmas_slide
+
+        vacations_slide = settings.get("vacations_slide") or {}
+        vacations_bg_path = vacations_slide.get("background_path")
+        vacations_background_url = None
+        if isinstance(vacations_bg_path, str) and vacations_bg_path:
+            vacations_background_url = url_for(
+                "main.serve_vacations_slide_asset", filename=vacations_bg_path, _external=False
+            )
+        else:
+            vacations_slide["background_path"] = None
+        vacations_slide["background_url"] = vacations_background_url
+        settings["vacations_slide"] = vacations_slide
 
         # Include news slide settings
         news_config = _load_news_config()
@@ -6782,6 +7175,127 @@ def delete_time_change_slide_background(filename: str) -> Any:
             abort(400, description=str(exc))
 
     current = (new_settings.get("time_change_slide") or {}).get("background_path")
+    return jsonify({"removed": filename, "current": current, "settings": new_settings})
+
+
+@bp.post("/api/vacations-slide/background")
+def upload_vacations_slide_background() -> Any:
+    """Téléverse un fond image/vidéo pour la diapositive Vacances."""
+    uploaded = request.files.get("file") or request.files.get("background")
+    if not uploaded or not uploaded.filename:
+        abort(400, description="Aucun fichier reçu.")
+
+    original_name = uploaded.filename
+    safe_name = secure_filename(original_name) or "vacations-background"
+    ext = Path(original_name).suffix or Path(safe_name).suffix
+    ext_lower = (ext or "").lower()
+
+    mimetype = uploaded.mimetype or _guess_mimetype(original_name, safe_name) or ""
+    mimetype_lower = mimetype.lower()
+    if not (
+        mimetype_lower.startswith("image/")
+        or mimetype_lower.startswith("video/")
+        or ext_lower in IMAGE_EXTENSIONS
+        or ext_lower in VIDEO_EXTENSIONS
+    ):
+        abort(400, description="Veuillez fournir une image ou une vidéo pour l'arrière-plan.")
+
+    VACATIONS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    media_id = uuid.uuid4().hex
+    storage_name = f"{media_id}{ext_lower}" if ext_lower else media_id
+    target = VACATIONS_SLIDE_ASSETS_DIR / storage_name
+    uploaded.save(target)
+
+    updates: Dict[str, Any] = {
+        "background_path": storage_name,
+        "background_mimetype": mimetype or None,
+    }
+
+    try:
+        settings = store.update_settings({"vacations_slide": updates})
+    except ValueError as exc:
+        abort(400, description=str(exc))
+
+    vacations_slide = settings.get("vacations_slide") or {}
+    bg_path = vacations_slide.get("background_path")
+    background_url = None
+    if isinstance(bg_path, str) and bg_path:
+        background_url = url_for("main.serve_vacations_slide_asset", filename=bg_path, _external=False)
+
+    return jsonify(
+        {
+            "background_url": background_url,
+            "background_mimetype": vacations_slide.get("background_mimetype"),
+            "settings": settings,
+        }
+    )
+
+
+@bp.get("/api/vacations-slide/backgrounds")
+def list_vacations_slide_backgrounds() -> Any:
+    """Liste les fonds téléversés pour la diapositive Vacances."""
+    VACATIONS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    items: List[Dict[str, Any]] = []
+    for entry in sorted(VACATIONS_SLIDE_ASSETS_DIR.iterdir()):
+        if not entry.is_file():
+            continue
+        filename = entry.name
+        mimetype = _guess_mimetype(filename) or "application/octet-stream"
+        url = url_for("main.serve_vacations_slide_asset", filename=filename, _external=False)
+        items.append(
+            {
+                "filename": filename,
+                "url": url,
+                "mimetype": mimetype,
+            }
+        )
+
+    settings = store.get_settings()
+    vacations_slide = settings.get("vacations_slide") or {}
+    current = vacations_slide.get("background_path")
+    return jsonify({"items": items, "current": current})
+
+
+@bp.delete("/api/vacations-slide/background/<path:filename>")
+def delete_vacations_slide_background(filename: str) -> Any:
+    """Supprime un arrière-plan de la diapositive Vacances."""
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        abort(400, description="Nom de fichier invalide.")
+
+    VACATIONS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    target = (VACATIONS_SLIDE_ASSETS_DIR / safe_name).resolve()
+    base_dir = VACATIONS_SLIDE_ASSETS_DIR.resolve()
+    try:
+        target.relative_to(base_dir)
+    except ValueError:
+        abort(400, description="Chemin de fichier non autorisé.")
+    if not target.exists() or not target.is_file():
+        abort(404, description="Fichier introuvable.")
+
+    try:
+        target.unlink()
+    except OSError as exc:
+        abort(500, description=f"Impossible de supprimer le fichier : {exc}")
+
+    try:
+        settings = store.get_settings()
+    except Exception:
+        settings = {"vacations_slide": DEFAULT_SETTINGS["vacations_slide"]}
+
+    vacations_slide = settings.get("vacations_slide") or {}
+    updates: Dict[str, Any] = {}
+    if isinstance(vacations_slide.get("background_path"), str) and vacations_slide["background_path"] == filename:
+        updates = {"background_path": None, "background_mimetype": None}
+
+    new_settings = settings
+    if updates:
+        try:
+            new_settings = store.update_settings({"vacations_slide": updates})
+        except ValueError as exc:
+            abort(400, description=str(exc))
+
+    current = (new_settings.get("vacations_slide") or {}).get("background_path")
     return jsonify({"removed": filename, "current": current, "settings": new_settings})
 
 
