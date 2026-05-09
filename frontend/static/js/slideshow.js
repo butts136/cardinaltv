@@ -66,7 +66,7 @@ const normalizeSingleSlideType = (value) => {
 };
 const singleSlideType = normalizeSingleSlideType(previewSlideType);
 const isSingleSlideMode = Boolean(singleSlideType);
-const freezeSingleSlideAdvance = isSingleSlideMode && isPreviewMode;
+const freezeSingleSlideAdvance = isSingleSlideMode;
 const preloadParam = (urlParams.get("preload") || "").trim().toLowerCase();
 const PRELOAD_DISABLED_VALUES = new Set(["0", "false", "no", "off", "disable", "disabled"]);
 const PRELOAD_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enable", "enabled"]);

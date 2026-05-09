@@ -10,6 +10,7 @@
 {% set show_date_control = show_date_control if show_date_control is defined else False %}
 {% set show_text_editor = show_text_editor if show_text_editor is defined else True %}
 {% set preview_iframe_loading = preview_iframe_loading if preview_iframe_loading is defined else "lazy" %}
+{% set preview_iframe_src = preview_iframe_src if preview_iframe_src is defined else url_for('main.slideshow') ~ '?preview=1&slide=' ~ preview_slide_kind ~ (('&slideId=' ~ editor_slide_id) if editor_slide_id else '') ~ (('&variant=' ~ editor_variant) if editor_variant else '') ~ '&editor=1' %}
 {% set id_prefix = editor_id_prefix or (editor_prefix ~ "-editor") %}
 
 <section
@@ -98,7 +99,7 @@
                     data-preview-kind="{{ preview_slide_kind }}"
                     data-preview-slide-id="{{ editor_slide_id }}"
                     data-preview-variant="{{ editor_variant }}"
-                    src="{{ url_for('main.slideshow') }}?preview=1&slide={{ preview_slide_kind }}{% if editor_slide_id %}&slideId={{ editor_slide_id }}{% endif %}{% if editor_variant %}&variant={{ editor_variant }}{% endif %}&editor=1"
+                    src="{{ preview_iframe_src }}"
                   ></iframe>
                   <div
 	                    id="{{ id_prefix }}-preview-stage"

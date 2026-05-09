@@ -1183,7 +1183,6 @@
     const base = slideshowPreviewFrame.dataset.previewBase || "";
     if (!base) return "";
     const params = new URLSearchParams();
-    params.set("preview", "1");
     params.set("slide", resolvePreviewKind(editorKind));
     if (editorKind === "custom" && editorSlideId) {
       params.set("slideId", editorSlideId);
@@ -1196,7 +1195,10 @@
     if (variant) {
       params.set("variant", variant);
     }
-    params.set("editor", "1");
+    if (editorKind !== "vacations") {
+      params.set("preview", "1");
+      params.set("editor", "1");
+    }
     return `${base}?${params.toString()}`;
   };
 
