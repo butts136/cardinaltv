@@ -3103,7 +3103,7 @@ const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
     return buildTeamSlideItem();
   }
   if (type === "vacations") {
-    const payload = await getVacationsDisplayPayload({ previewFallback: true, forceEmployees: true });
+    const payload = await getVacationsDisplayPayload({ previewFallback: false, forceEmployees: true });
     return buildVacationsSlideItem(payload);
   }
   if (type === "time-change") {
@@ -6022,7 +6022,7 @@ const renderVacationsSlide = (item) => {
   currentVideo = null;
   const settings = vacationsSlideSettings || DEFAULT_VACATIONS_SLIDE;
   const payload = item.vacations_data || buildVacationsDisplayPayload([], settings, {
-    previewFallback: isEditorPreview || isPreviewMode,
+    previewFallback: false,
   });
   const durationSeconds = Math.max(
     1,
