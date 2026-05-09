@@ -6185,7 +6185,7 @@ const renderVacationsSlide = (item) => {
       const widthPercent = (segment.span / 7) * 100;
       bar.style.left = `calc(${leftPercent}% + 0.32vw)`;
       bar.style.width = `calc(${widthPercent}% - 0.64vw)`;
-      bar.style.top = `calc(2.05vh + ${segment.lane * 2.38}vh)`;
+      bar.style.top = `calc(2.7vh + ${segment.lane * 2.78}vh)`;
       wrapper.appendChild(bar);
     });
     return wrapper;
@@ -6223,7 +6223,7 @@ const renderVacationsSlide = (item) => {
         row.className = "week-row";
         const segments = getSegments(week, labelDate);
         const laneCount = assignLanes(segments);
-        const rowHeightVh = laneCount > 0 ? 2.55 + laneCount * 2.5 : 2.55;
+        const rowHeightVh = laneCount > 0 ? 3.7 + laneCount * 2.95 : 3.7;
         row.style.setProperty("--lane-count", laneCount);
         row.style.setProperty("--week-row-min-height", `${rowHeightVh}vh`);
         const dayGrid = document.createElement("div");
