@@ -20,12 +20,15 @@
 
     const modal = document.getElementById("vacations-period-modal");
     const modalTitle = document.getElementById("vacations-period-modal-title");
-    const modalEmployee = document.getElementById("vacations-period-modal-employee");
+    const modalInstruction = document.getElementById("vacations-period-modal-instruction");
     const modalRangeSummary = document.getElementById("vacations-period-range-summary");
+    const modalStartValue = document.getElementById("vacations-period-start-value");
+    const modalEndValue = document.getElementById("vacations-period-end-value");
     const modalCalendar = document.getElementById("vacations-period-calendar");
     const modalStatus = document.getElementById("vacations-period-modal-status");
     const modalSave = document.getElementById("vacations-period-modal-save");
-    const modalCancel = document.getElementById("vacations-period-modal-cancel");
+    const modalClear = document.getElementById("vacations-period-modal-clear");
+    const modalToday = document.getElementById("vacations-period-modal-today");
     const modalClose = document.getElementById("vacations-period-modal-close");
 
     const SVG_NS = "http://www.w3.org/2000/svg";
@@ -133,6 +136,18 @@
       if (!parsed) return "";
       return new Intl.DateTimeFormat("fr-CA", {
         timeZone: "UTC",
+        weekday: "short",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(parsed);
+    };
+
+    const formatShortDate = (value) => {
+      const parsed = parseIsoDate(value);
+      if (!parsed) return "";
+      return new Intl.DateTimeFormat("fr-CA", {
+        timeZone: "UTC",
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -175,6 +190,16 @@
         vacations,
       };
     };
+
+    const sortedEmployees = () =>
+      [...employees].sort((left, right) => {
+        const leftHire = parseIsoDate(left?.hire_date || "")?.getTime() || Number.MAX_SAFE_INTEGER;
+        const rightHire = parseIsoDate(right?.hire_date || "")?.getTime() || Number.MAX_SAFE_INTEGER;
+        if (leftHire === rightHire) {
+          return String(left?.name || "").localeCompare(String(right?.name || ""), "fr-CA");
+        }
+        return leftHire - rightHire;
+      });
 
     const icon = (name) => {
       const svg = document.createElementNS(SVG_NS, "svg");
@@ -229,6 +254,18 @@
     const updateRangeSummary = () => {
       if (!modalRangeSummary) return;
       const { start, end, hasStart, hasEnd } = getRangeBounds();
+      if (modalStartValue) modalStartValue.textContent = hasStart ? formatDate(start) : "—";
+      if (modalEndValue) modalEndValue.textContent = hasEnd ? formatDate(end) : "—";
+      if (modalSave) modalSave.disabled = !(hasStart && hasEnd);
+      if (modalInstruction) {
+        if (!hasStart) {
+          modalInstruction.textContent = "Cliquez une date de début, puis une date de fin.";
+        } else if (!hasEnd) {
+          modalInstruction.textContent = "Cliquez maintenant la date de fin.";
+        } else {
+          modalInstruction.textContent = "Sélection complète. Enregistrez la période.";
+        }
+      }
       if (!hasStart) {
         modalRangeSummary.textContent = "Sélectionnez une date de début.";
       } else if (!hasEnd) {
@@ -252,12 +289,12 @@
 
       const header = document.createElement("div");
       header.className = "vacations-calendar-header";
-      const prev = iconButton("chevronLeft", "Mois précédent");
+      const prev = iconButton("chevronLeft", "Mois précédent", "vacations-calendar-nav");
       prev.dataset.action = "calendar-prev";
       const title = document.createElement("h4");
       title.className = "vacations-calendar-title";
       title.textContent = monthLabel(baseMonth);
-      const next = iconButton("chevronRight", "Mois suivant");
+      const next = iconButton("chevronRight", "Mois suivant", "vacations-calendar-nav");
       next.dataset.action = "calendar-next";
       header.append(prev, title, next);
 
@@ -278,9 +315,21 @@
         button.className = "vacations-calendar-day";
         button.dataset.action = "calendar-day";
         button.dataset.date = iso;
-        button.textContent = String(cursor.getUTCDate());
+        const number = document.createElement("span");
+        number.className = "vacations-calendar-day-number";
+        number.textContent = String(cursor.getUTCDate());
+        button.appendChild(number);
         if (cursor.getUTCMonth() !== baseMonth.getUTCMonth()) {
           button.classList.add("is-outside-month");
+        }
+        if (iso === todayIso()) {
+          button.classList.add("is-today");
+        }
+        if (iso === start) {
+          button.classList.add("is-selected", "is-range-start");
+        }
+        if (iso === end) {
+          button.classList.add("is-selected", "is-range-end");
         }
         if (iso === start || iso === end) {
           button.classList.add("is-selected");
@@ -317,8 +366,8 @@
     const closeModal = () => {
       activeEdit = null;
       setStatus(modalStatus, "");
-      if (modalEmployee) modalEmployee.textContent = "";
       if (modalTitle) modalTitle.textContent = "Période de vacances";
+      if (modalInstruction) modalInstruction.textContent = "Cliquez une date de début, puis une date de fin.";
       if (modalCalendar) modalCalendar.replaceChildren();
       if (modalRangeSummary) modalRangeSummary.textContent = "Sélectionnez une date de début.";
       applyModalState();
@@ -336,10 +385,7 @@
       };
       visibleCalendarMonth = startOfMonth(period?.start_date || todayIso());
       if (modalTitle) {
-        modalTitle.textContent = period ? "Modifier la période" : "Ajouter une période";
-      }
-      if (modalEmployee) {
-        modalEmployee.textContent = employee.name || "Employé";
+        modalTitle.textContent = `${period ? "Modifier" : "Ajouter"} — ${employee.name || "Employé"}`;
       }
       setStatus(modalStatus, "");
       applyModalState();
@@ -352,26 +398,28 @@
       card.className = "vacations-employee-card";
       card.dataset.employeeId = String(employee.id || "");
 
+      const content = document.createElement("div");
+      content.className = "vacations-card-content";
+
       const header = document.createElement("div");
       header.className = "vacations-employee-header";
-
       const identity = document.createElement("div");
       const name = document.createElement("h3");
       name.textContent = employee.name || "Employé";
       const meta = document.createElement("p");
-      const metaBits = [];
-      if (employee.role) metaBits.push(employee.role);
-      if (employee.position) metaBits.push(employee.position);
-      if (employee.hire_date) metaBits.push(`Embauche: ${formatDate(employee.hire_date)}`);
+      const hireDate = formatDate(employee.hire_date || "");
       meta.className = "vacations-employee-meta";
-      meta.textContent = metaBits.length ? metaBits.join(" • ") : "Carte vacances";
+      meta.textContent = hireDate ? `Date d'embauche : ${hireDate}` : "Date d'embauche inconnue";
       identity.append(name, meta);
+      header.appendChild(identity);
+
+      const blockTitle = document.createElement("p");
+      blockTitle.className = "vacations-block-title";
+      blockTitle.textContent = "Vacances enregistrées";
 
       const addButton = iconButton("plus", "Ajouter une période");
       addButton.dataset.action = "add-period";
       addButton.classList.add("vacations-add-button");
-
-      header.append(identity, addButton);
 
       const list = document.createElement("div");
       list.className = "vacations-period-list";
@@ -394,15 +442,14 @@
           main.appendChild(range);
 
           const details = document.createElement("span");
-          const label = period.label ? period.label : "Vacances";
-          details.textContent = period.notes ? `${label} • ${period.notes}` : label;
+          details.textContent = `${formatShortDate(period.start_date)} au ${formatShortDate(period.end_date)}`;
           main.appendChild(details);
 
           const actions = document.createElement("div");
           actions.className = "vacations-period-actions";
-          const editButton = iconButton("pencil", "Éditer la période");
+          const editButton = iconButton("pencil", "Éditer la période", "vacations-period-edit");
           editButton.dataset.action = "edit-period";
-          const deleteButton = iconButton("trash", "Supprimer la période");
+          const deleteButton = iconButton("trash", "Supprimer la période", "vacations-period-delete");
           deleteButton.dataset.action = "delete-period";
           actions.append(editButton, deleteButton);
 
@@ -416,7 +463,8 @@
       status.dataset.role = "card-status";
       status.setAttribute("aria-live", "polite");
 
-      card.append(header, list, status);
+      content.append(header, blockTitle, list, status);
+      card.append(content, addButton);
       return card;
     };
 
@@ -431,7 +479,7 @@
         return;
       }
 
-      employeesList.replaceChildren(...employees.map((employee) => buildEmployeeCard(employee)));
+      employeesList.replaceChildren(...sortedEmployees().map((employee) => buildEmployeeCard(employee)));
     };
 
     const loadEmployees = async ({ silent = false } = {}) => {
@@ -555,7 +603,17 @@
       void loadEmployees();
     });
 
-    modalCancel?.addEventListener("click", closeModal);
+    modalClear?.addEventListener("click", () => {
+      if (!activeEdit) return;
+      activeEdit.startDate = "";
+      activeEdit.endDate = "";
+      setStatus(modalStatus, "");
+      renderCalendar();
+    });
+    modalToday?.addEventListener("click", () => {
+      visibleCalendarMonth = startOfMonth(todayIso());
+      renderCalendar();
+    });
     modalClose?.addEventListener("click", closeModal);
     modal?.addEventListener("click", (event) => {
       if (event.target === modal) {
