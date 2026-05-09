@@ -86,6 +86,7 @@ CUSTOM_SLIDES_INDEX_FILE = CUSTOM_SLIDES_DIR / "slides.json"
 CUSTOM_SLIDE_DEFAULT_SETTINGS = {
     "enabled": False,
     "order_index": 0,
+    "skip_rounds": 0,
     "duration": 12.0,
 }
 TEST_BACKGROUND_DIR = DATA_DIR / "test" / "background"
@@ -98,6 +99,7 @@ DEFAULT_TEST_TEXT_BACKGROUND = {"color": "#000000", "opacity": 0.0}
 DEFAULT_TEST_SLIDE_SETTINGS = {
     "enabled": False,
     "order_index": 0,
+    "skip_rounds": 0,
     "duration": 12.0,
 }
 DEFAULT_TEST_FONT_FAMILY = "Poppins"
@@ -187,6 +189,7 @@ DEFAULT_SETTINGS = {
         # Zero-based index in the playlist where the auto slide should appear.
         # The value is clamped on the client to the current playlist length.
         "order_index": 0,
+        "skip_rounds": 0,
         # Duration in seconds when displayed in the slideshow.
         "duration": 10.0,
         # Minimum duration each employee card group should be visible.
@@ -223,12 +226,14 @@ DEFAULT_SETTINGS = {
     "test_slide": {
         "enabled": False,
         "order_index": 0,
+        "skip_rounds": 0,
         "duration": 12.0,
     },
     # Settings for the "Anniversaire" slide.
     "birthday_slide": {
         "enabled": False,
         "order_index": 0,
+        "skip_rounds": 0,
         "duration": 12.0,
         # Nombre de jours d'avance pour afficher la variante \"Avant anniversaire\".
         "days_before": 3,
@@ -257,6 +262,7 @@ DEFAULT_SETTINGS = {
     "time_change_slide": {
         "enabled": False,
         "order_index": 0,
+        "skip_rounds": 0,
         "duration": 12.0,
         "background_path": None,
         "background_mimetype": None,
@@ -306,6 +312,7 @@ DEFAULT_SETTINGS = {
     "christmas_slide": {
         "enabled": False,
         "order_index": 0,
+        "skip_rounds": 0,
         "duration": 12.0,
         "background_path": None,
         "background_mimetype": None,
@@ -338,6 +345,7 @@ DEFAULT_SETTINGS = {
     "vacations_slide": {
         "enabled": False,
         "order_index": 0,
+        "skip_rounds": 0,
         "duration": 20.0,
         "background_path": None,
         "background_mimetype": None,
@@ -447,6 +455,7 @@ DEFAULT_SETTINGS = {
     "weather_slide": {
         "enabled": False,
         "order_index": 0,
+        "skip_rounds": 0,
         "duration": 15.0,
         "api_provider": "open-meteo",
         "api_key": "",
@@ -1369,6 +1378,12 @@ def _normalize_time_change_config(
             if index < 0:
                 index = 0
             result["order_index"] = index
+        elif key == "skip_rounds":
+            try:
+                rounds = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["skip_rounds"] = max(0, rounds)
         elif key == "duration":
             try:
                 duration = float(value)
@@ -1601,6 +1616,12 @@ def _normalize_vacations_config(
             except (TypeError, ValueError):
                 continue
             result["order_index"] = max(0, index)
+        elif key == "skip_rounds":
+            try:
+                rounds = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["skip_rounds"] = max(0, rounds)
         elif key == "duration":
             try:
                 duration = float(value)
@@ -1840,6 +1861,12 @@ def _normalize_christmas_config(
             if index < 0:
                 index = 0
             result["order_index"] = index
+        elif key == "skip_rounds":
+            try:
+                rounds = int(value)
+            except (TypeError, ValueError):
+                continue
+            result["skip_rounds"] = max(0, rounds)
         elif key == "duration":
             try:
                 duration = float(value)
@@ -2951,6 +2978,12 @@ class MediaStore:
                 if index < 0:
                     index = 0
                 result["order_index"] = index
+            elif key == "skip_rounds":
+                try:
+                    rounds = int(value)
+                except (TypeError, ValueError):
+                    continue
+                result["skip_rounds"] = max(0, rounds)
             elif key == "duration":
                 try:
                     duration = float(value)
@@ -2961,6 +2994,14 @@ class MediaStore:
                 if duration > 600.0:
                     duration = 600.0
                 result["duration"] = duration
+            elif key == "skip_rounds":
+                try:
+                    rounds = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if rounds < 0:
+                    rounds = 0
+                result["skip_rounds"] = rounds
             elif key == "days_before":
                 try:
                     days = float(value)
@@ -3132,6 +3173,12 @@ class MediaStore:
                 except (TypeError, ValueError):
                     continue
                 result["order_index"] = max(0, index)
+            elif key == "skip_rounds":
+                try:
+                    rounds = int(value)
+                except (TypeError, ValueError):
+                    continue
+                result["skip_rounds"] = max(0, rounds)
             elif key == "duration":
                 try:
                     duration = float(value)
@@ -3156,6 +3203,12 @@ class MediaStore:
                 if index < 0:
                     index = 0
                 result["order_index"] = index
+            elif key == "skip_rounds":
+                try:
+                    rounds = int(value)
+                except (TypeError, ValueError):
+                    continue
+                result["skip_rounds"] = max(0, rounds)
             elif key == "duration":
                 try:
                     duration = float(value)
@@ -4976,6 +5029,10 @@ def _normalize_custom_slide_settings(raw: Any) -> Dict[str, Any]:
     except Exception:
         pass
     try:
+        base["skip_rounds"] = max(0, int(raw.get("skip_rounds", base.get("skip_rounds", 0))))
+    except Exception:
+        pass
+    try:
         duration = float(raw.get("duration", base["duration"]))
         base["duration"] = min(600.0, max(1.0, duration))
     except Exception:
@@ -5348,7 +5405,7 @@ def api_custom_slide_detail(slide_id: str) -> Any:
 
     settings_patch: Dict[str, Any] = {}
     settings_source = payload.get("settings") if isinstance(payload.get("settings"), dict) else payload
-    for key in ("enabled", "order_index", "duration"):
+    for key in ("enabled", "order_index", "skip_rounds", "duration"):
         if key in settings_source:
             settings_patch[key] = settings_source.get(key)
 
@@ -6562,7 +6619,7 @@ def upload_media() -> Any:
             "original_name": original_name,
             "uploaded_at": _now_iso(),
             "enabled": True,
-            "duration": DEFAULT_DURATION_SECONDS,
+            "duration": 15,
             "start_at": None,
             "end_at": None,
             "mimetype": mimetype or "application/octet-stream",
@@ -8543,6 +8600,16 @@ def api_news_slide_update() -> Any:
             config["order_index"] = max(0, int(payload["order_index"]))
         except (TypeError, ValueError):
             pass
+    if "skip_rounds" in payload:
+        try:
+            config["skip_rounds"] = max(0, int(payload["skip_rounds"]))
+        except (TypeError, ValueError):
+            pass
+    if "skip_rounds" in payload:
+        try:
+            config["skip_rounds"] = max(0, int(payload["skip_rounds"]))
+        except (TypeError, ValueError):
+            pass
     if "scroll_delay" in payload:
         try:
             config["scroll_delay"] = max(0.5, min(30.0, float(payload["scroll_delay"])))
@@ -8576,7 +8643,13 @@ def api_news_slide_update() -> Any:
 
     # Also update main settings store for playlist integration
     try:
-        store.update_settings({"news_slide": {"enabled": config["enabled"], "order_index": config["order_index"]}})
+        store.update_settings({
+            "news_slide": {
+                "enabled": config["enabled"],
+                "order_index": config["order_index"],
+                "skip_rounds": config.get("skip_rounds", 0),
+            }
+        })
     except Exception:
         pass
 
@@ -8594,6 +8667,7 @@ def api_news_items() -> Any:
         "settings": {
             "enabled": config.get("enabled", False),
             "order_index": config.get("order_index", 0),
+            "skip_rounds": config.get("skip_rounds", 0),
             "duration": config.get("duration", 20),
             "scroll_delay": config.get("scroll_delay", 3),
             "scroll_speed": config.get("scroll_speed", 50),
@@ -9303,7 +9377,14 @@ def api_weather_slide_update() -> Any:
 
     # Also update main settings store
     try:
-        store.update_settings({"weather_slide": {"enabled": config["enabled"], "order_index": config["order_index"], "duration": config["duration"]}})
+        store.update_settings({
+            "weather_slide": {
+                "enabled": config["enabled"],
+                "order_index": config["order_index"],
+                "skip_rounds": config.get("skip_rounds", 0),
+                "duration": config["duration"],
+            }
+        })
     except Exception:
         pass
 
@@ -9333,6 +9414,7 @@ def api_weather_data() -> Any:
         "settings": {
             "enabled": config.get("enabled", False),
             "order_index": config.get("order_index", 0),
+            "skip_rounds": config.get("skip_rounds", 0),
             "duration": config.get("duration", 15),
             "location": config.get("location", {}).get("name", "Québec"),
             "latitude": config.get("location", {}).get("latitude", 46.8139),
@@ -9637,7 +9719,7 @@ def upload_powerpoint() -> Any:
             "html_filename": html_filename,
             "slide_filenames": slide_relpaths,
             "thumbnail_filename": slide_relpaths[0] if slide_relpaths else "",
-            "duration": DEFAULT_DURATION_SECONDS,
+        "duration": 15,
         }
 
         stored = powerpoint_store.add_item(item)

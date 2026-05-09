@@ -2226,41 +2226,144 @@ const setSlideEntryEnabledState = async (type, enabled, slideId = null) => {
   }
 };
 
-const createSlideArchiveActions = ({ type, slideId = null, label = "cette diapositive" } = {}) => {
-  const actions = document.createElement("div");
-  actions.className = "media-card-actions";
+const setSlideEntrySkipRoundsState = async (type, value, slideId = null) => {
+  const nextValue = Math.max(0, Number(value) || 0);
 
-  const archiveButton = document.createElement("button");
-  archiveButton.type = "button";
-  archiveButton.className = "secondary-button";
-  archiveButton.textContent = "Archiver";
-  archiveButton.addEventListener("click", async () => {
-    if (
-      !window.confirm(
-        `Archiver ${label} ? Elle sera désactivée et retirée de la playlist active.`,
-      )
-    ) {
-      return;
+  if (type === "team") {
+    const patch = { team_slide: { skip_rounds: nextValue } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    teamSlideSettings = normalizeTeamSlideSettings(data.team_slide || patch.team_slide);
+    return;
+  }
+
+  if (type === "birthday") {
+    const patch = { birthday_slide: { skip_rounds: nextValue } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    birthdaySlideSettings = normalizeBirthdaySlideSettings(
+      data.birthday_slide || patch.birthday_slide,
+    );
+    return;
+  }
+
+  if (type === "time-change") {
+    const patch = { time_change_slide: { skip_rounds: nextValue } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    timeChangeSlideSettings = normalizeTimeChangeSettings(
+      data.time_change_slide || patch.time_change_slide,
+    );
+    return;
+  }
+
+  if (type === "christmas") {
+    const patch = { christmas_slide: { skip_rounds: nextValue } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    christmasSlideSettings = normalizeChristmasSettings(
+      data.christmas_slide || patch.christmas_slide,
+    );
+    return;
+  }
+
+  if (type === "vacations") {
+    const patch = { vacations_slide: { skip_rounds: nextValue } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    vacationsSlideSettings = normalizeVacationsSlideSettings(
+      data.vacations_slide || patch.vacations_slide,
+    );
+    return;
+  }
+
+  if (type === "news") {
+    const data = await fetchJSON("api/news-slide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skip_rounds: nextValue }),
+    });
+    newsSlideSettings = {
+      ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS),
+      ...(data?.config || {}),
+      skip_rounds: Number(data?.config?.skip_rounds ?? nextValue) || 0,
+    };
+    return;
+  }
+
+  if (type === "weather") {
+    const data = await fetchJSON("api/weather-slide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skip_rounds: nextValue }),
+    });
+    weatherSlideSettings = {
+      ...(weatherSlideSettings || DEFAULT_WEATHER_SLIDE_SETTINGS),
+      ...(data?.config || {}),
+      skip_rounds: Number(data?.config?.skip_rounds ?? nextValue) || 0,
+    };
+    return;
+  }
+
+  if (type === "custom" && slideId) {
+    const updated = await fetchJSON(`api/custom-slides/${encodeURIComponent(slideId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skip_rounds: nextValue }),
+    });
+    if (Array.isArray(customSlides)) {
+      const slideIndex = customSlides.findIndex((slide) => slide && slide.id === slideId);
+      if (slideIndex !== -1) {
+        customSlides[slideIndex] = { ...customSlides[slideIndex], ...updated };
+      }
     }
+  }
+};
 
-    archiveButton.disabled = true;
-    archiveButton.textContent = "Archivage...";
+const createSkipRoundsControl = (type, currentValue, slideId = null) => {
+  const wrapper = document.createElement("label");
+  wrapper.className = "field-group auto-skip-field";
 
-    try {
-      await setSlideEntryEnabledState(type, false, slideId);
-      renderMedia();
-    } catch (error) {
-      console.error("Impossible d'archiver la diapositive:", error);
-      archiveButton.textContent = "Erreur";
-      setTimeout(() => {
-        archiveButton.disabled = false;
-        archiveButton.textContent = "Archiver";
-      }, 1400);
-    }
-  });
+  const label = document.createElement("span");
+  label.textContent = "Saut";
 
-  actions.appendChild(archiveButton);
-  return actions;
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "0";
+  input.step = "1";
+  input.value = Math.max(0, Number(currentValue) || 0);
+  input.dataset.field = "skip_rounds";
+
+  let commitTimer = null;
+  const scheduleCommit = () => {
+    if (commitTimer) clearTimeout(commitTimer);
+    commitTimer = setTimeout(() => {
+      void setSlideEntrySkipRoundsState(type, input.value, slideId).catch((error) => {
+        console.error("Impossible de mettre à jour le saut:", error);
+      });
+    }, 220);
+  };
+
+  input.addEventListener("change", scheduleCommit);
+  input.addEventListener("blur", scheduleCommit);
+
+  wrapper.append(label, input);
+  return wrapper;
 };
 
 const createTeamSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) => {
@@ -2285,15 +2388,9 @@ const createTeamSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) =
         : "Activée (pas encore affichable)"
       : "Activée";
   body.append(title, status);
+  body.appendChild(createSkipRoundsControl("team", teamSlideSettings?.skip_rounds || 0));
 
-  card.append(
-    header,
-    body,
-    createSlideArchiveActions({
-      type: "team",
-      label: "la diapositive « Notre Équipe »",
-    }),
-  );
+  card.append(header, body);
   return card;
 };
 
@@ -2321,15 +2418,9 @@ const createBirthdaySlideCard = (globalIndex, displayNumber, autoCount, totalAut
         : "Activée"
       : "Désactivée";
   body.append(title, status);
+  body.appendChild(createSkipRoundsControl("birthday", birthdaySlideSettings?.skip_rounds || 0));
 
-  card.append(
-    header,
-    body,
-    createSlideArchiveActions({
-      type: "birthday",
-      label: "la diapositive « Anniversaire »",
-    }),
-  );
+  card.append(header, body);
   return card;
 };
 
@@ -2360,15 +2451,9 @@ const createTimeChangeSlideCard = (globalIndex, displayNumber, autoCount, totalA
         })()
       : "Désactivée";
   body.append(title, status);
+  body.appendChild(createSkipRoundsControl("time-change", timeChangeSlideSettings?.skip_rounds || 0));
 
-  card.append(
-    header,
-    body,
-    createSlideArchiveActions({
-      type: "time-change",
-      label: "la diapositive « Changement d'heure »",
-    }),
-  );
+  card.append(header, body);
   return card;
 };
 
@@ -2399,15 +2484,9 @@ const createChristmasSlideCard = (globalIndex, displayNumber, autoCount, totalAu
         })()
       : "Désactivée";
   body.append(title, status);
+  body.appendChild(createSkipRoundsControl("christmas", christmasSlideSettings?.skip_rounds || 0));
 
-  card.append(
-    header,
-    body,
-    createSlideArchiveActions({
-      type: "christmas",
-      label: "la diapositive « Noël »",
-    }),
-  );
+  card.append(header, body);
   return card;
 };
 
@@ -2426,15 +2505,9 @@ const createVacationsSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   status.className = "field-hint";
   status.textContent = vacationsSlideSettings?.enabled ? "Activée" : "Désactivée";
   body.append(title, status);
+  body.appendChild(createSkipRoundsControl("vacations", vacationsSlideSettings?.skip_rounds || 0));
 
-  card.append(
-    header,
-    body,
-    createSlideArchiveActions({
-      type: "vacations",
-      label: "la diapositive « Vacances »",
-    }),
-  );
+  card.append(header, body);
   return card;
 };
 
@@ -2455,15 +2528,9 @@ const createNewsSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) =
   status.textContent =
     newsSlideSettings && newsSlideSettings.enabled ? "Activée" : "Désactivée";
   body.append(title, status);
+  body.appendChild(createSkipRoundsControl("news", newsSlideSettings?.skip_rounds || 0));
 
-  card.append(
-    header,
-    body,
-    createSlideArchiveActions({
-      type: "news",
-      label: "la diapositive « Nouvelles »",
-    }),
-  );
+  card.append(header, body);
   return card;
 };
 
@@ -2483,15 +2550,9 @@ const createWeatherSlideCard = (globalIndex, displayNumber, autoCount, totalAuto
   status.textContent =
     weatherSlideSettings && weatherSlideSettings.enabled ? "Activée" : "Désactivée";
   body.append(title, status);
+  body.appendChild(createSkipRoundsControl("weather", weatherSlideSettings?.skip_rounds || 0));
 
-  card.append(
-    header,
-    body,
-    createSlideArchiveActions({
-      type: "weather",
-      label: "la diapositive « Météo »",
-    }),
-  );
+  card.append(header, body);
   return card;
 };
 
@@ -2521,16 +2582,9 @@ const createCustomSlideCard = (slide, entryId, globalIndex, displayNumber, autoC
         : "Activée"
       : "Désactivée";
   body.append(title, status);
+  body.appendChild(createSkipRoundsControl("custom", slide?.skip_rounds || 0, slide?.id || null));
 
-  card.append(
-    header,
-    body,
-    createSlideArchiveActions({
-      type: "custom",
-      slideId: slide?.id || null,
-      label: `la diapositive « ${slideName} »`,
-    }),
-  );
+  card.append(header, body);
   return card;
 };
 
