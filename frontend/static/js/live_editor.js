@@ -1195,8 +1195,10 @@
     if (variant) {
       params.set("variant", variant);
     }
-    if (editorKind !== "vacations") {
-      params.set("preview", "1");
+    params.set("preview", "1");
+    if (editorKind === "vacations") {
+      params.set("hide_bands", "1");
+    } else {
       params.set("editor", "1");
     }
     return `${base}?${params.toString()}`;

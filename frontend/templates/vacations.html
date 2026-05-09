@@ -620,7 +620,7 @@
     {% set show_enabled_toggle = True %}
     {% set show_text_editor = False %}
     {% set preview_iframe_loading = "eager" %}
-    {% set preview_iframe_src = url_for('main.slideshow') ~ '?slide=vacations' %}
+    {% set preview_iframe_src = url_for('main.slideshow') ~ '?preview=1&slide=vacations&hide_bands=1' %}
     {% include "partials/live_editor_section.html" %}
 
     <section class="card" id="vacations-employees-card">
@@ -680,6 +680,6 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/live_editor.js') }}?v=20260509-08"></script>
+  <script src="{{ url_for('static', filename='js/live_editor.js') }}?v=20260509-09"></script>
   <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-10"></script>
 {% endblock %}

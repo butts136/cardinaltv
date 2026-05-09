@@ -36,6 +36,13 @@ const previewVariantRaw = (urlParams.get("variant") || "").trim().toLowerCase();
 const isEditorPreview =
   (urlParams.get("editor") || "").trim().toLowerCase() === "1" ||
   (urlParams.get("editor") || "").trim().toLowerCase() === "true";
+const hideInfoBandsParam = (urlParams.get("hide_bands") || urlParams.get("bands") || "").trim().toLowerCase();
+const hideInfoBandsInPreview =
+  hideInfoBandsParam === "hidden" ||
+  hideInfoBandsParam === "1" ||
+  hideInfoBandsParam === "true" ||
+  hideInfoBandsParam === "yes" ||
+  hideInfoBandsParam === "on";
 const normalizeSingleSlideType = (value) => {
   switch ((value || "").trim().toLowerCase()) {
     case "team":
@@ -1067,7 +1074,7 @@ const getInfoBandsSignature = (config) => {
   }
 };
 
-const applyInfoBandsLayout = (config) => {
+const applyInfoBandsLayout = (config, { hideBands = false } = {}) => {
   if (!slideshowContainer || !stage || !infoBandHorizontal || !infoBandVertical) {
     return;
   }
@@ -1246,6 +1253,14 @@ const applyInfoBandsLayout = (config) => {
   infoBandVertical.style.zIndex = isHorizontalPrimary ? "11" : "12";
   if (infoBandWidgetsLayer) {
     infoBandWidgetsLayer.style.zIndex = "20";
+  }
+
+  if (hideBands) {
+    infoBandHorizontal.hidden = true;
+    infoBandVertical.hidden = true;
+    if (infoBandWidgetsLayer) {
+      infoBandWidgetsLayer.hidden = true;
+    }
   }
 };
 
@@ -1886,18 +1901,25 @@ const renderInfoBandWidgets = (config) => {
   syncInfoBandWeatherTimer();
 };
 
-const refreshInfoBandsLayout = async () => {
+const refreshInfoBandsLayout = async ({ hideBands = false } = {}) => {
   const config = await fetchInfoBandsConfig(true);
-  applyInfoBandsLayout(config);
+  applyInfoBandsLayout(config, { hideBands });
   const signature = getInfoBandsSignature(config);
   if (signature === infoBandsSignature) {
+    if (hideBands) {
+      renderInfoBandWidgets({ enabled: false, widgets: [] });
+    }
     return;
   }
   infoBandsSignature = signature;
-  renderInfoBandWidgets(config);
+  renderInfoBandWidgets(hideBands ? { enabled: false, widgets: [] } : config);
 };
 
 const initInfoBands = async () => {
+  if (hideInfoBandsInPreview) {
+    await refreshInfoBandsLayout({ hideBands: true });
+    return;
+  }
   if (isEditorPreview || isPreviewMode) {
     applyInfoBandsLayout({ enabled: false, frame: { size: 100 } });
     renderInfoBandWidgets({ enabled: false, widgets: [] });
@@ -7264,7 +7286,7 @@ const startPlaylistRefresh = () => {
     void handlePlaylistRefresh().catch((error) => console.warn("Rafraîchissement échoué:", error));
     if (!isPreviewMode) {
       void refreshOverlaySettings();
-      void refreshInfoBandsLayout();
+      void refreshInfoBandsLayout({ hideBands: hideInfoBandsInPreview });
     }
   }, PLAYLIST_REFRESH_MS);
 };
@@ -7281,7 +7303,7 @@ const startSlideshow = async () => {
       applyOverlaySettings({ enabled: false, logo_path: "", ticker_text: "" });
     }
     await refreshWeatherBackgroundUrls();
-    if (!isEditorPreview && infoBandsConfig) {
+    if (!isEditorPreview && infoBandsConfig && !hideInfoBandsInPreview) {
       renderInfoBandWidgets(infoBandsConfig);
     }
   } else {
