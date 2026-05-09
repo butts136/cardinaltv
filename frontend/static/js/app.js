@@ -1707,6 +1707,669 @@ const createInputGroup = (labelText, input) => {
   return group;
 };
 
+const createFieldGroup = (labelText, control, className = "") => {
+  const group = document.createElement("div");
+  group.className = className ? `field-group ${className}` : "field-group";
+  const span = document.createElement("span");
+  span.textContent = labelText;
+  group.append(span, control);
+  return group;
+};
+
+const pulsePlaylistActionButton = (button) => {
+  if (!button) return;
+  button.classList.add("clicked");
+  if (button._playlistPulseTimer) {
+    window.clearTimeout(button._playlistPulseTimer);
+  }
+  button._playlistPulseTimer = window.setTimeout(() => {
+    button.classList.remove("clicked");
+  }, 950);
+};
+
+const formatPlaylistDateTimeDisplay = (value) => {
+  if (!value) return "";
+  return String(value).replace("T", " ");
+};
+
+const createPlaylistActionButton = ({ kind, label }) => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `playlist-action-button ${kind}-button`;
+  button.dataset.action = kind;
+  button.setAttribute("aria-label", label);
+  button.title = label;
+
+  let iconMarkup = "";
+  if (kind === "download") {
+    iconMarkup = `
+      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-main">
+          <path d="M32 10V39" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+          <path d="M20 28L32 40L44 28" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+        </g>
+        <path class="icon-line" d="M17 50H47" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+      </svg>`;
+  } else if (kind === "archive") {
+    iconMarkup = `
+      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-box">
+          <path d="M14 25H50V50C50 53 48 55 45 55H19C16 55 14 53 14 50V25Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+          <path d="M11 17H53V25H11V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+        </g>
+        <g class="icon-main">
+          <path d="M32 18V40" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" />
+          <path d="M22 31L32 41L42 31" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
+        </g>
+      </svg>`;
+  } else if (kind === "restore") {
+    iconMarkup = `
+      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-box">
+          <path d="M14 25H50V50C50 53 48 55 45 55H19C16 55 14 53 14 50V25Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+          <path d="M11 17H53V25H11V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+        </g>
+        <g class="icon-main">
+          <path d="M32 42V20" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" />
+          <path d="M22 29L32 19L42 29" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
+        </g>
+      </svg>`;
+  } else {
+    iconMarkup = `
+      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-lid">
+          <path d="M22 17H42" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+          <path d="M27 11H37" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+        </g>
+        <g class="icon-main">
+          <path d="M18 23H46" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+          <path d="M22 25L25 53H39L42 25" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M30 32V46" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+          <path d="M36 32V46" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+        </g>
+      </svg>`;
+  }
+
+  button.innerHTML = `<span class="playlist-glow-ring"></span><span class="playlist-action-icon" aria-hidden="true">${iconMarkup}</span>`;
+  button.addEventListener("mouseleave", () => button.classList.remove("clicked"));
+  button.addEventListener("blur", () => button.classList.remove("clicked"));
+  return button;
+};
+
+const createPlaylistAutoSaveController = (itemId, buildPayload, onStateChange) => {
+  let saveInFlight = false;
+  let queuedPayload = null;
+  let latestFingerprint = JSON.stringify(buildPayload());
+
+  const flush = async () => {
+    if (saveInFlight || !queuedPayload) return;
+    saveInFlight = true;
+    while (queuedPayload) {
+      const nextPayload = queuedPayload;
+      queuedPayload = null;
+      const nextFingerprint = JSON.stringify(nextPayload);
+      if (nextFingerprint === latestFingerprint) {
+        onStateChange?.("saved");
+        continue;
+      }
+      onStateChange?.("saving");
+      try {
+        await saveItem(itemId, nextPayload, { render: false });
+        latestFingerprint = nextFingerprint;
+        onStateChange?.("saved");
+      } catch (error) {
+        console.error("Impossible d'enregistrer le média:", error);
+        onStateChange?.("error");
+        break;
+      }
+    }
+    saveInFlight = false;
+  };
+
+  return {
+    queue() {
+      queuedPayload = buildPayload();
+      return flush().catch(() => undefined);
+    },
+  };
+};
+
+const createPlaylistNumberField = ({
+  value = 0,
+  min = 0,
+  max = Number.POSITIVE_INFINITY,
+  step = 1,
+  ariaLabel,
+  onCommit,
+}) => {
+  const wrapper = document.createElement("div");
+  wrapper.className = "playlist-number-wrapper";
+
+  const field = document.createElement("div");
+  field.className = "playlist-number-field";
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.className = "playlist-number-input";
+  input.inputMode = "numeric";
+  input.min = String(min);
+  if (Number.isFinite(max)) {
+    input.max = String(max);
+  }
+  input.step = String(step);
+  input.setAttribute("aria-label", ariaLabel);
+
+  const stepperButtons = document.createElement("div");
+  stepperButtons.className = "playlist-stepper-buttons";
+
+  const increaseButton = document.createElement("button");
+  increaseButton.type = "button";
+  increaseButton.className = "playlist-step-button";
+  increaseButton.setAttribute("aria-label", `Augmenter ${ariaLabel.toLowerCase()}`);
+  increaseButton.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 15L12 9L18 15" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+
+  const decreaseButton = document.createElement("button");
+  decreaseButton.type = "button";
+  decreaseButton.className = "playlist-step-button";
+  decreaseButton.setAttribute("aria-label", `Diminuer ${ariaLabel.toLowerCase()}`);
+  decreaseButton.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+
+  const clampNumber = (rawValue) => {
+    const parsed = Number(rawValue);
+    if (Number.isNaN(parsed)) {
+      return Number.isFinite(min) ? min : 0;
+    }
+    let next = parsed;
+    if (Number.isFinite(min)) {
+      next = Math.max(min, next);
+    }
+    if (Number.isFinite(max)) {
+      next = Math.min(max, next);
+    }
+    return next;
+  };
+
+  const pulseValue = (direction) => {
+    input.classList.remove("value-up", "value-down");
+    void input.offsetWidth;
+    input.classList.add(direction === "up" ? "value-up" : "value-down");
+  };
+
+  const updateButtons = () => {
+    const currentValue = clampNumber(input.value);
+    increaseButton.disabled = Number.isFinite(max) && currentValue >= max;
+    decreaseButton.disabled = Number.isFinite(min) && currentValue <= min;
+  };
+
+  const setValue = (nextValue, direction = null, { commit = true } = {}) => {
+    const cleanValue = clampNumber(nextValue);
+    input.value = String(cleanValue);
+    updateButtons();
+    if (direction) {
+      pulseValue(direction);
+    }
+    if (commit) {
+      onCommit?.(cleanValue);
+    }
+  };
+
+  increaseButton.addEventListener("click", () => {
+    setValue(clampNumber(input.value) + step, "up");
+  });
+
+  decreaseButton.addEventListener("click", () => {
+    setValue(clampNumber(input.value) - step, "down");
+  });
+
+  input.addEventListener("input", updateButtons);
+  input.addEventListener("change", () => {
+    setValue(input.value, null, { commit: true });
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setValue(clampNumber(input.value) + step, "up");
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setValue(clampNumber(input.value) - step, "down");
+    }
+  });
+
+  stepperButtons.append(increaseButton, decreaseButton);
+  field.append(input, stepperButtons);
+  wrapper.appendChild(field);
+  setValue(value, null, { commit: false });
+
+  return {
+    root: wrapper,
+    input,
+    getValue: () => clampNumber(input.value),
+    setValue: (nextValue) => setValue(nextValue, null, { commit: false }),
+  };
+};
+
+const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
+  const wrapper = document.createElement("div");
+  wrapper.className = "playlist-date-time-wrapper";
+
+  const field = document.createElement("div");
+  field.className = "playlist-date-time-field";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "playlist-date-time-input";
+  input.readOnly = true;
+  input.placeholder = "Aucune date";
+  input.setAttribute("aria-label", ariaLabel);
+
+  const calendarButton = document.createElement("button");
+  calendarButton.type = "button";
+  calendarButton.className = "playlist-calendar-button";
+  calendarButton.setAttribute("aria-label", `Ouvrir le calendrier pour ${ariaLabel.toLowerCase()}`);
+  calendarButton.innerHTML = `
+    <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <g class="calendar-icon-body">
+        <path d="M17 13H47C51 13 54 16 54 20V49C54 53 51 56 47 56H17C13 56 10 53 10 49V20C10 16 13 13 17 13Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <path d="M10 25H54" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+        <path d="M21 8V17" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+        <path d="M43 8V17" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+        <path d="M22 36H24" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+        <path d="M32 36H34" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+        <path d="M42 36H44" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+        <path d="M22 46H24" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+        <path d="M32 46H34" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+      </g>
+    </svg>`;
+
+  const pickerPanel = document.createElement("div");
+  pickerPanel.className = "playlist-picker-panel below";
+
+  const pickerHeader = document.createElement("div");
+  pickerHeader.className = "playlist-picker-header";
+
+  const prevMonth = document.createElement("button");
+  prevMonth.type = "button";
+  prevMonth.className = "playlist-nav-button";
+  prevMonth.textContent = "‹";
+  prevMonth.setAttribute("aria-label", "Mois précédent");
+
+  const monthTitle = document.createElement("div");
+  monthTitle.className = "playlist-month-title";
+
+  const nextMonth = document.createElement("button");
+  nextMonth.type = "button";
+  nextMonth.className = "playlist-nav-button";
+  nextMonth.textContent = "›";
+  nextMonth.setAttribute("aria-label", "Mois suivant");
+
+  pickerHeader.append(prevMonth, monthTitle, nextMonth);
+
+  const weekdays = document.createElement("div");
+  weekdays.className = "playlist-weekdays";
+  ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"].forEach((label) => {
+    const day = document.createElement("div");
+    day.className = "playlist-weekday";
+    day.textContent = label;
+    weekdays.appendChild(day);
+  });
+
+  const calendarGrid = document.createElement("div");
+  calendarGrid.className = "playlist-calendar-grid";
+
+  const timeSection = document.createElement("div");
+  timeSection.className = "playlist-time-section";
+
+  const buildTimeColumn = (label) => {
+    const column = document.createElement("div");
+    column.className = "playlist-time-column";
+
+    const timeLabel = document.createElement("div");
+    timeLabel.className = "playlist-time-label";
+    timeLabel.textContent = label;
+
+    const stepper = document.createElement("div");
+    stepper.className = "playlist-time-stepper";
+
+    const upButton = document.createElement("button");
+    upButton.type = "button";
+    upButton.className = "playlist-step-button";
+    upButton.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 15L12 9L18 15" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+
+    const display = document.createElement("div");
+    display.className = "playlist-time-display";
+    display.textContent = "00";
+
+    const downButton = document.createElement("button");
+    downButton.type = "button";
+    downButton.className = "playlist-step-button";
+    downButton.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+
+    stepper.append(upButton, display, downButton);
+    column.append(timeLabel, stepper);
+    return { column, upButton, downButton, display };
+  };
+
+  const hourColumn = buildTimeColumn("Heure");
+  const minuteColumn = buildTimeColumn("Minute");
+  hourColumn.upButton.setAttribute("aria-label", "Augmenter l'heure");
+  hourColumn.downButton.setAttribute("aria-label", "Diminuer l'heure");
+  minuteColumn.upButton.setAttribute("aria-label", "Augmenter les minutes");
+  minuteColumn.downButton.setAttribute("aria-label", "Diminuer les minutes");
+  timeSection.append(hourColumn.column, minuteColumn.column);
+
+  const pickerActions = document.createElement("div");
+  pickerActions.className = "playlist-picker-actions";
+
+  const nowButton = document.createElement("button");
+  nowButton.type = "button";
+  nowButton.className = "playlist-picker-action playlist-now-button";
+  nowButton.textContent = "Maintenant";
+
+  const applyButton = document.createElement("button");
+  applyButton.type = "button";
+  applyButton.className = "playlist-picker-action playlist-apply-button";
+  applyButton.textContent = "Choisir";
+
+  pickerActions.append(nowButton, applyButton);
+  pickerPanel.append(pickerHeader, weekdays, calendarGrid, timeSection, pickerActions);
+  field.append(input, calendarButton);
+  wrapper.append(field, pickerPanel);
+
+  const pad = (number) => String(number).padStart(2, "0");
+  const buildValue = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      return "";
+    }
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+  const buildDisplay = () => formatPlaylistDateTimeDisplay(buildValue(selectedDate));
+  const parseValue = (rawValue) => {
+    if (!rawValue) return null;
+    const parsed = new Date(rawValue);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return parsed;
+  };
+  const isSameDay = (first, second) => (
+    first.getFullYear() === second.getFullYear() &&
+    first.getMonth() === second.getMonth() &&
+    first.getDate() === second.getDate()
+  );
+
+  let selectedDate = parseValue(value) || new Date();
+  let hasSelection = Boolean(parseValue(value));
+  let viewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  let layoutListenersAttached = false;
+
+  const pulseDisplay = (displayNode, direction) => {
+    displayNode.classList.remove("pulse-up", "pulse-down");
+    void displayNode.offsetWidth;
+    displayNode.classList.add(direction === "up" ? "pulse-up" : "pulse-down");
+  };
+
+  const syncInput = () => {
+    input.value = hasSelection ? buildDisplay() : "";
+  };
+
+  const renderTime = (direction = null, target = null) => {
+    hourColumn.display.textContent = pad(selectedDate.getHours());
+    minuteColumn.display.textContent = pad(selectedDate.getMinutes());
+    if (target === "hour") {
+      pulseDisplay(hourColumn.display, direction);
+    }
+    if (target === "minute") {
+      pulseDisplay(minuteColumn.display, direction);
+    }
+  };
+
+  const renderCalendar = () => {
+    const today = new Date();
+    const activeDate = hasSelection ? selectedDate : today;
+    const firstDay = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+    const lastDay = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
+    const firstWeekday = firstDay.getDay();
+    const daysInMonth = lastDay.getDate();
+
+    calendarGrid.innerHTML = "";
+    monthTitle.textContent = viewDate.toLocaleDateString("fr-CA", {
+      month: "long",
+      year: "numeric",
+    });
+
+    for (let index = 0; index < firstWeekday; index += 1) {
+      const empty = document.createElement("div");
+      empty.className = "playlist-empty-day";
+      calendarGrid.appendChild(empty);
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const button = document.createElement("button");
+      const date = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+      button.type = "button";
+      button.className = "playlist-day-button";
+      button.textContent = String(day);
+      if (isSameDay(date, today)) {
+        button.classList.add("today");
+      }
+      if (isSameDay(date, activeDate)) {
+        button.classList.add("selected");
+      }
+      button.addEventListener("click", () => {
+        selectedDate = new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          date.getDate(),
+          selectedDate.getHours(),
+          selectedDate.getMinutes(),
+          0,
+          0,
+        );
+        hasSelection = true;
+        renderCalendar();
+        renderTime();
+      });
+      calendarGrid.appendChild(button);
+    }
+
+    renderTime();
+  };
+
+  const updatePickerPosition = () => {
+    const wrapperRect = wrapper.getBoundingClientRect();
+    pickerPanel.classList.remove("above", "below");
+    const gap = 12;
+    const panelHeight = pickerPanel.offsetHeight;
+    const spaceAbove = wrapperRect.top;
+    const spaceBelow = window.innerHeight - wrapperRect.bottom;
+    if (spaceBelow >= panelHeight + gap || spaceBelow >= spaceAbove) {
+      pickerPanel.classList.add("below");
+    } else {
+      pickerPanel.classList.add("above");
+    }
+  };
+
+  const handleLayoutChange = () => {
+    if (pickerPanel.classList.contains("open")) {
+      updatePickerPosition();
+    }
+  };
+
+  const handleDocumentClick = (event) => {
+    if (!wrapper.contains(event.target)) {
+      closePicker();
+    }
+  };
+
+  const handleEscape = (event) => {
+    if (event.key === "Escape") {
+      closePicker();
+    }
+  };
+
+  const attachLayoutListeners = () => {
+    if (layoutListenersAttached) return;
+    layoutListenersAttached = true;
+    document.addEventListener("click", handleDocumentClick);
+    document.addEventListener("keydown", handleEscape);
+    window.addEventListener("resize", handleLayoutChange);
+    window.addEventListener("scroll", handleLayoutChange, true);
+  };
+
+  const detachLayoutListeners = () => {
+    if (!layoutListenersAttached) return;
+    layoutListenersAttached = false;
+    document.removeEventListener("click", handleDocumentClick);
+    document.removeEventListener("keydown", handleEscape);
+    window.removeEventListener("resize", handleLayoutChange);
+    window.removeEventListener("scroll", handleLayoutChange, true);
+  };
+
+  function closePicker() {
+    pickerPanel.classList.remove("open");
+    detachLayoutListeners();
+  }
+
+  const openPicker = () => {
+    renderCalendar();
+    pickerPanel.classList.remove("open", "above", "below");
+    pickerPanel.classList.add("below");
+    attachLayoutListeners();
+    requestAnimationFrame(() => {
+      updatePickerPosition();
+      pickerPanel.classList.add("open");
+    });
+  };
+
+  const applySelection = () => {
+    hasSelection = true;
+    syncInput();
+    closePicker();
+    onCommit?.(buildValue(selectedDate));
+  };
+
+  const clearSelection = () => {
+    hasSelection = false;
+    syncInput();
+    closePicker();
+    onCommit?.("");
+  };
+
+  const changeHour = (amount) => {
+    selectedDate = new Date(selectedDate.getTime());
+    selectedDate.setHours(selectedDate.getHours() + amount);
+    hasSelection = true;
+    if (
+      selectedDate.getMonth() !== viewDate.getMonth() ||
+      selectedDate.getFullYear() !== viewDate.getFullYear()
+    ) {
+      viewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      renderCalendar();
+    } else {
+      renderTime(amount > 0 ? "up" : "down", "hour");
+    }
+    renderCalendar();
+  };
+
+  const changeMinute = (amount) => {
+    selectedDate = new Date(selectedDate.getTime());
+    selectedDate.setMinutes(selectedDate.getMinutes() + amount);
+    hasSelection = true;
+    if (
+      selectedDate.getMonth() !== viewDate.getMonth() ||
+      selectedDate.getFullYear() !== viewDate.getFullYear()
+    ) {
+      viewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      renderCalendar();
+    } else {
+      renderTime(amount > 0 ? "up" : "down", "minute");
+    }
+    renderCalendar();
+  };
+
+  calendarButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (pickerPanel.classList.contains("open")) {
+      closePicker();
+    } else {
+      openPicker();
+    }
+  });
+
+  input.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openPicker();
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openPicker();
+    }
+    if (event.key === "Backspace" || event.key === "Delete") {
+      event.preventDefault();
+      clearSelection();
+    }
+  });
+
+  prevMonth.addEventListener("click", () => {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
+    renderCalendar();
+    updatePickerPosition();
+  });
+  nextMonth.addEventListener("click", () => {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+    renderCalendar();
+    updatePickerPosition();
+  });
+
+  hourColumn.upButton.addEventListener("click", () => changeHour(1));
+  hourColumn.downButton.addEventListener("click", () => changeHour(-1));
+  minuteColumn.upButton.addEventListener("click", () => changeMinute(1));
+  minuteColumn.downButton.addEventListener("click", () => changeMinute(-1));
+  nowButton.addEventListener("click", () => {
+    selectedDate = new Date();
+    hasSelection = true;
+    viewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    renderCalendar();
+    updatePickerPosition();
+  });
+  applyButton.addEventListener("click", applySelection);
+
+  syncInput();
+
+  return {
+    root: wrapper,
+    input,
+    getValue: () => (hasSelection ? buildValue(selectedDate) : ""),
+    setValue: (nextValue) => {
+      const parsed = parseValue(nextValue);
+      if (parsed) {
+        selectedDate = parsed;
+        hasSelection = true;
+        viewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      } else {
+        selectedDate = new Date();
+        hasSelection = false;
+        viewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      }
+      syncInput();
+    },
+  };
+};
+
 const triggerMediaDownload = (item) => {
   const href = item?.url || item?.display_url || "";
   if (!href) return;
@@ -1803,21 +2466,6 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
   enabledInput.checked = Boolean(item.enabled);
   enabledInput.dataset.field = "enabled";
   const visibilitySwitch = createVisibilitySwitch(enabledInput);
-  enabledInput.addEventListener("change", async () => {
-    const previousValue = !enabledInput.checked;
-    visibilitySwitch.classList.add("visibility-toggle--busy");
-    enabledInput.disabled = true;
-    try {
-      await saveItem(item.id, { enabled: enabledInput.checked }, { render: false });
-    } catch (error) {
-      console.error("Impossible de mettre à jour la visibilité:", error);
-      enabledInput.checked = previousValue;
-      visibilitySwitch.dataset.state = previousValue ? "visible" : "hidden";
-    } finally {
-      enabledInput.disabled = false;
-      visibilitySwitch.classList.remove("visibility-toggle--busy");
-    }
-  });
 
   const headerActions = document.createElement("div");
   headerActions.className = "media-card-header-actions";
@@ -1843,92 +2491,126 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
   const grid = document.createElement("div");
   grid.className = "media-card-grid";
 
-  const startInput = document.createElement("input");
-  startInput.type = "datetime-local";
-  startInput.value = formatDateForInput(item.start_at);
-  startInput.dataset.field = "start_at";
-  grid.appendChild(createInputGroup("Début", startInput));
+  let autoSaveController = null;
+  let autoSaveStatusTimer = null;
+  const autoSaveStatus = document.createElement("p");
+  autoSaveStatus.className = "playlist-autosave-status";
+  const setAutoSaveStatus = (state) => {
+    if (autoSaveStatusTimer) {
+      window.clearTimeout(autoSaveStatusTimer);
+      autoSaveStatusTimer = null;
+    }
+    autoSaveStatus.dataset.state = state;
+    card.dataset.autosaveState = state;
+    if (state === "saving") {
+      autoSaveStatus.textContent = "Enregistrement...";
+      return;
+    }
+    if (state === "error") {
+      autoSaveStatus.textContent = "Erreur d'enregistrement";
+      return;
+    }
+    if (state === "saved") {
+      autoSaveStatus.textContent = "Enregistré";
+      autoSaveStatusTimer = window.setTimeout(() => {
+        autoSaveStatus.dataset.state = "idle";
+        autoSaveStatus.textContent = "Sauvegarde auto";
+      }, 1400);
+      return;
+    }
+    autoSaveStatus.textContent = "Sauvegarde auto";
+  };
 
-  const endInput = document.createElement("input");
-  endInput.type = "datetime-local";
-  endInput.value = formatDateForInput(item.end_at);
-  endInput.dataset.field = "end_at";
-  grid.appendChild(createInputGroup("Fin", endInput));
+  const requestAutoSave = () => {
+    if (!autoSaveController) return;
+    void autoSaveController.queue();
+  };
 
-  let durationInput = null;
+  const startField = createPlaylistDateTimeField({
+    value: formatDateForInput(item.start_at),
+    ariaLabel: "Date de début",
+    onCommit: requestAutoSave,
+  });
+  grid.appendChild(createFieldGroup("Début", startField.root, "field-group--date"));
+
+  const endField = createPlaylistDateTimeField({
+    value: formatDateForInput(item.end_at),
+    ariaLabel: "Date de fin",
+    onCommit: requestAutoSave,
+  });
+  grid.appendChild(createFieldGroup("Fin", endField.root, "field-group--date"));
+
+  let durationField = null;
   if (kind !== "video") {
-    durationInput = document.createElement("input");
-    durationInput.type = "number";
-    durationInput.min = "1";
-    durationInput.step = "1";
-    durationInput.value = Math.round(Number(item.duration) || 10);
-    durationInput.dataset.field = "duration";
-    grid.appendChild(createInputGroup("Durée (s)", durationInput));
+    durationField = createPlaylistNumberField({
+      value: Math.max(1, Math.round(Number(item.duration) || 10)),
+      min: 1,
+      max: 999,
+      step: 1,
+      ariaLabel: "Durée",
+      onCommit: requestAutoSave,
+    });
+    grid.appendChild(createFieldGroup("Durée (s)", durationField.root, "field-group--number"));
   }
 
-  const skipInput = document.createElement("input");
-  skipInput.type = "number";
-  skipInput.min = "0";
-  skipInput.step = "1";
-  skipInput.value = Math.max(0, Number(item.skip_rounds) || 0);
-  skipInput.dataset.field = "skip_rounds";
-  grid.appendChild(createInputGroup("Sauts", skipInput));
+  const skipField = createPlaylistNumberField({
+    value: Math.max(0, Number(item.skip_rounds) || 0),
+    min: 0,
+    max: 999,
+    step: 1,
+    ariaLabel: "Sauts",
+    onCommit: requestAutoSave,
+  });
+  grid.appendChild(createFieldGroup("Sauts", skipField.root, "field-group--number"));
 
-  const actions = document.createElement("div");
-  actions.className = "media-card-actions";
-
-  const saveButton = document.createElement("button");
-  saveButton.type = "button";
-  saveButton.className = "primary-button";
-  saveButton.textContent = "Enregistrer";
-
-  const archiveButton = document.createElement("button");
-  archiveButton.type = "button";
-  archiveButton.className = "secondary-button";
-  archiveButton.textContent = archivedView ? "Desarchiver" : "Archiver";
-
-  const deleteButton = document.createElement("button");
-  deleteButton.type = "button";
-  deleteButton.className = "secondary-button";
-  deleteButton.textContent = "Supprimer";
-
-  let downloadButton = null;
-  if (kind === "image" || kind === "video") {
-    downloadButton = document.createElement("button");
-    downloadButton.type = "button";
-    downloadButton.className = "secondary-button";
-    downloadButton.textContent = "Télécharger";
-    downloadButton.addEventListener("click", () => triggerMediaDownload(item));
-  }
-
-  saveButton.addEventListener("click", async () => {
+  const buildPayload = () => {
     const payload = {
       enabled: enabledInput.checked,
-      start_at: formatDatetimeForServer(startInput.value),
-      end_at: formatDatetimeForServer(endInput.value),
-      skip_rounds: Math.max(0, Number(skipInput.value) || 0),
+      start_at: formatDatetimeForServer(startField.getValue()),
+      end_at: formatDatetimeForServer(endField.getValue()),
+      skip_rounds: Math.max(0, Number(skipField.getValue()) || 0),
     };
-    if (durationInput) {
-      payload.duration = Number(durationInput.value) || 0;
+    if (durationField) {
+      payload.duration = Math.max(1, Number(durationField.getValue()) || 1);
     }
     if (muteInput) {
       payload.muted = muteInput.checked;
     }
-    saveButton.disabled = true;
-    saveButton.textContent = "Enregistrement...";
-    try {
-      await saveItem(item.id, payload);
-      saveButton.textContent = "Enregistré";
-    } catch (error) {
-      console.error(error);
-      saveButton.textContent = "Erreur";
-    } finally {
-      setTimeout(() => {
-        saveButton.disabled = false;
-        saveButton.textContent = "Enregistrer";
-      }, 1400);
-    }
+    return payload;
+  };
+
+  autoSaveController = createPlaylistAutoSaveController(item.id, buildPayload, setAutoSaveStatus);
+  setAutoSaveStatus("idle");
+
+  enabledInput.addEventListener("change", requestAutoSave);
+  if (muteInput) {
+    muteInput.addEventListener("change", requestAutoSave);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "media-card-actions";
+
+  const archiveButton = createPlaylistActionButton({
+    kind: archivedView ? "restore" : "archive",
+    label: archivedView ? "Désarchiver" : "Archiver",
   });
+
+  const deleteButton = createPlaylistActionButton({
+    kind: "delete",
+    label: "Supprimer",
+  });
+
+  let downloadButton = null;
+  if (kind === "image" || kind === "video") {
+    downloadButton = createPlaylistActionButton({
+      kind: "download",
+      label: "Télécharger",
+    });
+    downloadButton.addEventListener("click", () => {
+      pulsePlaylistActionButton(downloadButton);
+      triggerMediaDownload(item);
+    });
+  }
 
   archiveButton.addEventListener("click", async () => {
     const confirmMessage = archivedView
@@ -1937,8 +2619,9 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
     if (!window.confirm(confirmMessage)) {
       return;
     }
+    pulsePlaylistActionButton(archiveButton);
     archiveButton.disabled = true;
-    archiveButton.textContent = archivedView ? "Restauration..." : "Archivage...";
+    archiveButton.classList.add("is-busy");
     try {
       if (archivedView) {
         await restoreArchivedItem(item.id);
@@ -1947,11 +2630,9 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
       }
     } catch (error) {
       console.error(error);
-      archiveButton.textContent = "Erreur";
-      setTimeout(() => {
-        archiveButton.disabled = false;
-        archiveButton.textContent = archivedView ? "Desarchiver" : "Archiver";
-      }, 1400);
+      archiveButton.disabled = false;
+      archiveButton.classList.remove("is-busy");
+      window.alert("Erreur lors de l'archivage du média.");
     }
   });
 
@@ -1959,29 +2640,28 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
     if (!window.confirm("Supprimer ce média ?")) {
       return;
     }
+    pulsePlaylistActionButton(deleteButton);
     deleteButton.disabled = true;
-    deleteButton.textContent = "Suppression...";
+    deleteButton.classList.add("is-busy");
     try {
       await deleteItem(item.id);
     } catch (error) {
       console.error(error);
-      deleteButton.textContent = "Erreur";
-      setTimeout(() => {
-        deleteButton.disabled = false;
-        deleteButton.textContent = "Supprimer";
-      }, 1400);
+      deleteButton.disabled = false;
+      deleteButton.classList.remove("is-busy");
+      window.alert("Erreur lors de la suppression du média.");
     }
   });
 
   if (downloadButton) {
     actions.append(downloadButton);
   }
-  actions.append(saveButton, archiveButton, deleteButton);
+  actions.append(archiveButton, deleteButton);
 
   if (controls.childElementCount > 0) {
-    card.append(header, controls, grid, actions);
+    card.append(header, controls, grid, autoSaveStatus, actions);
   } else {
-    card.append(header, grid, actions);
+    card.append(header, grid, autoSaveStatus, actions);
   }
   return card;
 };
