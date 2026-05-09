@@ -7,7 +7,7 @@
     <meta name="description" content="Cardinal TV - Système de diaporama et affichage dynamique" />
     <title>{% block title %}Cardinal TV{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
-    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260509-05' %}
+    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260509-06' %}
     {% if defer_admin_css|default(false) %}
       <link rel="preload" href="{{ core_css_url }}" as="style" onload="this.onload=null;this.rel='stylesheet'" />
       <noscript><link rel="stylesheet" href="{{ core_css_url }}" /></noscript>
@@ -230,7 +230,7 @@
       <script defer src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}"></script>
       <script defer src="{{ url_for('static', filename='js/slide_renderers.js') }}"></script>
       <script defer src="{{ url_for('static', filename='js/slideshow_preview.js') }}"></script>
-      <script defer type="module" src="{{ url_for('static', filename='js/app.js') }}?v=20260507-03"></script>
+      <script defer type="module" src="{{ url_for('static', filename='js/app.js') }}?v=20260509-06"></script>
     {% endblock %}
   </body>
 </html>

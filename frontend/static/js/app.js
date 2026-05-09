@@ -239,6 +239,7 @@ let christmasLines = [];
 let christmasSlideSettings = null;
 let newsSlideSettings = null;
 let weatherSlideSettings = null;
+let vacationsSlideSettings = null;
 let customSlideSettings = null;
 let customSlides = [];
 let autoSlideDisplayableMap = null;
@@ -502,6 +503,18 @@ const DEFAULT_WEATHER_SLIDE_SETTINGS = {
   duration: 15,
 };
 
+const DEFAULT_VACATIONS_SLIDE_SETTINGS = {
+  enabled: false,
+  order_index: 0,
+  duration: 20,
+  initial_full_weeks: 8,
+  months_to_show: 12,
+  scroll_start_delay_ms: 4500,
+  scroll_speed_px_per_second: 26,
+  pause_at_bottom_ms: 5000,
+  pause_at_top_ms: 3000,
+};
+
 const CHRISTMAS_TEXT_OPTIONS_DEFAULT = { ...BIRTHDAY_TEXT_OPTIONS_DEFAULT, color: "#f8fafc" };
 const CHRISTMAS_MAX_LINES = BIRTHDAY_MAX_LINES;
 const CHRISTMAS_PREVIEW_BASE_WIDTH = 1920;
@@ -606,6 +619,7 @@ const CUSTOM_SLIDE_CARD_ID = "__custom_slide__";
 const BIRTHDAY_SLIDE_CARD_ID = "__birthday_slide__";
 const TIME_CHANGE_SLIDE_CARD_ID = "__time_change_slide__";
 const CHRISTMAS_SLIDE_CARD_ID = "__christmas_slide__";
+const VACATIONS_SLIDE_CARD_ID = "__vacations_slide__";
 const NEWS_SLIDE_CARD_ID = "__news_slide__";
 const WEATHER_SLIDE_CARD_ID = "__weather_slide__";
 const CUSTOM_AVAILABILITY_PREFIX = "custom:";
@@ -1070,6 +1084,38 @@ const normalizeCustomSlideSettings = (raw) => {
   return result;
 };
 
+const normalizeVacationsSlideSettings = (raw) => {
+  const base = { ...DEFAULT_VACATIONS_SLIDE_SETTINGS };
+  if (!raw || typeof raw !== "object") {
+    return base;
+  }
+  const result = { ...base };
+  if ("enabled" in raw) {
+    result.enabled = Boolean(raw.enabled);
+  }
+  if ("order_index" in raw) {
+    const idx = Number.parseInt(raw.order_index, 10);
+    if (Number.isFinite(idx) && idx >= 0) {
+      result.order_index = idx;
+    }
+  }
+  if ("duration" in raw) {
+    const val = Number(raw.duration);
+    if (Number.isFinite(val) && val >= 1 && val <= 600) {
+      result.duration = val;
+    }
+  }
+  ["initial_full_weeks", "months_to_show", "scroll_start_delay_ms", "scroll_speed_px_per_second", "pause_at_bottom_ms", "pause_at_top_ms"].forEach((key) => {
+    if (key in raw) {
+      const val = Number(raw[key]);
+      if (Number.isFinite(val) && val >= 0) {
+        result[key] = val;
+      }
+    }
+  });
+  return result;
+};
+
 const normalizeOpenDays = (raw = {}) => {
   const base = { ...DEFAULT_OPEN_DAYS };
   if (!raw || typeof raw !== "object") {
@@ -1379,6 +1425,9 @@ const loadOverlayAndSlideSettings = async () => {
 
   const rawWeather = data && data.weather_slide ? data.weather_slide : {};
   weatherSlideSettings = { ...DEFAULT_WEATHER_SLIDE_SETTINGS, ...rawWeather };
+
+  const rawVacations = data && data.vacations_slide ? data.vacations_slide : {};
+  vacationsSlideSettings = normalizeVacationsSlideSettings(rawVacations);
 
   const rawCustom = data && data.test_slide ? data.test_slide : {};
   customSlideSettings = normalizeCustomSlideSettings(rawCustom);
@@ -2121,6 +2170,19 @@ const setSlideEntryEnabledState = async (type, enabled, slideId = null) => {
     return;
   }
 
+  if (type === "vacations") {
+    const patch = { vacations_slide: { enabled: nextEnabled } };
+    const data = await fetchJSON("api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    vacationsSlideSettings = normalizeVacationsSlideSettings(
+      data.vacations_slide || patch.vacations_slide,
+    );
+    return;
+  }
+
   if (type === "news") {
     const data = await fetchJSON("api/news-slide", {
       method: "POST",
@@ -2349,6 +2411,33 @@ const createChristmasSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   return card;
 };
 
+const createVacationsSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) => {
+  const card = document.createElement("article");
+  card.className = "media-card vacations-slide-card auto-slide-card";
+  card.dataset.id = VACATIONS_SLIDE_CARD_ID;
+
+  const header = createOrderHeader(VACATIONS_SLIDE_CARD_ID, globalIndex, displayNumber, totalAuto);
+
+  const body = document.createElement("div");
+  body.className = "media-card-body";
+  const title = document.createElement("h3");
+  title.textContent = "Diapositive « Vacances »";
+  const status = document.createElement("p");
+  status.className = "field-hint";
+  status.textContent = vacationsSlideSettings?.enabled ? "Activée" : "Désactivée";
+  body.append(title, status);
+
+  card.append(
+    header,
+    body,
+    createSlideArchiveActions({
+      type: "vacations",
+      label: "la diapositive « Vacances »",
+    }),
+  );
+  return card;
+};
+
 const createNewsSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) => {
   const card = document.createElement("article");
   card.className = "media-card news-slide-card auto-slide-card";
@@ -2445,7 +2534,7 @@ const createCustomSlideCard = (slide, entryId, globalIndex, displayNumber, autoC
   return card;
 };
 
-const AUTO_ENTRY_PRIORITY = ["team", "birthday", "time-change", "christmas", "news", "weather", "custom"];
+const AUTO_ENTRY_PRIORITY = ["team", "birthday", "time-change", "christmas", "vacations", "news", "weather", "custom"];
 
 const getAutoEntries = () => {
   const sources = [
@@ -2453,6 +2542,7 @@ const getAutoEntries = () => {
     { type: "birthday", id: BIRTHDAY_SLIDE_CARD_ID, settings: birthdaySlideSettings },
     { type: "time-change", id: TIME_CHANGE_SLIDE_CARD_ID, settings: timeChangeSlideSettings },
     { type: "christmas", id: CHRISTMAS_SLIDE_CARD_ID, settings: christmasSlideSettings },
+    { type: "vacations", id: VACATIONS_SLIDE_CARD_ID, settings: vacationsSlideSettings },
     { type: "news", id: NEWS_SLIDE_CARD_ID, settings: newsSlideSettings },
     { type: "weather", id: WEATHER_SLIDE_CARD_ID, settings: weatherSlideSettings },
   ];
@@ -2555,6 +2645,10 @@ const renderMedia = () => {
     } else if (entry.type === "christmas") {
       mediaList.appendChild(
         createChristmasSlideCard(index, displayNumber, autoEntries.length, autoEntries.length),
+      );
+    } else if (entry.type === "vacations") {
+      mediaList.appendChild(
+        createVacationsSlideCard(index, displayNumber, autoEntries.length, autoEntries.length),
       );
     } else if (entry.type === "news") {
       mediaList.appendChild(createNewsSlideCard(index, displayNumber, autoEntries.length, autoEntries.length));
@@ -2880,6 +2974,18 @@ const persistChristmasOrderIndex = async (orderIndex) => {
   );
 };
 
+const persistVacationsOrderIndex = async (orderIndex) => {
+  const patch = { vacations_slide: { order_index: orderIndex } };
+  const data = await fetchJSON("api/settings", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  vacationsSlideSettings = normalizeVacationsSlideSettings(
+    data.vacations_slide || patch.vacations_slide,
+  );
+};
+
 const persistNewsOrderIndex = async (orderIndex) => {
   const data = await fetchJSON("api/news-slide", {
     method: "POST",
@@ -2962,6 +3068,12 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
           order_index: position,
         };
       }
+      if (entry.type === "vacations" && vacationsSlideSettings) {
+        vacationsSlideSettings = {
+          ...(vacationsSlideSettings || DEFAULT_VACATIONS_SLIDE_SETTINGS),
+          order_index: position,
+        };
+      }
       if (entry.type === "news" && newsSlideSettings) {
         newsSlideSettings = {
           ...(newsSlideSettings || DEFAULT_NEWS_SLIDE_SETTINGS),
@@ -2999,6 +3111,9 @@ const moveEntryToPosition = async (id, targetGlobalIndex) => {
       }
       if (christmasSlideSettings) {
         persistTasks.push(persistChristmasOrderIndex(christmasSlideSettings.order_index));
+      }
+      if (vacationsSlideSettings) {
+        persistTasks.push(persistVacationsOrderIndex(vacationsSlideSettings.order_index));
       }
       if (newsSlideSettings) persistTasks.push(persistNewsOrderIndex(newsSlideSettings.order_index));
       if (weatherSlideSettings) {

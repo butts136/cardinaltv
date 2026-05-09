@@ -56,6 +56,15 @@
       width: 100%;
     }
 
+    .custom-section[data-editor-kind="vacations"] .preview-frame-content {
+      display: none !important;
+    }
+
+    .custom-section[data-editor-kind="vacations"] .live-editor-preview-iframe {
+      opacity: 1 !important;
+      z-index: 2;
+    }
+
     .vacations-employees-toolbar {
       display: flex;
       justify-content: space-between;
@@ -425,6 +434,6 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/live_editor.js') }}?v=20260509-05"></script>
-  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-05"></script>
+  <script src="{{ url_for('static', filename='js/live_editor.js') }}?v=20260509-06"></script>
+  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-06"></script>
 {% endblock %}
