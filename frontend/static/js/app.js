@@ -510,7 +510,7 @@ const DEFAULT_VACATIONS_SLIDE_SETTINGS = {
   initial_full_weeks: 8,
   months_to_show: 12,
   scroll_start_delay_ms: 4500,
-  scroll_speed_px_per_second: 26,
+  scroll_speed_px_per_second: 18,
   pause_at_bottom_ms: 5000,
   pause_at_top_ms: 3000,
 };
@@ -2500,7 +2500,7 @@ const createVacationsSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   const body = document.createElement("div");
   body.className = "media-card-body";
   const title = document.createElement("h3");
-  title.textContent = "Diapositive « Vacances »";
+  title.textContent = "Diapositive « Calendrier »";
   const status = document.createElement("p");
   status.className = "field-hint";
   status.textContent = vacationsSlideSettings?.enabled ? "Activée" : "Désactivée";

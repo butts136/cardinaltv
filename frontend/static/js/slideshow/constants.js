@@ -143,10 +143,10 @@
     initial_full_weeks: 8,
     months_to_show: 12,
     scroll_start_delay_ms: 4500,
-    scroll_speed_px_per_second: 26,
+    scroll_speed_px_per_second: 18,
     pause_at_bottom_ms: 5000,
     pause_at_top_ms: 3000,
-    text1: "Calendrier des vacances",
+    text1: "Calendrier",
     text2: "",
     text3: "",
     text1_options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT },
@@ -154,7 +154,7 @@
     text3_options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT, font_size: 28, bold: false, offset_y_percent: 42 },
     lines: [
       {
-        text: "Calendrier des vacances",
+        text: "Calendrier",
         options: { ...VACATIONS_TEXT_OPTIONS_DEFAULT },
       },
     ],

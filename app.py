@@ -352,10 +352,10 @@ DEFAULT_SETTINGS = {
         "initial_full_weeks": 8,
         "months_to_show": 12,
         "scroll_start_delay_ms": 4500,
-        "scroll_speed_px_per_second": 26.0,
+        "scroll_speed_px_per_second": 18.0,
         "pause_at_bottom_ms": 5000,
         "pause_at_top_ms": 3000,
-        "text1": "Calendrier des vacances",
+        "text1": "Calendrier",
         "text2": "",
         "text3": "",
         "text1_options": {
@@ -383,7 +383,7 @@ DEFAULT_SETTINGS = {
         "text3_options": None,
         "lines": [
             {
-                "text": "Calendrier des vacances",
+                "text": "Calendrier",
                 "options": {
                     "font_size_auto": False,
                     "font_size": 62.0,

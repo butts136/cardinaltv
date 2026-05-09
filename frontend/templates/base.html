@@ -7,7 +7,7 @@
     <meta name="description" content="Cardinal TV - Système de diaporama et affichage dynamique" />
     <title>{% block title %}Cardinal TV{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
-    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260509-09' %}
+    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260509-10' %}
     {% if defer_admin_css|default(false) %}
       <link rel="preload" href="{{ core_css_url }}" as="style" onload="this.onload=null;this.rel='stylesheet'" />
       <noscript><link rel="stylesheet" href="{{ core_css_url }}" /></noscript>
@@ -86,7 +86,7 @@
             <div class="nav-submenu-content {% if endpoint in fetes_endpoints %}is-open{% endif %}">
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.team' %}is-active{% endif %}" href="{{ url_for('main.team') }}">Notre Équipe</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.birthday' %}is-active{% endif %}" href="{{ url_for('main.birthday') }}">Anniversaire</a>
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.vacations' %}is-active{% endif %}" href="{{ url_for('main.vacations') }}">Vacances</a>
+              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.vacations' %}is-active{% endif %}" href="{{ url_for('main.vacations') }}">Calendrier</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.time_change' %}is-active{% endif %}" href="{{ url_for('main.time_change') }}">Changement d'heure</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.christmas' %}is-active{% endif %}" href="{{ url_for('main.christmas') }}">Noël</a>
               <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.news' %}is-active{% endif %}" href="{{ url_for('main.news') }}">Nouvelles</a>
@@ -230,7 +230,7 @@
       <script defer src="{{ url_for('static', filename='js/slideshow/birthday_config.js') }}"></script>
       <script defer src="{{ url_for('static', filename='js/slide_renderers.js') }}"></script>
       <script defer src="{{ url_for('static', filename='js/slideshow_preview.js') }}"></script>
-      <script defer type="module" src="{{ url_for('static', filename='js/app.js') }}?v=20260509-06"></script>
+      <script defer type="module" src="{{ url_for('static', filename='js/app.js') }}?v=20260509-07"></script>
     {% endblock %}
   </body>
 </html>

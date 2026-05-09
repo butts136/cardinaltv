@@ -1,6 +1,6 @@
 {% extends "diaporama_base.html" %}
 
-{% block title %}Vacances · Cardinal TV{% endblock %}
+{% block title %}Calendrier · Cardinal TV{% endblock %}
 
 {% block head_extra %}
   {{ super() }}
@@ -598,9 +598,9 @@
   </style>
 {% endblock %}
 
-{% block page_title %}Vacances{% endblock %}
+{% block page_title %}Calendrier{% endblock %}
 {% block page_subtitle %}
-  <p class="page-subtitle">Aperçu de la diapositive et gestion des périodes de vacances par employé.</p>
+  <p class="page-subtitle">Aperçu de la diapositive Calendrier et gestion des périodes de vacances par employé.</p>
 {% endblock %}
 {% block header_actions %}
   <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
@@ -611,14 +611,14 @@
     <section class="card" id="vacations-preview-card">
       <div class="section-header">
         <div>
-          <h2>Aperçu Vacances</h2>
+          <h2>Aperçu Calendrier</h2>
           <p class="playlist-subtitle">Diapositive réelle affichée dans un frame 16:9, sans bandes informatives.</p>
         </div>
         <div class="custom-toggle-control">
           <label class="visibility-toggle">
             <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
             <div class="visibility-toggle-switch">
-              <input id="vacations-editor-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapo Vacances" />
+              <input id="vacations-editor-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapo Calendrier" />
               <span class="visibility-toggle-slider"></span>
             </div>
             <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
@@ -630,7 +630,7 @@
           <div class="vacations-preview-viewport" id="vacations-preview-viewport">
             <iframe
               id="vacations-editor-slideshow-preview"
-              title="Aperçu diapositive Vacances"
+              title="Aperçu diapositive Calendrier"
               loading="eager"
               src="{{ url_for('main.slideshow') }}?preview=1&slide=vacations&hide_bands=1"
             ></iframe>

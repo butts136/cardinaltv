@@ -6065,7 +6065,10 @@ const renderVacationsSlide = (item) => {
   topbar.className = "topbar vacations-slide-topbar";
   const title = document.createElement("div");
   title.className = "title vacations-slide-title";
-  title.textContent = String(settings.text1 || "Calendrier des vacances").trim() || "Calendrier des vacances";
+  const configuredTitle = String(settings.text1 || "").trim();
+  title.textContent = !configuredTitle || configuredTitle.toLowerCase() === "calendrier des vacances"
+    ? "Calendrier"
+    : configuredTitle;
   topbar.appendChild(title);
 
   const calendarWindow = document.createElement("section");
@@ -6085,10 +6088,6 @@ const renderVacationsSlide = (item) => {
     1,
     Math.min(24, Number(settings.months_to_show) || DEFAULT_VACATIONS_SLIDE.months_to_show || 12),
   );
-  const initialWeeks = Math.max(
-    1,
-    Number(settings.initial_full_weeks) || DEFAULT_VACATIONS_SLIDE.initial_full_weeks || 8,
-  );
   const entries = (Array.isArray(payload?.entries) ? payload.entries : [])
     .map((entry, index) => {
       const startDate = parseIsoUtcDate(entry.startIso || entry.start_date || entry.start);
@@ -6107,33 +6106,31 @@ const renderVacationsSlide = (item) => {
     })
     .filter(Boolean);
 
-  const weekStart = startOfUtcWeekSunday(today);
-  const rangeEnd = endOfUtcMonth(addUtcMonths(monthStart, monthsToShow - 1));
-  const weekHasVacation = (week) => entries.some((entry) => entry.startDate <= week.end && entry.endDate >= week.start);
-  const monthHasVacation = (labelDate) => {
-    const currentStart = startOfUtcMonth(labelDate);
-    const currentEnd = endOfUtcMonth(labelDate);
-    return entries.some((entry) => entry.startDate <= currentEnd && entry.endDate >= currentStart);
-  };
-  const displayWeeks = [];
-  for (let cursor = startOfUtcWeekSunday(monthStart); cursor <= rangeEnd; cursor = addUtcDays(cursor, 7)) {
-    const week = {
-      start: cursor,
-      end: addUtcDays(cursor, 6),
-      days: Array.from({ length: 7 }, (_, index) => addUtcDays(cursor, index)),
-    };
-    const isPastWeek = week.end < weekStart;
-    const isInitialFullWeek = week.start >= weekStart && week.start < addUtcDays(weekStart, initialWeeks * 7);
-    const hasVacation = weekHasVacation(week);
-    if (!isPastWeek && (isInitialFullWeek || hasVacation)) {
-      displayWeeks.push(week);
+  const sameUtcDate = (left, right) => toIsoUtcDate(left) === toIsoUtcDate(right);
+  const sameUtcMonth = (left, right) => (
+    left.getUTCFullYear() === right.getUTCFullYear() && left.getUTCMonth() === right.getUTCMonth()
+  );
+  const getWeeksForMonth = (labelDate) => {
+    const firstDay = startOfUtcMonth(labelDate);
+    const lastDay = endOfUtcMonth(labelDate);
+    const firstWeek = startOfUtcWeekSunday(firstDay);
+    const lastWeek = startOfUtcWeekSunday(lastDay);
+    const weeks = [];
+    for (let cursor = firstWeek; cursor <= lastWeek; cursor = addUtcDays(cursor, 7)) {
+      weeks.push({
+        start: cursor,
+        end: addUtcDays(cursor, 6),
+        days: Array.from({ length: 7 }, (_, dayIndex) => addUtcDays(cursor, dayIndex)),
+      });
     }
-  }
+    return weeks;
+  };
+  const weekdayLabels = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
   const makeWeekdayRow = () => {
     const row = document.createElement("div");
     row.className = "weekday-row";
-    ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"].forEach((label) => {
+    weekdayLabels.forEach((label) => {
       const cell = document.createElement("div");
       cell.className = "weekday";
       cell.textContent = label;
@@ -6143,17 +6140,17 @@ const renderVacationsSlide = (item) => {
   };
   const makeDayCell = (date, labelDate) => {
     const cell = document.createElement("div");
-    const visible = date.getUTCFullYear() === labelDate.getUTCFullYear() && date.getUTCMonth() === labelDate.getUTCMonth();
+    const visible = sameUtcMonth(date, labelDate);
     cell.className = "day";
     if (!visible) cell.classList.add("empty");
     if (visible && [0, 6].includes(date.getUTCDay())) cell.classList.add("weekend");
-    if (visible && toIsoUtcDate(date) === toIsoUtcDate(today)) cell.classList.add("today");
+    if (visible && sameUtcDate(date, today)) cell.classList.add("today");
     const number = document.createElement("div");
     number.className = "day-number";
     const numberText = document.createElement("span");
     numberText.textContent = visible ? String(date.getUTCDate()) : "";
     number.appendChild(numberText);
-    if (visible && toIsoUtcDate(date) === toIsoUtcDate(today)) {
+    if (visible && sameUtcDate(date, today)) {
       const tag = document.createElement("span");
       tag.className = "today-tag";
       tag.textContent = "Aujourd’hui";
@@ -6206,72 +6203,74 @@ const renderVacationsSlide = (item) => {
       bar.style.background = segment.color;
       const leftPercent = (segment.startIndex / 7) * 100;
       const widthPercent = (segment.span / 7) * 100;
-      bar.style.left = `calc(${leftPercent}% + 0.32vw)`;
-      bar.style.width = `calc(${widthPercent}% - 0.64vw)`;
-      bar.style.top = `calc(3.05vh + ${segment.lane * 3.18}vh)`;
+      bar.style.left = `calc(${leftPercent}% + 0.22vw)`;
+      bar.style.width = `calc(${widthPercent}% - 0.44vw)`;
+      bar.style.top = `calc(2.65vh + ${segment.lane * 2.58}vh)`;
       wrapper.appendChild(bar);
     });
     return wrapper;
   };
 
+  const monthsGrid = document.createElement("div");
+  monthsGrid.className = "months-grid";
+
   for (let index = 0; index < monthsToShow; index += 1) {
     const labelDate = addUtcMonths(monthStart, index);
-    const monthWeeks = displayWeeks.filter((week) => week.days.some((day) => (
-      day.getUTCFullYear() === labelDate.getUTCFullYear() && day.getUTCMonth() === labelDate.getUTCMonth()
-    )));
-    const hasVacation = monthHasVacation(labelDate);
-    const mustDisplayMonth = index < 2;
-    if (!mustDisplayMonth && !hasVacation) {
-      continue;
-    }
-    const section = document.createElement("section");
-    section.className = "month-section";
-    if (!hasVacation && monthWeeks.length === 0) {
-      section.classList.add("no-vacation-month");
-    }
-    const band = document.createElement("div");
-    band.className = "month-band";
-    const bandTitle = document.createElement("span");
-    bandTitle.textContent = vacationsMonthFormatter.format(labelDate);
-    const bandInfo = document.createElement("small");
-    bandInfo.textContent = hasVacation ? "" : "Aucune vacance";
-    band.append(bandTitle, bandInfo);
-    section.appendChild(band);
-    if (monthWeeks.length) {
-      const weeksWrap = document.createElement("div");
-      weeksWrap.className = "weeks";
-      section.appendChild(makeWeekdayRow());
-      monthWeeks.forEach((week) => {
-        const row = document.createElement("div");
-        row.className = "week-row";
-        const segments = getSegments(week, labelDate);
-        const laneCount = assignLanes(segments);
-        const rowHeightVh = laneCount > 0 ? 4.15 + laneCount * 3.28 : 4.15;
-        row.style.setProperty("--lane-count", laneCount);
-        row.style.setProperty("--week-row-min-height", `${rowHeightVh}vh`);
-        const dayGrid = document.createElement("div");
-        dayGrid.className = "day-grid";
-        week.days.forEach((date) => {
-          dayGrid.appendChild(makeDayCell(date, labelDate));
-        });
-        row.append(dayGrid, makeVacationBars(segments));
-        weeksWrap.appendChild(row);
+    const card = document.createElement("section");
+    card.className = "month-card";
+
+    const header = document.createElement("div");
+    header.className = "month-header";
+    header.textContent = capitalizeFrench(vacationsMonthFormatter.format(labelDate));
+    card.appendChild(header);
+    card.appendChild(makeWeekdayRow());
+
+    const weeksWrap = document.createElement("div");
+    weeksWrap.className = "month-weeks";
+    getWeeksForMonth(labelDate).forEach((week) => {
+      const row = document.createElement("div");
+      row.className = "week-row";
+      const segments = getSegments(week, labelDate);
+      const laneCount = assignLanes(segments);
+      const rowHeightVh = laneCount > 0 ? 4.75 + laneCount * 2.72 : 4.75;
+      row.style.setProperty("--lane-count", laneCount);
+      row.style.setProperty("--week-row-min-height", `${rowHeightVh}vh`);
+
+      const dayGrid = document.createElement("div");
+      dayGrid.className = "day-grid";
+      week.days.forEach((date) => {
+        dayGrid.appendChild(makeDayCell(date, labelDate));
       });
-      section.appendChild(weeksWrap);
-    } else {
-      const noVacation = document.createElement("div");
-      noVacation.className = "no-vacation";
-      const message = document.createElement("span");
-      message.textContent = `Aucune vacance en ${vacationsMonthOnlyFormatter.format(labelDate)}`;
-      noVacation.appendChild(message);
-      section.appendChild(noVacation);
-    }
-    content.appendChild(section);
+
+      row.append(dayGrid, makeVacationBars(segments));
+      weeksWrap.appendChild(row);
+    });
+
+    card.appendChild(weeksWrap);
+    monthsGrid.appendChild(card);
   }
 
+  content.appendChild(monthsGrid);
   scroller.appendChild(content);
   calendarWindow.append(fadeTop, scroller, fadeBottom);
-  shell.append(topbar, calendarWindow);
+
+  const legend = document.createElement("section");
+  legend.className = "legend vacations-legend";
+  [
+    { className: "vacation", label: "Vacances" },
+    { className: "holiday", label: "Fériés" },
+    { className: "birthday", label: "Fêtes non fériées" },
+  ].forEach((entry) => {
+    const legendItem = document.createElement("div");
+    legendItem.className = "legend-item";
+    const badge = document.createElement("span");
+    badge.className = `legend-badge ${entry.className}`;
+    badge.textContent = entry.label;
+    legendItem.appendChild(badge);
+    legend.appendChild(legendItem);
+  });
+
+  shell.append(topbar, calendarWindow, legend);
   frame.appendChild(shell);
 
   viewport.appendChild(frame);
@@ -6286,7 +6285,7 @@ const renderVacationsSlide = (item) => {
 
     const speed = Math.max(
       1,
-      Number(settings.scroll_speed_px_per_second) || DEFAULT_VACATIONS_SLIDE.scroll_speed_px_per_second || 26,
+      Number(settings.scroll_speed_px_per_second) || DEFAULT_VACATIONS_SLIDE.scroll_speed_px_per_second || 18,
     );
     const startDelay = Math.max(
       0,
@@ -6594,7 +6593,7 @@ const buildVacationsSlideItem = (payload) => {
   return {
     id: VACATIONS_SLIDE_ID,
     vacations_slide: true,
-    original_name: "Vacances",
+    original_name: "Calendrier",
     filename,
     duration,
     enabled: true,
