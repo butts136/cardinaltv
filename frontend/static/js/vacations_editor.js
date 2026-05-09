@@ -21,8 +21,8 @@
     const modal = document.getElementById("vacations-period-modal");
     const modalTitle = document.getElementById("vacations-period-modal-title");
     const modalEmployee = document.getElementById("vacations-period-modal-employee");
-    const modalStart = document.getElementById("vacations-period-start");
-    const modalEnd = document.getElementById("vacations-period-end");
+    const modalRangeSummary = document.getElementById("vacations-period-range-summary");
+    const modalCalendar = document.getElementById("vacations-period-calendar");
     const modalStatus = document.getElementById("vacations-period-modal-status");
     const modalSave = document.getElementById("vacations-period-modal-save");
     const modalCancel = document.getElementById("vacations-period-modal-cancel");
@@ -33,10 +33,13 @@
       plus: "M12 5v14M5 12h14",
       pencil: "M12.5 6.5l5 5L8 21H3v-5l9.5-9.5ZM15.5 3.5l5 5",
       trash: "M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13",
+      chevronLeft: "M15 18l-6-6 6-6",
+      chevronRight: "M9 18l6-6-6-6",
     };
 
     let employees = [];
     let activeEdit = null;
+    let visibleCalendarMonth = null;
 
     const makeId = () => {
       if (window.crypto?.randomUUID) {
@@ -90,12 +93,40 @@
       return `${year}-${month}-${day}`;
     };
 
+    const isoFromDate = (date) => {
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(date.getUTCDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
     const parseIsoDate = (value) => {
       const text = String(value || "").trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
       const date = new Date(`${text}T00:00:00Z`);
       return Number.isNaN(date.getTime()) ? null : date;
     };
+
+    const startOfMonth = (value) => {
+      const source = parseIsoDate(value) || new Date();
+      return new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), 1));
+    };
+
+    const addMonths = (date, months) =>
+      new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + Number(months || 0), 1));
+
+    const addDays = (date, days) => {
+      const next = new Date(date);
+      next.setUTCDate(next.getUTCDate() + Number(days || 0));
+      return next;
+    };
+
+    const monthLabel = (date) =>
+      new Intl.DateTimeFormat("fr-CA", {
+        timeZone: "UTC",
+        month: "long",
+        year: "numeric",
+      }).format(date);
 
     const formatDate = (value) => {
       const parsed = parseIsoDate(value);
@@ -184,6 +215,98 @@
       return employee.vacations.find((period) => String(period.id) === String(periodId)) || null;
     };
 
+    const getRangeBounds = () => {
+      const start = activeEdit?.startDate || "";
+      const end = activeEdit?.endDate || "";
+      return {
+        start,
+        end,
+        hasStart: /^\d{4}-\d{2}-\d{2}$/.test(start),
+        hasEnd: /^\d{4}-\d{2}-\d{2}$/.test(end),
+      };
+    };
+
+    const updateRangeSummary = () => {
+      if (!modalRangeSummary) return;
+      const { start, end, hasStart, hasEnd } = getRangeBounds();
+      if (!hasStart) {
+        modalRangeSummary.textContent = "Sélectionnez une date de début.";
+      } else if (!hasEnd) {
+        modalRangeSummary.textContent = `Début: ${formatDate(start)}. Sélectionnez une date de fin.`;
+      } else {
+        modalRangeSummary.textContent = `Du ${formatDate(start)} au ${formatDate(end)}`;
+      }
+    };
+
+    const renderCalendar = () => {
+      if (!modalCalendar) return;
+      const baseMonth = visibleCalendarMonth || startOfMonth(todayIso());
+      const { start, end, hasStart, hasEnd } = getRangeBounds();
+      const selectedStart = hasStart ? parseIsoDate(start) : null;
+      const selectedEnd = hasEnd ? parseIsoDate(end) : null;
+      const monthStart = new Date(Date.UTC(baseMonth.getUTCFullYear(), baseMonth.getUTCMonth(), 1));
+      const gridStart = addDays(monthStart, -monthStart.getUTCDay());
+      const monthEnd = new Date(Date.UTC(baseMonth.getUTCFullYear(), baseMonth.getUTCMonth() + 1, 0));
+      const gridEnd = addDays(monthEnd, 6 - monthEnd.getUTCDay());
+      const weekdays = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
+      const header = document.createElement("div");
+      header.className = "vacations-calendar-header";
+      const prev = iconButton("chevronLeft", "Mois précédent");
+      prev.dataset.action = "calendar-prev";
+      const title = document.createElement("h4");
+      title.className = "vacations-calendar-title";
+      title.textContent = monthLabel(baseMonth);
+      const next = iconButton("chevronRight", "Mois suivant");
+      next.dataset.action = "calendar-next";
+      header.append(prev, title, next);
+
+      const weekdayRow = document.createElement("div");
+      weekdayRow.className = "vacations-calendar-weekdays";
+      weekdays.forEach((label) => {
+        const cell = document.createElement("span");
+        cell.textContent = label;
+        weekdayRow.appendChild(cell);
+      });
+
+      const grid = document.createElement("div");
+      grid.className = "vacations-calendar-grid";
+      for (let cursor = gridStart; cursor <= gridEnd; cursor = addDays(cursor, 1)) {
+        const iso = isoFromDate(cursor);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "vacations-calendar-day";
+        button.dataset.action = "calendar-day";
+        button.dataset.date = iso;
+        button.textContent = String(cursor.getUTCDate());
+        if (cursor.getUTCMonth() !== baseMonth.getUTCMonth()) {
+          button.classList.add("is-outside-month");
+        }
+        if (iso === start || iso === end) {
+          button.classList.add("is-selected");
+        } else if (selectedStart && selectedEnd && cursor > selectedStart && cursor < selectedEnd) {
+          button.classList.add("is-in-range");
+        }
+        grid.appendChild(button);
+      }
+
+      modalCalendar.replaceChildren(header, weekdayRow, grid);
+      updateRangeSummary();
+    };
+
+    const selectCalendarDate = (iso) => {
+      if (!activeEdit || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+      const { start, end, hasStart, hasEnd } = getRangeBounds();
+      if (!hasStart || hasEnd || iso < start) {
+        activeEdit.startDate = iso;
+        activeEdit.endDate = "";
+      } else {
+        activeEdit.endDate = iso;
+      }
+      setStatus(modalStatus, "");
+      renderCalendar();
+    };
+
     const applyModalState = () => {
       if (!modal) return;
       modal.hidden = !activeEdit;
@@ -194,10 +317,10 @@
     const closeModal = () => {
       activeEdit = null;
       setStatus(modalStatus, "");
-      if (modalStart) modalStart.value = "";
-      if (modalEnd) modalEnd.value = "";
       if (modalEmployee) modalEmployee.textContent = "";
       if (modalTitle) modalTitle.textContent = "Période de vacances";
+      if (modalCalendar) modalCalendar.replaceChildren();
+      if (modalRangeSummary) modalRangeSummary.textContent = "Sélectionnez une date de début.";
       applyModalState();
     };
 
@@ -208,22 +331,20 @@
       activeEdit = {
         employeeId: String(employee.id),
         periodId: period ? String(period.id) : "",
+        startDate: period?.start_date || "",
+        endDate: period?.end_date || "",
       };
+      visibleCalendarMonth = startOfMonth(period?.start_date || todayIso());
       if (modalTitle) {
         modalTitle.textContent = period ? "Modifier la période" : "Ajouter une période";
       }
       if (modalEmployee) {
         modalEmployee.textContent = employee.name || "Employé";
       }
-      if (modalStart) {
-        modalStart.value = period?.start_date || todayIso();
-      }
-      if (modalEnd) {
-        modalEnd.value = period?.end_date || todayIso();
-      }
       setStatus(modalStatus, "");
       applyModalState();
-      setTimeout(() => modalStart?.focus(), 0);
+      renderCalendar();
+      setTimeout(() => modalCalendar?.querySelector(".vacations-calendar-day.is-selected, .vacations-calendar-day")?.focus(), 0);
     };
 
     const buildEmployeeCard = (employee) => {
@@ -339,8 +460,8 @@
       const employee = findEmployee(activeEdit.employeeId);
       if (!employee) return;
 
-      const startDate = String(modalStart?.value || "").trim();
-      const endDate = String(modalEnd?.value || "").trim();
+      const startDate = String(activeEdit.startDate || "").trim();
+      const endDate = String(activeEdit.endDate || "").trim();
       if (!startDate || !endDate) {
         setStatus(modalStatus, "Choisissez deux dates.", "error");
         return;
@@ -441,20 +562,25 @@
         closeModal();
       }
     });
+    modalCalendar?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-action]");
+      if (!button) return;
+      if (button.dataset.action === "calendar-prev") {
+        visibleCalendarMonth = addMonths(visibleCalendarMonth || startOfMonth(todayIso()), -1);
+        renderCalendar();
+        return;
+      }
+      if (button.dataset.action === "calendar-next") {
+        visibleCalendarMonth = addMonths(visibleCalendarMonth || startOfMonth(todayIso()), 1);
+        renderCalendar();
+        return;
+      }
+      if (button.dataset.action === "calendar-day") {
+        selectCalendarDate(button.dataset.date || "");
+      }
+    });
     modalSave?.addEventListener("click", () => {
       void saveModal();
-    });
-    modalStart?.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void saveModal();
-      }
-    });
-    modalEnd?.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void saveModal();
-      }
     });
 
     window.addEventListener("keydown", (event) => {

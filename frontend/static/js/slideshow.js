@@ -345,6 +345,10 @@ const vacationsMonthFormatter = new Intl.DateTimeFormat("fr-CA", {
   month: "long",
   year: "numeric",
 });
+const vacationsMonthOnlyFormatter = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: "UTC",
+  month: "long",
+});
 const vacationsRangeFormatter = new Intl.DateTimeFormat("fr-CA", {
   timeZone: "UTC",
   month: "short",
@@ -377,6 +381,10 @@ const addUtcMonths = (value, months) => {
   return new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth() + Number(months || 0), 1));
 };
 const endOfUtcMonth = (value) => addUtcDays(addUtcMonths(startOfUtcMonth(value), 1), -1);
+const startOfUtcWeekSunday = (value) => {
+  const source = startOfUtcDay(value);
+  return addUtcDays(source, -source.getUTCDay());
+};
 const startOfUtcWeekMonday = (value) => {
   const source = startOfUtcDay(value);
   const weekday = source.getUTCDay() || 7;
@@ -6029,176 +6037,219 @@ const renderVacationsSlide = (item) => {
   const frame = document.createElement("div");
   frame.className = "vacations-slide-frame";
 
-  const backdrop = document.createElement("div");
-  backdrop.className = "vacations-slide-backdrop";
-  const bgUrl = item.background_url || settings.background_url;
-  const mime = (item.background_mimetype || settings.background_mimetype || "").toLowerCase();
-  const isVideo = isVideoBackground(bgUrl, mime);
-  if (bgUrl && isVideo) {
-    const video = document.createElement("video");
-    video.className = "vacations-slide-media vacations-slide-video";
-    video.src = bgUrl;
-    video.autoplay = true;
-    video.loop = true;
-    video.muted = true;
-    video.playsInline = true;
-    video.setAttribute("playsinline", "");
-    setupBackgroundVideo(video, {
-      fallbackEl: backdrop,
-      fallbackClass: "vacations-slide-backdrop--fallback",
-      cacheUrl: bgUrl,
-      slideId: item.id || null,
-    });
-    backdrop.appendChild(video);
-    currentVideo = video;
-  } else if (bgUrl) {
-    const img = document.createElement("img");
-    img.className = "vacations-slide-media vacations-slide-image";
-    img.src = bgUrl;
-    img.alt = "Arrière-plan vacances";
-    setupBackgroundImage(img, { priority: "high" });
-    backdrop.appendChild(img);
-  } else {
-    backdrop.classList.add("vacations-slide-backdrop--fallback");
-  }
-
   const shell = document.createElement("div");
-  shell.className = "vacations-slide-shell";
+  shell.className = "screen vacations-slide-shell";
 
-  const topbar = document.createElement("div");
-  topbar.className = "vacations-slide-topbar";
+  const topbar = document.createElement("section");
+  topbar.className = "topbar vacations-slide-topbar";
   const title = document.createElement("div");
-  title.className = "vacations-slide-title";
+  title.className = "title vacations-slide-title";
   title.textContent = String(settings.text1 || "Calendrier des vacances").trim() || "Calendrier des vacances";
   topbar.appendChild(title);
 
+  const calendarWindow = document.createElement("section");
+  calendarWindow.className = "calendar-window vacations-calendar-window";
+  const fadeTop = document.createElement("div");
+  fadeTop.className = "fade-top";
+  const fadeBottom = document.createElement("div");
+  fadeBottom.className = "fade-bottom";
   const scroller = document.createElement("div");
-  scroller.className = "vacations-slide-scroller";
-  const monthsGrid = document.createElement("div");
-  monthsGrid.className = "vacations-slide-months";
+  scroller.className = "calendar-scroll vacations-slide-scroller";
+  const content = document.createElement("div");
+  content.className = "calendar-content vacations-calendar-content";
 
-  if (Array.isArray(payload?.months) && payload.months.length) {
-    payload.months.forEach((month) => {
-      const card = document.createElement("section");
-      card.className = "vacations-slide-month";
+  const today = startOfUtcDay(new Date());
+  const monthStart = startOfUtcMonth(today);
+  const monthsToShow = Math.max(
+    1,
+    Math.min(24, Number(settings.months_to_show) || DEFAULT_VACATIONS_SLIDE.months_to_show || 12),
+  );
+  const initialWeeks = Math.max(
+    1,
+    Number(settings.initial_full_weeks) || DEFAULT_VACATIONS_SLIDE.initial_full_weeks || 8,
+  );
+  const entries = (Array.isArray(payload?.entries) ? payload.entries : [])
+    .map((entry, index) => {
+      const startDate = parseIsoUtcDate(entry.startIso || entry.start_date || entry.start);
+      const endDate = parseIsoUtcDate(entry.endIso || entry.end_date || entry.end);
+      if (!startDate || !endDate) return null;
+      const normalizedStart = startDate <= endDate ? startDate : endDate;
+      const normalizedEnd = startDate <= endDate ? endDate : startDate;
+      return {
+        ...entry,
+        id: entry.id || `vacation_${index}`,
+        employeeName: entry.employeeName || entry.employee_name || entry.name || "Employé",
+        color: entry.color || colorForVacationEntry(entry.employeeId, entry.id, index),
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
+      };
+    })
+    .filter(Boolean);
 
-      const header = document.createElement("div");
-      header.className = "vacations-slide-month-header";
-      const title = document.createElement("h3");
-      title.textContent = month.label || "";
-      const meta = document.createElement("span");
-      meta.className = "vacations-slide-month-meta";
-      meta.textContent = month.entryCount ? `${month.entryCount} période${month.entryCount > 1 ? "s" : ""}` : "Aucune période";
-      header.append(title, meta);
+  const weekStart = startOfUtcWeekSunday(today);
+  const rangeEnd = endOfUtcMonth(addUtcMonths(monthStart, monthsToShow - 1));
+  const weekHasVacation = (week) => entries.some((entry) => entry.startDate <= week.end && entry.endDate >= week.start);
+  const monthHasVacation = (labelDate) => {
+    const currentStart = startOfUtcMonth(labelDate);
+    const currentEnd = endOfUtcMonth(labelDate);
+    return entries.some((entry) => entry.startDate <= currentEnd && entry.endDate >= currentStart);
+  };
+  const displayWeeks = [];
+  for (let cursor = startOfUtcWeekSunday(monthStart); cursor <= rangeEnd; cursor = addUtcDays(cursor, 7)) {
+    const week = {
+      start: cursor,
+      end: addUtcDays(cursor, 6),
+      days: Array.from({ length: 7 }, (_, index) => addUtcDays(cursor, index)),
+    };
+    const isPastWeek = week.end < weekStart;
+    const isInitialFullWeek = week.start >= weekStart && week.start < addUtcDays(weekStart, initialWeeks * 7);
+    const hasVacation = weekHasVacation(week);
+    if (!isPastWeek && (isInitialFullWeek || hasVacation)) {
+      displayWeeks.push(week);
+    }
+  }
 
-      const weekdays = document.createElement("div");
-      weekdays.className = "vacations-slide-weekdays";
-      VACATIONS_WEEKDAY_LABELS.forEach((label) => {
-        const cell = document.createElement("span");
-        cell.textContent = label;
-        weekdays.appendChild(cell);
-      });
-
-      const days = document.createElement("div");
-      days.className = "vacations-slide-days";
-      (month.days || []).forEach((day) => {
-        const cell = document.createElement("div");
-        cell.className = "vacations-slide-day";
-        if (!day.inMonth) cell.classList.add("is-outside-month");
-        if (day.isToday) cell.classList.add("is-today");
-        if (day.isWeekend) cell.classList.add("is-weekend");
-        if (day.vacationCount) cell.classList.add("has-vacation");
-
-        const number = document.createElement("span");
-        number.className = "vacations-slide-day-number";
-        number.textContent = String(day.dayNumber || "");
-        cell.appendChild(number);
-
-        if (day.vacationCount) {
-          const badgeEl = document.createElement("span");
-          badgeEl.className = "vacations-slide-day-badge";
-          badgeEl.textContent = String(day.vacationCount);
-          cell.appendChild(badgeEl);
-        }
-        days.appendChild(cell);
-      });
-
-      const periodList = document.createElement("div");
-      periodList.className = "vacations-slide-period-list";
-      if (Array.isArray(month.entries) && month.entries.length) {
-        month.entries.forEach((entry) => {
-          const row = document.createElement("article");
-          row.className = "vacations-slide-period";
-          row.style.setProperty("--vacations-accent", entry.color || "#14b8a6");
-
-          const swatch = document.createElement("span");
-          swatch.className = "vacations-slide-period-swatch";
-
-          const content = document.createElement("div");
-          content.className = "vacations-slide-period-content";
-          const titleRow = document.createElement("div");
-          titleRow.className = "vacations-slide-period-title";
-          const employee = document.createElement("strong");
-          employee.textContent = entry.employeeName || "Employé";
-          const label = document.createElement("span");
-          label.textContent = entry.label || "Vacances";
-          titleRow.append(employee, label);
-
-          const metaRow = document.createElement("div");
-          metaRow.className = "vacations-slide-period-meta";
-          metaRow.textContent = entry.monthRangeLabel || entry.rangeLabel || "";
-
-          content.append(titleRow, metaRow);
-          if (entry.notes) {
-            const note = document.createElement("p");
-            note.className = "vacations-slide-period-note";
-            note.textContent = entry.notes;
-            content.appendChild(note);
-          }
-
-          row.append(swatch, content);
-          periodList.appendChild(row);
-        });
-      } else {
-        const empty = document.createElement("p");
-        empty.className = "vacations-slide-period-empty";
-        empty.textContent = "Aucune absence planifiée sur ce mois.";
-        periodList.appendChild(empty);
-      }
-
-      card.append(header, weekdays, days, periodList);
-      monthsGrid.appendChild(card);
+  const makeWeekdayRow = () => {
+    const row = document.createElement("div");
+    row.className = "weekday-row";
+    ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"].forEach((label) => {
+      const cell = document.createElement("div");
+      cell.className = "weekday";
+      cell.textContent = label;
+      row.appendChild(cell);
     });
+    return row;
+  };
+  const makeDayCell = (date, labelDate) => {
+    const cell = document.createElement("div");
+    const visible = date.getUTCFullYear() === labelDate.getUTCFullYear() && date.getUTCMonth() === labelDate.getUTCMonth();
+    cell.className = "day";
+    if (!visible) cell.classList.add("empty");
+    if (visible && [0, 6].includes(date.getUTCDay())) cell.classList.add("weekend");
+    if (visible && toIsoUtcDate(date) === toIsoUtcDate(today)) cell.classList.add("today");
+    const number = document.createElement("div");
+    number.className = "day-number";
+    const numberText = document.createElement("span");
+    numberText.textContent = visible ? String(date.getUTCDate()) : "";
+    number.appendChild(numberText);
+    if (visible && toIsoUtcDate(date) === toIsoUtcDate(today)) {
+      const tag = document.createElement("span");
+      tag.className = "today-tag";
+      tag.textContent = "Aujourd’hui";
+      number.appendChild(tag);
+    }
+    cell.appendChild(number);
+    return cell;
+  };
+  const assignLanes = (segments) => {
+    const laneEnds = [];
+    segments.forEach((segment) => {
+      let lane = 0;
+      while (laneEnds[lane] !== undefined && laneEnds[lane] >= segment.startIndex) {
+        lane += 1;
+      }
+      segment.lane = lane;
+      laneEnds[lane] = segment.endIndex;
+    });
+    return laneEnds.length;
+  };
+  const getSegments = (week, labelDate) => {
+    const currentStart = startOfUtcMonth(labelDate);
+    const currentEnd = endOfUtcMonth(labelDate);
+    return entries
+      .map((entry) => {
+        const segmentStart = new Date(Math.max(entry.startDate.getTime(), week.start.getTime(), currentStart.getTime()));
+        const segmentEnd = new Date(Math.min(entry.endDate.getTime(), week.end.getTime(), currentEnd.getTime()));
+        if (segmentStart > segmentEnd) return null;
+        return {
+          employeeName: entry.employeeName,
+          color: entry.color,
+          startIndex: segmentStart.getUTCDay(),
+          endIndex: segmentEnd.getUTCDay(),
+          span: segmentEnd.getUTCDay() - segmentStart.getUTCDay() + 1,
+        };
+      })
+      .filter(Boolean)
+      .sort((left, right) => {
+        if (left.startIndex !== right.startIndex) return left.startIndex - right.startIndex;
+        return right.endIndex - left.endIndex;
+      });
+  };
+  const makeVacationBars = (segments) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "vacation-bars";
+    segments.forEach((segment) => {
+      const bar = document.createElement("div");
+      bar.className = "vacation-bar";
+      bar.textContent = segment.employeeName;
+      bar.style.background = segment.color;
+      const leftPercent = (segment.startIndex / 7) * 100;
+      const widthPercent = (segment.span / 7) * 100;
+      bar.style.left = `calc(${leftPercent}% + 0.32vw)`;
+      bar.style.width = `calc(${widthPercent}% - 0.64vw)`;
+      bar.style.top = `calc(2.75vh + ${segment.lane * 2.75}vh)`;
+      wrapper.appendChild(bar);
+    });
+    return wrapper;
+  };
+
+  for (let index = 0; index < monthsToShow; index += 1) {
+    const labelDate = addUtcMonths(monthStart, index);
+    const monthWeeks = displayWeeks.filter((week) => week.days.some((day) => (
+      day.getUTCFullYear() === labelDate.getUTCFullYear() && day.getUTCMonth() === labelDate.getUTCMonth()
+    )));
+    const hasVacation = monthHasVacation(labelDate);
+    const section = document.createElement("section");
+    section.className = "month-section";
+    if (!hasVacation && monthWeeks.length === 0) {
+      section.classList.add("no-vacation-month");
+    }
+    const band = document.createElement("div");
+    band.className = "month-band";
+    const bandTitle = document.createElement("span");
+    bandTitle.textContent = vacationsMonthFormatter.format(labelDate);
+    const bandInfo = document.createElement("small");
+    bandInfo.textContent = hasVacation ? "" : "Aucune vacance";
+    band.append(bandTitle, bandInfo);
+    section.appendChild(band);
+    if (monthWeeks.length) {
+      const weeksWrap = document.createElement("div");
+      weeksWrap.className = "weeks";
+      section.appendChild(makeWeekdayRow());
+      monthWeeks.forEach((week) => {
+        const row = document.createElement("div");
+        row.className = "week-row";
+        const segments = getSegments(week, labelDate);
+        row.style.setProperty("--lane-count", assignLanes(segments));
+        const dayGrid = document.createElement("div");
+        dayGrid.className = "day-grid";
+        week.days.forEach((date) => {
+          dayGrid.appendChild(makeDayCell(date, labelDate));
+        });
+        row.append(dayGrid, makeVacationBars(segments));
+        weeksWrap.appendChild(row);
+      });
+      section.appendChild(weeksWrap);
+    } else {
+      const noVacation = document.createElement("div");
+      noVacation.className = "no-vacation";
+      const message = document.createElement("span");
+      message.textContent = `Aucune vacance en ${vacationsMonthOnlyFormatter.format(labelDate)}`;
+      noVacation.appendChild(message);
+      section.appendChild(noVacation);
+    }
+    content.appendChild(section);
   }
 
-  if (!payload?.entries?.length) {
-    const emptyState = document.createElement("div");
-    emptyState.className = "vacations-slide-empty";
-    const emptyTitle = document.createElement("strong");
-    emptyTitle.textContent = "Aucune période de vacances dans la fenêtre affichée.";
-    const emptyText = document.createElement("span");
-    emptyText.textContent = payload?.monthRange || "Modifiez les périodes depuis l’admin pour alimenter le calendrier.";
-    emptyState.append(emptyTitle, emptyText);
-    monthsGrid.prepend(emptyState);
-  }
-
-  scroller.appendChild(monthsGrid);
-  shell.append(topbar, scroller);
-  frame.append(backdrop, shell);
+  scroller.appendChild(content);
+  calendarWindow.append(fadeTop, scroller, fadeBottom);
+  shell.append(topbar, calendarWindow);
+  frame.appendChild(shell);
 
   viewport.appendChild(frame);
 
   const startScrollAnimation = () => {
     if (!scroller.isConnected) return;
-    const firstDayCell = monthsGrid.querySelector(".vacations-slide-day");
-    const initialWeeks = Math.max(
-      1,
-      Number(settings.initial_full_weeks) || DEFAULT_VACATIONS_SLIDE.initial_full_weeks || 8,
-    );
-    const dayHeight = firstDayCell?.getBoundingClientRect?.().height || 48;
-    const targetHeight = Math.max(360, Math.round(dayHeight * initialWeeks + 280));
-    scroller.style.height = `${Math.min(monthsGrid.scrollHeight, targetHeight)}px`;
-
     const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
     if (maxScroll <= 6) {
       scroller.scrollTop = 0;
@@ -6223,7 +6274,6 @@ const renderVacationsSlide = (item) => {
     );
     const slideId = item.id || null;
 
-    let direction = 1;
     let phase = "delay";
     let phaseStartedAt = performance.now();
     let lastTick = performance.now();
@@ -6239,27 +6289,22 @@ const renderVacationsSlide = (item) => {
         }
       } else if (phase === "pause-bottom") {
         if (timestamp - phaseStartedAt >= pauseBottom) {
-          direction = -1;
-          phase = "scroll";
-          lastTick = timestamp;
+          scroller.scrollTop = 0;
+          phase = "pause-top";
+          phaseStartedAt = timestamp;
         }
       } else if (phase === "pause-top") {
         if (timestamp - phaseStartedAt >= pauseTop) {
-          direction = 1;
           phase = "scroll";
           lastTick = timestamp;
         }
       } else {
         const deltaSeconds = Math.max(0, timestamp - lastTick) / 1000;
         lastTick = timestamp;
-        scroller.scrollTop += direction * speed * deltaSeconds;
-        if (direction > 0 && scroller.scrollTop >= maxScroll - 1) {
+        scroller.scrollTop += speed * deltaSeconds;
+        if (scroller.scrollTop >= maxScroll - 1) {
           scroller.scrollTop = maxScroll;
           phase = "pause-bottom";
-          phaseStartedAt = timestamp;
-        } else if (direction < 0 && scroller.scrollTop <= 1) {
-          scroller.scrollTop = 0;
-          phase = "pause-top";
           phaseStartedAt = timestamp;
         }
       }
