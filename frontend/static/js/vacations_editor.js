@@ -88,6 +88,38 @@
       }
     };
 
+    const ensurePreviewVisible = () => {
+      if (!previewFrame) return;
+      previewFrame.setAttribute("loading", "eager");
+      const previewShell = previewFrame.closest(".preview-frame");
+      const markReady = () => {
+        previewShell?.classList.add("slideshow-preview-ready");
+      };
+      previewFrame.addEventListener("load", markReady);
+      setTimeout(() => {
+        try {
+          if (previewFrame.contentDocument?.readyState === "complete") {
+            markReady();
+          }
+        } catch (error) {
+          // ignore same-origin edge cases
+        }
+        previewFrame.contentWindow?.postMessage?.({ type: "slide:refresh" }, "*");
+      }, 120);
+      setTimeout(() => {
+        try {
+          if (previewFrame.contentDocument?.readyState === "complete") {
+            markReady();
+            previewFrame.contentWindow?.postMessage?.({ type: "slide:refresh" }, "*");
+            return;
+          }
+        } catch (error) {
+          // ignore same-origin edge cases
+        }
+        refreshPreview();
+      }, 900);
+    };
+
     const todayIso = () => {
       const now = new Date();
       const year = now.getFullYear();
@@ -646,6 +678,8 @@
         closeModal();
       }
     });
+
+    ensurePreviewVisible();
 
     void loadEmployees().catch((error) => {
       const message = extractErrorMessage(error);

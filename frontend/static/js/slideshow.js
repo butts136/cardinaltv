@@ -406,10 +406,8 @@ const hashString = (value) => {
   }
   return hash;
 };
-const colorForVacationEntry = (employeeId, vacationId, fallbackIndex = 0) => {
-  const hue = hashString(`${employeeId || "employee"}:${vacationId || fallbackIndex}`) % 360;
-  return `hsl(${hue} 68% 58%)`;
-};
+const VACATIONS_BAR_COLOR = "linear-gradient(135deg, #f59e0b, #f97316)";
+const colorForVacationEntry = () => VACATIONS_BAR_COLOR;
 let overlayFontReadyPromise = null;
 const ensureCoreOverlayFontsLoaded = async () => {
   if (!document.fonts?.load) return;
@@ -6187,7 +6185,7 @@ const renderVacationsSlide = (item) => {
       const widthPercent = (segment.span / 7) * 100;
       bar.style.left = `calc(${leftPercent}% + 0.32vw)`;
       bar.style.width = `calc(${widthPercent}% - 0.64vw)`;
-      bar.style.top = `calc(2.75vh + ${segment.lane * 2.75}vh)`;
+      bar.style.top = `calc(2.05vh + ${segment.lane * 2.38}vh)`;
       wrapper.appendChild(bar);
     });
     return wrapper;
@@ -6224,7 +6222,10 @@ const renderVacationsSlide = (item) => {
         const row = document.createElement("div");
         row.className = "week-row";
         const segments = getSegments(week, labelDate);
-        row.style.setProperty("--lane-count", assignLanes(segments));
+        const laneCount = assignLanes(segments);
+        const rowHeightVh = laneCount > 0 ? 2.55 + laneCount * 2.5 : 2.55;
+        row.style.setProperty("--lane-count", laneCount);
+        row.style.setProperty("--week-row-min-height", `${rowHeightVh}vh`);
         const dayGrid = document.createElement("div");
         dayGrid.className = "day-grid";
         week.days.forEach((date) => {
