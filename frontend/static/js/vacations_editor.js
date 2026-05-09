@@ -43,6 +43,10 @@
     let employees = [];
     let activeEdit = null;
     let visibleCalendarMonth = null;
+    let previewRefreshTimer = null;
+    let previewRefreshPending = false;
+    let previewHasLoaded = false;
+    let previewDispatchTimers = [];
 
     const makeId = () => {
       if (window.crypto?.randomUUID) {
@@ -77,15 +81,62 @@
       }
     };
 
-    const refreshPreview = () => {
+    const postPreviewRefresh = () => {
+      if (!previewFrame) return false;
+      const target = previewFrame.contentWindow;
+      if (!target) return false;
+      target.postMessage({ type: "editor:refresh" }, "*");
+      return true;
+    };
+
+    const clearPreviewDispatchTimers = () => {
+      previewDispatchTimers.forEach((timer) => clearTimeout(timer));
+      previewDispatchTimers = [];
+    };
+
+    const dispatchPreviewRefreshBurst = () => {
+      clearPreviewDispatchTimers();
+      const delays = [0, 180, 520, 1100];
+      delays.forEach((delay, index) => {
+        const timer = setTimeout(() => {
+          if (!previewFrame) return;
+          postPreviewRefresh();
+          if (index === delays.length - 1) {
+            previewRefreshPending = false;
+          }
+        }, delay);
+        previewDispatchTimers.push(timer);
+      });
+    };
+
+    const refreshPreview = ({ immediate = false } = {}) => {
       if (!previewFrame) return;
-      try {
-        const current = new URL(previewFrame.getAttribute("src") || previewFrame.src, window.location.origin);
-        current.searchParams.set("_ts", String(Date.now()));
-        previewFrame.src = current.toString();
-      } catch (error) {
-        previewFrame.contentWindow?.postMessage?.({ type: "editor:refresh" }, "*");
+      previewRefreshPending = true;
+      if (previewRefreshTimer) {
+        clearTimeout(previewRefreshTimer);
+        previewRefreshTimer = null;
       }
+
+      const flush = () => {
+        previewRefreshTimer = null;
+        if (!previewFrame || !previewRefreshPending) return;
+        if (!previewHasLoaded && !immediate) {
+          previewRefreshTimer = setTimeout(flush, 120);
+          return;
+        }
+        if (postPreviewRefresh()) {
+          dispatchPreviewRefreshBurst();
+          return;
+        }
+        previewRefreshTimer = setTimeout(flush, 160);
+      };
+
+      if (immediate) {
+        flush();
+        return;
+      }
+
+      previewRefreshTimer = setTimeout(flush, 120);
     };
 
     const ensurePreviewVisible = () => {
@@ -93,7 +144,11 @@
       previewFrame.setAttribute("loading", "eager");
       const previewShell = previewFrame.closest(".preview-frame");
       const markReady = () => {
+        previewHasLoaded = true;
         previewShell?.classList.add("slideshow-preview-ready");
+        if (previewRefreshPending) {
+          refreshPreview({ immediate: true });
+        }
       };
       previewFrame.addEventListener("load", markReady);
       setTimeout(() => {
@@ -104,13 +159,12 @@
         } catch (error) {
           // ignore same-origin edge cases
         }
-        previewFrame.contentWindow?.postMessage?.({ type: "slide:refresh" }, "*");
+        refreshPreview({ immediate: true });
       }, 120);
       setTimeout(() => {
         try {
           if (previewFrame.contentDocument?.readyState === "complete") {
             markReady();
-            previewFrame.contentWindow?.postMessage?.({ type: "slide:refresh" }, "*");
             return;
           }
         } catch (error) {

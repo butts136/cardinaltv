@@ -7076,9 +7076,8 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
 
 const handleSlideRefresh = async () => {
   try {
-    if (!isEditorPreview) {
-      await refreshOverlaySettings();
-    } else {
+    await refreshOverlaySettings();
+    if (isEditorPreview) {
       applyOverlaySettings({ enabled: false, logo_path: "", ticker_text: "" });
     }
     if (!isSingleSlideMode) {
