@@ -3154,9 +3154,15 @@ input[type="datetime-local"]:focus {
 
 .weather-slide-overlay .forecast-legend {
   font-size: calc(var(--weather-slide-forecast-text-size, 17px) - 8px);
-  color: rgba(148, 163, 184, 0.8);
+  color: rgba(226, 232, 240, 0.92);
   text-align: right;
   margin-bottom: 0.4rem;
+  font-weight: 700;
+}
+
+.weather-slide-overlay .forecast-legend-marker {
+  color: #60a5fa;
+  font-weight: 900;
 }
 
 .weather-slide-overlay .forecast-table {
@@ -3301,7 +3307,7 @@ input[type="datetime-local"]:focus {
 
 .weather-slide-overlay .temp-feels {
   color: #60a5fa;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .weather-slide-overlay .temp-split {

@@ -6053,9 +6053,15 @@ details.collapsible:not([open]) .birthday-text-footer {
 
 .forecast-legend {
   font-size: calc(var(--weather-preview-forecast-text-size, 0.85rem) - 8px);
-  color: rgba(148, 163, 184, 0.8);
+  color: rgba(226, 232, 240, 0.92);
   text-align: right;
   margin-bottom: 0.4rem;
+  font-weight: 700;
+}
+
+.forecast-legend-marker {
+  color: #60a5fa;
+  font-weight: 900;
 }
 
 .forecast-table {
@@ -6200,7 +6206,7 @@ details.collapsible:not([open]) .birthday-text-footer {
 
 .temp-feels {
   color: #60a5fa;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .temp-split {

@@ -282,7 +282,7 @@
 
     weatherForecast.innerHTML = `
       <div class="forecast-day forecast-day-table">
-        <div class="forecast-legend">Ressenti entre ()</div>
+        <div class="forecast-legend"><span class="forecast-legend-marker">(x)</span> = Température ressentie</div>
         <table class="forecast-table">
           <colgroup>
             <col class="col-day" />

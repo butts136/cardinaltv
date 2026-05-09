@@ -5633,7 +5633,7 @@ const renderWeatherSlide = async (item, { skipClear = false } = {}) => {
       const forecastCard = document.createElement("div");
       forecastCard.className = "forecast-day forecast-day-table";
       forecastCard.innerHTML = `
-        <div class="forecast-legend">Ressenti entre ()</div>
+        <div class="forecast-legend"><span class="forecast-legend-marker">(x)</span> = Température ressentie</div>
         <table class="forecast-table">
           <colgroup>
             <col class="col-day" />
