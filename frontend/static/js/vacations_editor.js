@@ -14,6 +14,10 @@
     }
 
     const previewFrame = document.getElementById("vacations-editor-slideshow-preview");
+    const previewFrameShell = document.getElementById("vacations-preview-frame");
+    const previewViewport = document.getElementById("vacations-preview-viewport");
+    const previewStatus = document.getElementById("vacations-preview-status");
+    const enabledToggle = document.getElementById("vacations-editor-live-enabled");
     const employeesList = document.getElementById("vacations-employees-list");
     const employeesStatus = document.getElementById("vacations-employees-status");
     const refreshEmployeesButton = document.getElementById("vacations-employees-refresh");
@@ -48,6 +52,9 @@
     let previewHasLoaded = false;
     let previewDispatchTimers = [];
 
+    const PREVIEW_WIDTH = 1920;
+    const PREVIEW_HEIGHT = 1080;
+
     const makeId = () => {
       if (window.crypto?.randomUUID) {
         return window.crypto.randomUUID().replace(/-/g, "");
@@ -79,6 +86,55 @@
       } else {
         delete node.dataset.state;
       }
+    };
+
+    const loadSlideSettings = async () => {
+      if (!enabledToggle) return;
+      try {
+        const data = await fetchJSON("api/settings");
+        enabledToggle.checked = Boolean(data?.vacations_slide?.enabled);
+        setStatus(previewStatus, "");
+      } catch (error) {
+        setStatus(previewStatus, extractErrorMessage(error), "error");
+      }
+    };
+
+    const saveSlideEnabled = async (enabled) => {
+      if (!enabledToggle) return;
+      enabledToggle.disabled = true;
+      setStatus(previewStatus, "Enregistrement...", "info");
+      try {
+        const data = await fetchJSON("api/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vacations_slide: { enabled } }),
+        });
+        enabledToggle.checked = Boolean(data?.vacations_slide?.enabled);
+        setStatus(previewStatus, "Statut enregistré.", "success");
+        refreshPreview({ immediate: true });
+      } catch (error) {
+        enabledToggle.checked = !enabled;
+        setStatus(previewStatus, extractErrorMessage(error), "error");
+      } finally {
+        enabledToggle.disabled = false;
+      }
+    };
+
+    const syncPreviewScale = () => {
+      if (!previewFrameShell || !previewViewport) return;
+      const rect = previewFrameShell.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const scale = Math.min(rect.width / PREVIEW_WIDTH, rect.height / PREVIEW_HEIGHT);
+      previewFrameShell.style.setProperty("--vacations-preview-scale", String(scale));
+    };
+
+    const observePreviewScale = () => {
+      syncPreviewScale();
+      if (window.ResizeObserver && previewFrameShell) {
+        const resizeObserver = new ResizeObserver(syncPreviewScale);
+        resizeObserver.observe(previewFrameShell);
+      }
+      window.addEventListener("resize", syncPreviewScale, { passive: true });
     };
 
     const postPreviewRefresh = () => {
@@ -141,6 +197,7 @@
 
     const ensurePreviewVisible = () => {
       if (!previewFrame) return;
+      syncPreviewScale();
       previewFrame.setAttribute("loading", "eager");
       const previewShell = previewFrame.closest(".preview-frame");
       const markReady = () => {
@@ -689,6 +746,9 @@
     refreshEmployeesButton?.addEventListener("click", () => {
       void loadEmployees();
     });
+    enabledToggle?.addEventListener("change", (event) => {
+      void saveSlideEnabled(Boolean(event.target.checked));
+    });
 
     modalClear?.addEventListener("click", () => {
       if (!activeEdit) return;
@@ -734,7 +794,9 @@
       }
     });
 
+    observePreviewScale();
     ensurePreviewVisible();
+    void loadSlideSettings();
 
     void loadEmployees().catch((error) => {
       const message = extractErrorMessage(error);

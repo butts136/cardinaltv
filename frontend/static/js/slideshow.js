@@ -1917,7 +1917,8 @@ const refreshInfoBandsLayout = async ({ hideBands = false } = {}) => {
 
 const initInfoBands = async () => {
   if (hideInfoBandsInPreview) {
-    await refreshInfoBandsLayout({ hideBands: true });
+    applyInfoBandsLayout({ enabled: false, frame: { size: 100 } });
+    renderInfoBandWidgets({ enabled: false, widgets: [] });
     return;
   }
   if (isEditorPreview || isPreviewMode) {

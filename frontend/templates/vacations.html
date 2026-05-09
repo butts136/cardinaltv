@@ -39,45 +39,42 @@
       color: #b91c1c;
     }
 
-    .custom-section[data-editor-kind="vacations"] .custom-editor {
-      grid-template-columns: 1fr;
-    }
-
-    .custom-section[data-editor-kind="vacations"] .preview-layout {
-      grid-template-columns: 1fr;
-    }
-
-    .custom-section[data-editor-kind="vacations"] .text-options-column,
-    .custom-section[data-editor-kind="vacations"] .background-upload,
-    .custom-section[data-editor-kind="vacations"] .text-add-button,
-    .custom-section[data-editor-kind="vacations"] .selected-text-panel {
-      display: none !important;
-    }
-
-    .custom-section[data-editor-kind="vacations"] .preview-section .playlist-subtitle {
-      display: none;
-    }
-
-    .custom-section[data-editor-kind="vacations"] .preview-column {
-      max-width: none;
+    .vacations-preview-frame {
+      position: relative;
       width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #000000;
+      box-shadow: 0 18px 42px rgba(2, 6, 23, 0.24);
     }
 
-    .custom-section[data-editor-kind="vacations"] .preview-frame-inner {
-      min-height: clamp(480px, 66vh, 860px);
+    .vacations-preview-viewport {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1920px;
+      height: 1080px;
+      transform: scale(var(--vacations-preview-scale, 1));
+      transform-origin: top left;
     }
 
-    .custom-section[data-editor-kind="vacations"] .slideshow-preview-iframe {
-      width: 100%;
+    .vacations-preview-viewport iframe {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      border: 0;
+      display: block;
+      background: #000000;
     }
 
-    .custom-section[data-editor-kind="vacations"] .preview-frame-content {
-      display: none !important;
-    }
-
-    .custom-section[data-editor-kind="vacations"] .live-editor-preview-iframe {
-      opacity: 1 !important;
-      z-index: 2;
+    .vacations-preview-status {
+      min-height: 1.2rem;
+      margin-top: 10px;
+      color: rgba(226, 232, 240, 0.72);
+      font-size: 0.9rem;
     }
 
     .vacations-employees-toolbar {
@@ -611,17 +608,37 @@
 
 {% block content %}
   <div class="vacations-admin-page" id="vacations-admin-page">
-    {% set editor_prefix = "vacations" %}
-    {% set editor_kind = "vacations" %}
-    {% set editor_title = "Aperçu Vacances" %}
-    {% set editor_description = "Aperçu identique à la diapositive réelle, sans édition de texte." %}
-    {% set editor_tokens = [] %}
-    {% set show_meta = False %}
-    {% set show_enabled_toggle = True %}
-    {% set show_text_editor = False %}
-    {% set preview_iframe_loading = "eager" %}
-    {% set preview_iframe_src = url_for('main.slideshow') ~ '?preview=1&slide=vacations&hide_bands=1' %}
-    {% include "partials/live_editor_section.html" %}
+    <section class="card" id="vacations-preview-card">
+      <div class="section-header">
+        <div>
+          <h2>Aperçu Vacances</h2>
+          <p class="playlist-subtitle">Diapositive réelle affichée dans un frame 16:9, sans bandes informatives.</p>
+        </div>
+        <div class="custom-toggle-control">
+          <label class="visibility-toggle">
+            <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
+            <div class="visibility-toggle-switch">
+              <input id="vacations-editor-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapo Vacances" />
+              <span class="visibility-toggle-slider"></span>
+            </div>
+            <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
+          </label>
+        </div>
+      </div>
+      <div class="section-content">
+        <div class="vacations-preview-frame" id="vacations-preview-frame">
+          <div class="vacations-preview-viewport" id="vacations-preview-viewport">
+            <iframe
+              id="vacations-editor-slideshow-preview"
+              title="Aperçu diapositive Vacances"
+              loading="eager"
+              src="{{ url_for('main.slideshow') }}?preview=1&slide=vacations&hide_bands=1"
+            ></iframe>
+          </div>
+        </div>
+        <div id="vacations-preview-status" class="vacations-preview-status" aria-live="polite"></div>
+      </div>
+    </section>
 
     <section class="card" id="vacations-employees-card">
       <div class="section-header">
@@ -680,6 +697,5 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/live_editor.js') }}?v=20260509-09"></script>
-  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-10"></script>
+  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-12"></script>
 {% endblock %}
