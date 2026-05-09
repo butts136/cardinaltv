@@ -1787,24 +1787,28 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .month-events {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.32vw;
-  padding: 0.42vh 0.52vw 0.58vh;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.36vh;
+  padding: 0.5vh 0.52vw 0.62vh;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(7, 17, 31, 0.26);
 }
 
 .vacations-slide-frame .month-event-chip {
-  min-height: 1.8vh;
-  display: inline-flex;
+  min-height: 2.2vh;
+  display: flex;
   align-items: center;
-  padding: 0.1vh 0.48vw;
-  border-radius: 999px;
+  width: 100%;
+  padding: 0.22vh 0.56vw;
+  border-radius: 14px;
+  box-sizing: border-box;
   color: #ffffff;
-  font-size: clamp(11px, 0.74vw, 16px);
+  font-size: clamp(14px, 0.92vw, 18px);
   font-weight: 900;
   letter-spacing: -0.01em;
-  white-space: nowrap;
+  line-height: 1.2;
+  white-space: normal;
   box-shadow: 0 5px 13px rgba(0, 0, 0, 0.2);
 }
 
@@ -2473,13 +2477,9 @@ input[type="datetime-local"]:focus {
 
 .info-bands-toggle {
   align-items: center;
-  --toggle-accent: #22d3ee;
-  --toggle-track-off: rgba(255, 255, 255, 0.2);
-  --toggle-muted: rgba(255, 255, 255, 0.55);
-}
-
-.info-bands-toggle .visibility-toggle-label {
-  font-size: 0.8rem;
+  --toggle-width: 180px;
+  --toggle-height: 56px;
+  --toggle-text-size: 0.9rem;
 }
 
 .info-bands-controls {
@@ -3125,11 +3125,9 @@ input[type="datetime-local"]:focus {
 }
 
 .widget-toggle {
-  --toggle-accent: #22d3ee;
-}
-
-.widget-toggle .visibility-toggle-label {
-  font-size: 0.75rem;
+  --toggle-width: 170px;
+  --toggle-height: 52px;
+  --toggle-text-size: 0.82rem;
 }
 
 .widget-settings.is-disabled {
@@ -3308,8 +3306,10 @@ input[type="datetime-local"]:focus {
 }
 
 
-.feed-toggle .visibility-toggle-label {
-  font-size: 0.75rem;
+.feed-toggle {
+  --toggle-width: 160px;
+  --toggle-height: 50px;
+  --toggle-text-size: 0.8rem;
 }
 
 .news-slide-viewport {
