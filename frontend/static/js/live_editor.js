@@ -1054,7 +1054,8 @@
   };
 
   const isSlideshowPreviewMode = previewFrame?.dataset?.previewMode === "slideshow";
-  let slideshowPreviewReady = !isSlideshowPreviewMode;
+  const forceIframePreviewOnly = editorKind === "vacations";
+  let slideshowPreviewReady = !isSlideshowPreviewMode || forceIframePreviewOnly;
   let activeBackgroundPreviewEntry = null;
   const setSlideshowPreviewReady = (ready) => {
     slideshowPreviewReady = Boolean(ready);
@@ -1071,6 +1072,10 @@
   const setPreviewFallback = () => {
     if (!testPreviewMedia) return;
     clearTestPreview();
+    if (forceIframePreviewOnly) {
+      testPreviewMedia.classList.remove("preview-frame-media--fallback");
+      return;
+    }
     if (isSlideshowPreviewMode && slideshowPreviewReady) {
       testPreviewMedia.classList.remove("preview-frame-media--fallback");
       return;
@@ -1082,6 +1087,10 @@
     if (!testPreviewMedia) return;
     clearTestPreview();
     testPreviewMedia.classList.remove("preview-frame-media--fallback");
+    if (forceIframePreviewOnly && isSlideshowPreviewMode) {
+      scheduleSlideshowPreviewRefresh();
+      return;
+    }
     if (isSlideshowPreviewMode && slideshowPreviewReady) {
       scheduleSlideshowPreviewRefresh();
       return;
@@ -1195,6 +1204,9 @@
     if (!slideshowPreviewFrame) return;
     const url = buildSlideshowPreviewUrl(variantOverride);
     if (!url) return;
+    if (forceIframePreviewOnly) {
+      slideshowPreviewFrame.setAttribute("loading", "eager");
+    }
     slideshowPreviewFrame.dataset.previewSrc = url;
     const current = slideshowPreviewFrame.getAttribute("src");
     if (!current || current !== url) {
@@ -3824,7 +3836,12 @@
     setupPreviewStageScaling();
     syncSlideshowPreviewSrc();
     if (slideshowPreviewFrame && isSlideshowPreviewMode) {
-      setSlideshowPreviewReady(false);
+      if (forceIframePreviewOnly) {
+        slideshowPreviewFrame.setAttribute("loading", "eager");
+        setSlideshowPreviewReady(true);
+      } else {
+        setSlideshowPreviewReady(false);
+      }
       slideshowPreviewFrame.addEventListener("load", () => {
         setSlideshowPreviewReady(true);
         updateTestPreview(activeBackgroundPreviewEntry);
@@ -3834,7 +3851,7 @@
         setPreviewFallback();
       });
       setTimeout(() => {
-        if (!slideshowPreviewReady) {
+        if (!slideshowPreviewReady && !forceIframePreviewOnly) {
           setSlideshowPreviewReady(false);
           updateTestPreview(activeBackgroundPreviewEntry);
         }

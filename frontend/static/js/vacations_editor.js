@@ -519,6 +519,7 @@
       const data = await fetchJSON("api/employees");
       employees = Array.isArray(data?.employees) ? data.employees.map((employee) => normalizeEmployee(employee)) : [];
       renderEmployees();
+      refreshPreview();
       if (!silent) setStatus(employeesStatus, "", "info");
     };
 

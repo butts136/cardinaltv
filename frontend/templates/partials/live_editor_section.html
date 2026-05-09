@@ -9,6 +9,7 @@
 {% set show_enabled_toggle = show_enabled_toggle if show_enabled_toggle is defined else True %}
 {% set show_date_control = show_date_control if show_date_control is defined else False %}
 {% set show_text_editor = show_text_editor if show_text_editor is defined else True %}
+{% set preview_iframe_loading = preview_iframe_loading if preview_iframe_loading is defined else "lazy" %}
 {% set id_prefix = editor_id_prefix or (editor_prefix ~ "-editor") %}
 
 <section
@@ -92,7 +93,7 @@
                     id="{{ id_prefix }}-slideshow-preview"
                     class="slideshow-preview-iframe live-editor-preview-iframe"
                     title="Aperçu diapositive"
-                    loading="lazy"
+                    loading="{{ preview_iframe_loading }}"
                     data-preview-base="{{ url_for('main.slideshow') }}"
                     data-preview-kind="{{ preview_slide_kind }}"
                     data-preview-slide-id="{{ editor_slide_id }}"
