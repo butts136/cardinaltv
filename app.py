@@ -8365,7 +8365,7 @@ WEATHER_CONDITION_ICONS = {
     "default": "🌤️",
 }
 
-MOON_PHASE_ICONS = ("🌑", "🌘", "🌓", "🌖", "🌕", "🌖", "🌓", "🌘")
+MOON_PHASE_ICONS = ("🌑", "🌘", "🌓", "🌖", "🌕")
 
 
 def _moon_phase_icon(date_value: str) -> str:
@@ -8377,22 +8377,30 @@ def _moon_phase_icon(date_value: str) -> str:
     reference = datetime(2000, 1, 6, 18, 14)
     days = (dt - reference).total_seconds() / 86400
     phase = (days % 29.530588853) / 29.530588853
-    return MOON_PHASE_ICONS[int(round(phase * 8)) % 8]
+    distance_from_full = abs(phase - 0.5)
+    if distance_from_full <= 0.0625:
+        return "🌕"
+    if distance_from_full <= 0.1875:
+        return "🌖"
+    if distance_from_full <= 0.3125:
+        return "🌓"
+    if distance_from_full <= 0.4375:
+        return "🌘"
+    return "🌑"
 
 
-def _weather_period_icon(condition: str, period: str, date_value: str) -> str:
+def _weather_period_icon(condition: str, period: str, date_value: str, weather_code: Optional[int] = None) -> str:
     if period not in {"evening", "night"}:
         return WEATHER_CONDITION_ICONS.get(condition, "🌤️")
+
+    if condition == "cloudy" and weather_code == 3:
+        return WEATHER_CONDITION_ICONS["cloudy"]
 
     moon = _moon_phase_icon(date_value)
     if condition == "sunny":
         return moon
-    if condition == "cloudy":
-        return f"{moon}☁️"
-    if condition == "foggy":
-        return f"{moon}🌫️"
-    if condition == "windy":
-        return f"{moon}💨"
+    if condition in {"cloudy", "rainy", "snowy", "stormy", "foggy", "windy"}:
+        return moon
     return WEATHER_CONDITION_ICONS.get(condition, moon)
 
 
@@ -8642,8 +8650,10 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
             "night": bucket.get("night_codes", []),
         }
         period_conditions: Dict[str, str] = {}
+        period_primary_codes: Dict[str, int] = {}
         for period_name, values in period_codes.items():
             code_value = max(set(values), key=values.count) if values else day_code
+            period_primary_codes[period_name] = code_value
             period_conditions[period_name] = WEATHER_CODE_MAP.get(code_value, day_condition)
         wind_max = max(wind_values) if wind_values else None
         wind_peak = None
@@ -8681,25 +8691,29 @@ def _fetch_weather_data(force: bool = False) -> Optional[Dict[str, Any]]:
                     "temperature": temp_morning,
                     "feels_like": feels_morning,
                     "condition": period_conditions.get("morning", day_condition),
-                    "icon": _weather_period_icon(period_conditions.get("morning", day_condition), "morning", dates[i]),
+                    "weather_code": period_primary_codes.get("morning", day_code),
+                    "icon": _weather_period_icon(period_conditions.get("morning", day_condition), "morning", dates[i], period_primary_codes.get("morning", day_code)),
                 },
                 "afternoon": {
                     "temperature": temp_afternoon,
                     "feels_like": feels_afternoon,
                     "condition": period_conditions.get("afternoon", day_condition),
-                    "icon": _weather_period_icon(period_conditions.get("afternoon", day_condition), "afternoon", dates[i]),
+                    "weather_code": period_primary_codes.get("afternoon", day_code),
+                    "icon": _weather_period_icon(period_conditions.get("afternoon", day_condition), "afternoon", dates[i], period_primary_codes.get("afternoon", day_code)),
                 },
                 "evening": {
                     "temperature": temp_evening,
                     "feels_like": feels_evening,
                     "condition": period_conditions.get("evening", day_condition),
-                    "icon": _weather_period_icon(period_conditions.get("evening", day_condition), "evening", dates[i]),
+                    "weather_code": period_primary_codes.get("evening", day_code),
+                    "icon": _weather_period_icon(period_conditions.get("evening", day_condition), "evening", dates[i], period_primary_codes.get("evening", day_code)),
                 },
                 "night": {
                     "temperature": temp_night,
                     "feels_like": feels_night,
                     "condition": period_conditions.get("night", day_condition),
-                    "icon": _weather_period_icon(period_conditions.get("night", day_condition), "night", dates[i]),
+                    "weather_code": period_primary_codes.get("night", day_code),
+                    "icon": _weather_period_icon(period_conditions.get("night", day_condition), "night", dates[i], period_primary_codes.get("night", day_code)),
                 },
             },
             "wind_max": wind_max,

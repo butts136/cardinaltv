@@ -3258,6 +3258,27 @@ input[type="datetime-local"]:focus {
   line-height: 1;
 }
 
+.weather-slide-overlay .weather-layered-icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 1em;
+  height: 1em;
+}
+
+.weather-slide-overlay .weather-layered-base {
+  line-height: 1;
+}
+
+.weather-slide-overlay .weather-layered-overlay {
+  position: absolute;
+  right: -0.02em;
+  bottom: -0.02em;
+  font-size: 0.3em;
+  line-height: 1;
+  filter: drop-shadow(0 0 0.08em rgba(15, 23, 42, 0.85));
+}
+
 .weather-slide-overlay .forecast-cell-wind {
   text-align: left;
 }

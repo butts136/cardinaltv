@@ -165,12 +165,42 @@
       const feelsLabel = feels != null ? Math.round(feels) : '--';
       return `<span class="temp-split"><span class="temp-value">${tempLabel}${unit}</span><span class="temp-feels">(${feelsLabel})</span></span>`;
     };
+    const renderPeriodIcon = (period, key) => {
+      const moonIcons = ['🌑', '🌘', '🌓', '🌖', '🌕'];
+      const isNightPeriod = key === 'evening' || key === 'night';
+      const condition = period?.condition || 'default';
+      const weatherCode = Number(period?.weather_code);
+      let icon = period?.icon || '🌤️';
+      const cachedMoon = typeof icon === 'string' ? moonIcons.find((moon) => icon.includes(moon)) : null;
+      if (cachedMoon) icon = cachedMoon;
+
+      if (!isNightPeriod) {
+        return icon ? `<span class="forecast-period-icon">${icon}</span>` : '';
+      }
+
+      if (condition === 'cloudy' && weatherCode === 3) {
+        return '<span class="forecast-period-icon">☁️</span>';
+      }
+
+      const overlayIcons = {
+        cloudy: '☁️',
+        rainy: '🌧️',
+        snowy: '❄️',
+        stormy: '⛈️',
+        foggy: '🌫️',
+        windy: '💨',
+      };
+      const overlay = overlayIcons[condition];
+      if (overlay && moonIcons.includes(icon)) {
+        return `<span class="forecast-period-icon weather-layered-icon"><span class="weather-layered-base">${icon}</span><span class="weather-layered-overlay">${overlay}</span></span>`;
+      }
+      return icon ? `<span class="forecast-period-icon">${icon}</span>` : '';
+    };
     const formatPeriod = (day, key, tempKey, feelsKey) => {
       const period = day?.periods?.[key] || {};
-      const icon = period.icon ? `<span class="forecast-period-icon">${period.icon}</span>` : '';
       const temp = period.temperature ?? day?.[tempKey];
       const feels = period.feels_like ?? day?.[feelsKey];
-      return `${icon}${formatTemp(temp, feels)}`;
+      return `${renderPeriodIcon(period, key)}${formatTemp(temp, feels)}`;
     };
     const formatRange = (max, min) => {
       const maxLabel = max != null ? Math.round(max) : '--';
@@ -238,12 +268,42 @@
       const feelsLabel = feels != null ? Math.round(feels) : '--';
       return `<span class="temp-split"><span class="temp-value">${tempLabel}</span><span class="temp-feels">(${feelsLabel})</span></span>`;
     };
+    const renderPeriodIcon = (period, key) => {
+      const moonIcons = ['🌑', '🌘', '🌓', '🌖', '🌕'];
+      const isNightPeriod = key === 'evening' || key === 'night';
+      const condition = period?.condition || 'default';
+      const weatherCode = Number(period?.weather_code);
+      let icon = period?.icon || '🌤️';
+      const cachedMoon = typeof icon === 'string' ? moonIcons.find((moon) => icon.includes(moon)) : null;
+      if (cachedMoon) icon = cachedMoon;
+
+      if (!isNightPeriod) {
+        return icon ? `<span class="forecast-period-icon">${icon}</span>` : '';
+      }
+
+      if (condition === 'cloudy' && weatherCode === 3) {
+        return '<span class="forecast-period-icon">☁️</span>';
+      }
+
+      const overlayIcons = {
+        cloudy: '☁️',
+        rainy: '🌧️',
+        snowy: '❄️',
+        stormy: '⛈️',
+        foggy: '🌫️',
+        windy: '💨',
+      };
+      const overlay = overlayIcons[condition];
+      if (overlay && moonIcons.includes(icon)) {
+        return `<span class="forecast-period-icon weather-layered-icon"><span class="weather-layered-base">${icon}</span><span class="weather-layered-overlay">${overlay}</span></span>`;
+      }
+      return icon ? `<span class="forecast-period-icon">${icon}</span>` : '';
+    };
     const formatPeriod = (day, key, tempKey, feelsKey) => {
       const period = day?.periods?.[key] || {};
-      const icon = period.icon || '🌤️';
       const temp = period.temperature ?? day?.[tempKey];
       const feels = period.feels_like ?? day?.[feelsKey];
-      return `<span class="forecast-period"><span class="forecast-period-icon">${icon}</span>${formatTemp(temp, feels)}</span>`;
+      return `<span class="forecast-period">${renderPeriodIcon(period, key)}${formatTemp(temp, feels)}</span>`;
     };
     const formatRange = (max, min) => {
       const maxLabel = max != null ? Math.round(max) : '--';
