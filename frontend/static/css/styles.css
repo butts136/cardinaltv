@@ -229,7 +229,7 @@ a:hover {
 }
 
 .nav-submenu-content.is-open {
-  max-height: 250px; /* Accommodates up to ~5 submenu items */
+  max-height: 720px;
 }
 
 .nav-sublink--nested {
@@ -1783,6 +1783,37 @@ input[type="datetime-local"]:focus {
     var(--card-bg);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
   min-height: 0;
+}
+
+.vacations-slide-frame .month-events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32vw;
+  padding: 0.42vh 0.52vw 0.58vh;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 17, 31, 0.26);
+}
+
+.vacations-slide-frame .month-event-chip {
+  min-height: 1.8vh;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1vh 0.48vw;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: clamp(11px, 0.74vw, 16px);
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  box-shadow: 0 5px 13px rgba(0, 0, 0, 0.2);
+}
+
+.vacations-slide-frame .month-event-chip--holiday {
+  background: var(--holiday-color);
+}
+
+.vacations-slide-frame .month-event-chip--closed {
+  background: var(--closed-color);
 }
 
 .vacations-slide-frame .month-header {

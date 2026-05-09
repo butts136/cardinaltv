@@ -370,10 +370,20 @@ const vacationsDayFormatter = new Intl.DateTimeFormat("fr-CA", {
   day: "numeric",
   month: "short",
 });
+const vacationsEventFooterFormatter = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
 const capitalizeFrench = (value) => {
   const text = String(value || "").trim();
   return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : "";
 };
+const formatVacationsEventFooterDate = (value) => vacationsEventFooterFormatter
+  .formatToParts(value)
+  .map((part) => (part.type === "month" ? capitalizeFrench(part.value) : part.value))
+  .join("");
 const startOfUtcDay = (value) => {
   const source = value instanceof Date ? value : new Date(value);
   return new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), source.getUTCDate()));
@@ -6338,6 +6348,14 @@ const renderVacationsSlide = (item) => {
     const labelDate = addUtcMonths(monthStart, index);
     const card = document.createElement("section");
     card.className = "month-card";
+    const monthEvents = calendarEvents
+      .filter((entry) => sameUtcMonth(entry.eventDate, labelDate))
+      .sort((left, right) => {
+        if (left.eventDate.getTime() !== right.eventDate.getTime()) {
+          return left.eventDate.getTime() - right.eventDate.getTime();
+        }
+        return left.label.localeCompare(right.label, "fr", { sensitivity: "base" });
+      });
 
     const header = document.createElement("div");
     header.className = "month-header";
@@ -6367,6 +6385,18 @@ const renderVacationsSlide = (item) => {
     });
 
     card.appendChild(weeksWrap);
+    if (monthEvents.length) {
+      const footer = document.createElement("div");
+      footer.className = "month-events";
+      monthEvents.forEach((entry) => {
+        const chip = document.createElement("div");
+        chip.className = `month-event-chip month-event-chip--${entry.type}`;
+        chip.textContent = `${formatVacationsEventFooterDate(entry.eventDate)} - ${entry.label}`;
+        chip.title = chip.textContent;
+        footer.appendChild(chip);
+      });
+      card.appendChild(footer);
+    }
     monthsGrid.appendChild(card);
   }
 

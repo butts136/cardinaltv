@@ -1742,7 +1742,18 @@ def _write_time_change_config_file(config: Dict[str, Any]) -> Dict[str, Any]:
 # ───────────────────────────────────────────────────────────────────────────────
 
 CALENDAR_EVENT_TYPES = {"holiday", "closed"}
-CALENDAR_EVENTS_REQUIRED_YEAR_COUNT = 3
+CALENDAR_MANDATORY_HOLIDAYS: Tuple[Dict[str, str], ...] = (
+    {"key": "jour-de-l-an", "label": "Jour de l'An"},
+    {"key": "vendredi-saint", "label": "Vendredi saint"},
+    {"key": "journee-nationale-des-patriotes", "label": "Journée nationale des patriotes"},
+    {"key": "fete-nationale", "label": "Fête nationale"},
+    {"key": "fete-du-canada", "label": "Fête du Canada"},
+    {"key": "fete-du-travail", "label": "Fête du Travail"},
+    {"key": "action-de-grace", "label": "Action de grâce"},
+    {"key": "noel", "label": "Noël"},
+)
+CALENDAR_MANDATORY_HOLIDAY_KEYS = {entry["key"] for entry in CALENDAR_MANDATORY_HOLIDAYS}
+CALENDAR_MANDATORY_HOLIDAY_LABELS = {entry["key"]: entry["label"] for entry in CALENDAR_MANDATORY_HOLIDAYS}
 
 
 def _calendar_event_sort_key(event: Dict[str, Any]) -> Tuple[str, str, str]:
@@ -1790,36 +1801,108 @@ def _last_weekday_on_or_before(year: int, month: int, day_of_month: int, weekday
     return current - timedelta(days=offset)
 
 
-def _build_required_quebec_holidays(year: int) -> List[Dict[str, Any]]:
-    easter = _calendar_easter_sunday(year)
-    holidays = [
-        ("Jour de l'An", date(year, 1, 1)),
-        ("Vendredi saint", easter - timedelta(days=2)),
-        ("Journée nationale des patriotes", _last_weekday_on_or_before(year, 5, 24, 0)),
-        ("Fête nationale", date(year, 6, 24)),
-        ("Fête du Canada", date(year, 7, 1)),
-        ("Fête du Travail", _first_weekday_of_month(year, 9, 0, 1)),
-        ("Action de grâce", _first_weekday_of_month(year, 10, 0, 2)),
-        ("Noël", date(year, 12, 25)),
-    ]
-    return [
-        {
-            "id": f"holiday_{year}_{_calendar_event_slug(label)}",
-            "type": "holiday",
-            "date": holiday_date.isoformat(),
-            "label": label,
-            "notes": "",
-            "is_mandatory": True,
-        }
-        for label, holiday_date in holidays
-    ]
+def _calendar_resolve_mandatory_holiday_date(holiday_key: str, year: int) -> date:
+    if holiday_key == "jour-de-l-an":
+        return date(year, 1, 1)
+    if holiday_key == "vendredi-saint":
+        return _calendar_easter_sunday(year) - timedelta(days=2)
+    if holiday_key == "journee-nationale-des-patriotes":
+        return _last_weekday_on_or_before(year, 5, 24, 0)
+    if holiday_key == "fete-nationale":
+        return date(year, 6, 24)
+    if holiday_key == "fete-du-canada":
+        return date(year, 7, 1)
+    if holiday_key == "fete-du-travail":
+        return _first_weekday_of_month(year, 9, 0, 1)
+    if holiday_key == "action-de-grace":
+        return _first_weekday_of_month(year, 10, 0, 2)
+    if holiday_key == "noel":
+        return date(year, 12, 25)
+    raise ValueError(f"Clé de férié inconnue: {holiday_key}")
+
+
+def _calendar_add_year_preserving_month_day(value: date) -> date:
+    target_year = value.year + 1
+    last_day = calendar.monthrange(target_year, value.month)[1]
+    return date(target_year, value.month, min(value.day, last_day))
+
+
+def _calendar_mandatory_holiday_key(raw: Any) -> Optional[str]:
+    if not isinstance(raw, dict):
+        return None
+    holiday_key = _calendar_event_slug(raw.get("holiday_key") or "")
+    if holiday_key in CALENDAR_MANDATORY_HOLIDAY_KEYS:
+        return holiday_key
+
+    raw_id = str(raw.get("id") or "").strip().lower()
+    for candidate in CALENDAR_MANDATORY_HOLIDAY_KEYS:
+        if raw_id == f"holiday_{candidate}" or raw_id.endswith(f"_{candidate}") or raw_id.endswith(f"-{candidate}"):
+            return candidate
+
+    label_key = _calendar_event_slug(raw.get("label") or "")
+    if label_key in CALENDAR_MANDATORY_HOLIDAY_KEYS:
+        return label_key
+    return None
+
+
+def _calendar_parse_event_date(raw: Any) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(raw or "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _calendar_mandatory_candidate_priority(event: Dict[str, Any], today: date) -> Tuple[int, int, str]:
+    event_date = _calendar_parse_event_date(event.get("date"))
+    if not event_date:
+        return (2, 0, str(event.get("label") or ""))
+    if event_date >= today:
+        return (0, (event_date - today).days, str(event.get("label") or ""))
+    return (1, (today - event_date).days, str(event.get("label") or ""))
+
+
+def _normalize_mandatory_calendar_event(raw: Any, holiday_key: str, today: date) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        raw = {}
+    default_label = CALENDAR_MANDATORY_HOLIDAY_LABELS[holiday_key]
+    label = str(raw.get("label") or "").strip() or default_label
+    notes = str(raw.get("notes") or "").strip()
+    raw_date = _calendar_parse_event_date(raw.get("date"))
+    is_customized = bool(raw.get("is_customized"))
+
+    if raw_date and not is_customized:
+        expected_date = _calendar_resolve_mandatory_holiday_date(holiday_key, raw_date.year)
+        is_customized = raw_date != expected_date or label != default_label or bool(notes)
+
+    if raw_date and is_customized:
+        next_date = raw_date
+        while next_date < today:
+            next_date = _calendar_add_year_preserving_month_day(next_date)
+    else:
+        target_year = max(raw_date.year if raw_date else today.year, today.year)
+        next_date = _calendar_resolve_mandatory_holiday_date(holiday_key, target_year)
+        while next_date < today:
+            target_year += 1
+            next_date = _calendar_resolve_mandatory_holiday_date(holiday_key, target_year)
+
+    return {
+        "id": f"holiday_{holiday_key}",
+        "holiday_key": holiday_key,
+        "type": "holiday",
+        "date": next_date.isoformat(),
+        "label": label,
+        "notes": notes,
+        "is_mandatory": True,
+        "is_customized": is_customized,
+    }
 
 
 def _default_calendar_events_config() -> Dict[str, Any]:
-    current_year = datetime.now(QUEBEC_TZ).year
-    events: List[Dict[str, Any]] = []
-    for year in range(current_year, current_year + CALENDAR_EVENTS_REQUIRED_YEAR_COUNT):
-        events.extend(_build_required_quebec_holidays(year))
+    today = datetime.now(QUEBEC_TZ).date()
+    events = [
+        _normalize_mandatory_calendar_event({}, definition["key"], today)
+        for definition in CALENDAR_MANDATORY_HOLIDAYS
+    ]
     events.sort(key=_calendar_event_sort_key)
     return {"events": events}
 
@@ -1831,15 +1914,14 @@ def _normalize_calendar_event(raw: Any) -> Optional[Dict[str, Any]]:
     if event_type not in CALENDAR_EVENT_TYPES:
         return None
     event_id = str(raw.get("id") or "").strip() or uuid.uuid4().hex[:12]
-    try:
-        event_date = date.fromisoformat(str(raw.get("date") or "").strip())
-    except (TypeError, ValueError):
+    event_date = _calendar_parse_event_date(raw.get("date"))
+    if not event_date:
         return None
     default_label = "Férié" if event_type == "holiday" else "Fermé"
     label = str(raw.get("label") or "").strip() or default_label
     notes = str(raw.get("notes") or "").strip()
     is_mandatory = bool(raw.get("is_mandatory")) and event_type == "holiday"
-    return {
+    normalized = {
         "id": event_id,
         "type": event_type,
         "date": event_date.isoformat(),
@@ -1847,33 +1929,38 @@ def _normalize_calendar_event(raw: Any) -> Optional[Dict[str, Any]]:
         "notes": notes,
         "is_mandatory": is_mandatory,
     }
+    holiday_key = _calendar_mandatory_holiday_key(raw)
+    if holiday_key and event_type == "holiday":
+        normalized["holiday_key"] = holiday_key
+        normalized["is_customized"] = bool(raw.get("is_customized"))
+    return normalized
 
 
 def _normalize_calendar_events_config(raw: Any) -> Dict[str, Any]:
     source_events = raw.get("events") if isinstance(raw, dict) else raw if isinstance(raw, list) else []
-    required_events = _default_calendar_events_config()["events"]
-    required_by_id = {entry["id"]: copy.deepcopy(entry) for entry in required_events}
-    normalized_by_id: Dict[str, Dict[str, Any]] = {}
+    today = datetime.now(QUEBEC_TZ).date()
+    mandatory_candidates: Dict[str, Dict[str, Any]] = {}
+    remaining_events: List[Dict[str, Any]] = []
     if isinstance(source_events, list):
         for entry in source_events:
             normalized = _normalize_calendar_event(entry)
             if not normalized:
                 continue
-            normalized_by_id[normalized["id"]] = normalized
+            holiday_key = _calendar_mandatory_holiday_key(entry)
+            if normalized.get("type") == "holiday" and holiday_key:
+                candidate = {**normalized, "holiday_key": holiday_key}
+                current = mandatory_candidates.get(holiday_key)
+                if current is None or _calendar_mandatory_candidate_priority(candidate, today) < _calendar_mandatory_candidate_priority(current, today):
+                    mandatory_candidates[holiday_key] = candidate
+                continue
+            remaining_events.append(normalized)
 
-    merged: List[Dict[str, Any]] = []
-    for event_id, required in required_by_id.items():
-        current = normalized_by_id.pop(event_id, None)
-        if current:
-            current["type"] = "holiday"
-            current["is_mandatory"] = True
-            if not current.get("label"):
-                current["label"] = required["label"]
-            merged.append(current)
-        else:
-            merged.append(required)
+    merged: List[Dict[str, Any]] = [
+        _normalize_mandatory_calendar_event(mandatory_candidates.get(definition["key"], {}), definition["key"], today)
+        for definition in CALENDAR_MANDATORY_HOLIDAYS
+    ]
 
-    merged.extend(normalized_by_id.values())
+    merged.extend(remaining_events)
     merged.sort(key=_calendar_event_sort_key)
     return {"events": merged}
 
@@ -5514,6 +5601,12 @@ def _inject_custom_slides_nav() -> Dict[str, Any]:
             "label": "Notre Équipe",
             "url": url_for("main.team"),
             "enabled": bool((settings.get("team_slide") or {}).get("enabled")),
+        },
+        {
+            "endpoint": "main.test",
+            "label": "Test",
+            "url": url_for("main.test"),
+            "enabled": bool((settings.get("test_slide") or {}).get("enabled")),
         },
     ]
     dynamic_slides.sort(key=lambda entry: _nav_sort_key(entry.get("label", "")))
