@@ -6199,6 +6199,10 @@ const renderVacationsSlide = (item) => {
       day.getUTCFullYear() === labelDate.getUTCFullYear() && day.getUTCMonth() === labelDate.getUTCMonth()
     )));
     const hasVacation = monthHasVacation(labelDate);
+    const mustDisplayMonth = index < 2;
+    if (!mustDisplayMonth && !hasVacation) {
+      continue;
+    }
     const section = document.createElement("section");
     section.className = "month-section";
     if (!hasVacation && monthWeeks.length === 0) {
