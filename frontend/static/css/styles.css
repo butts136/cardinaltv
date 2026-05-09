@@ -235,6 +235,28 @@ a:hover {
 .nav-sublink--nested {
   padding-left: 2.8rem;
   font-size: 0.9rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.nav-sublink-label {
+  min-width: 0;
+}
+
+.nav-status-orb {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+}
+
+.nav-status-orb.is-enabled {
+  background: radial-gradient(circle at 30% 30%, #86efac, #16a34a 70%);
+}
+
+.nav-status-orb.is-disabled {
+  background: radial-gradient(circle at 30% 30%, #fca5a5, #dc2626 70%);
 }
 
 .sidebar-meta {
@@ -1673,7 +1695,7 @@ input[type="datetime-local"]:focus {
   --card-border: rgba(255, 255, 255, 0.16);
   --vacation-color: linear-gradient(135deg, #fb923c, #ea580c);
   --holiday-color: linear-gradient(135deg, #38bdf8, #2563eb);
-  --birthday-color: linear-gradient(135deg, #4ade80, #16a34a);
+  --closed-color: linear-gradient(135deg, #fb7185, #be123c);
   position: relative;
   width: 100%;
   height: 100%;
@@ -1967,8 +1989,8 @@ input[type="datetime-local"]:focus {
   background: var(--holiday-color);
 }
 
-.vacations-slide-frame .legend-badge.birthday {
-  background: var(--birthday-color);
+.vacations-slide-frame .legend-badge.closed {
+  background: var(--closed-color);
 }
 
 .vacations-slide-frame .fade-top,

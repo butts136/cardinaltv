@@ -289,6 +289,10 @@ const TEST_SLIDE_REFRESH_MS = 15 * 1000;
 let customSlidesPayload = null;
 let lastCustomSlidesFetch = 0;
 const CUSTOM_SLIDE_REFRESH_MS = 15 * 1000;
+let calendarEventsData = [];
+let calendarEventsPromise = null;
+let lastCalendarEventsFetch = 0;
+const CALENDAR_EVENTS_REFRESH_MS = 60 * 1000;
 let teamEmployeesData = [];
 let teamEmployeesPromise = null;
 let teamRotationTimer = null;
@@ -414,6 +418,8 @@ const hashString = (value) => {
   return hash;
 };
 const VACATIONS_BAR_COLOR = "linear-gradient(135deg, #f59e0b, #f97316)";
+const VACATIONS_HOLIDAY_BAR_COLOR = "linear-gradient(135deg, #38bdf8, #2563eb)";
+const VACATIONS_CLOSED_BAR_COLOR = "linear-gradient(135deg, #fb7185, #be123c)";
 const colorForVacationEntry = () => VACATIONS_BAR_COLOR;
 let overlayFontReadyPromise = null;
 const ensureCoreOverlayFontsLoaded = async () => {
@@ -3126,7 +3132,11 @@ const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
     return buildTeamSlideItem();
   }
   if (type === "vacations") {
-    const payload = await getVacationsDisplayPayload({ previewFallback: false, forceEmployees: true });
+    const payload = await getVacationsDisplayPayload({
+      previewFallback: false,
+      forceEmployees: true,
+      forceEvents: true,
+    });
     return buildVacationsSlideItem(payload);
   }
   if (type === "time-change") {
@@ -4132,6 +4142,33 @@ const ensureTeamEmployeesData = async (force = false) => {
   return teamEmployeesPromise;
 };
 
+const ensureCalendarEventsData = async (force = false) => {
+  const now = Date.now();
+  const shouldRefresh =
+    force || !Array.isArray(calendarEventsData) || now - lastCalendarEventsFetch > CALENDAR_EVENTS_REFRESH_MS;
+
+  if (!shouldRefresh && !calendarEventsPromise) {
+    return calendarEventsData;
+  }
+
+  if (!calendarEventsPromise) {
+    calendarEventsPromise = fetchJSON("api/calendar-events")
+      .then((data) => {
+        calendarEventsData = Array.isArray(data?.events) ? data.events : [];
+        lastCalendarEventsFetch = Date.now();
+        return calendarEventsData;
+      })
+      .catch((error) => {
+        console.warn("Impossible de charger les événements du calendrier:", error);
+        return calendarEventsData;
+      })
+      .finally(() => {
+        calendarEventsPromise = null;
+      });
+  }
+  return calendarEventsPromise;
+};
+
 const computeNextBirthday = (birthdayStr) => {
   if (!birthdayStr) return null;
   const parts = birthdayStr.split("-");
@@ -4975,7 +5012,11 @@ const buildVacationsPreviewEmployees = () => {
   ];
 };
 
-const buildVacationsDisplayPayload = (employeesList, settings, { previewFallback = false } = {}) => {
+const buildVacationsDisplayPayload = (
+  employeesList,
+  settings,
+  { previewFallback = false, calendarEventsList = [] } = {},
+) => {
   let sourceEmployees = Array.isArray(employeesList) && employeesList.length
     ? employeesList
     : [];
@@ -5039,6 +5080,32 @@ const buildVacationsDisplayPayload = (employeesList, settings, { previewFallback
     return left.startIso.localeCompare(right.startIso);
   });
 
+  const calendarEvents = (Array.isArray(calendarEventsList) ? calendarEventsList : [])
+    .map((entry, index) => {
+      const eventDate = parseIsoUtcDate(entry?.date || entry?.event_date || entry?.start_date || entry?.start);
+      if (!eventDate || eventDate < rangeStart || eventDate > rangeEnd) return null;
+      const eventType = String(entry?.type || "").trim().toLowerCase() === "closed" ? "closed" : "holiday";
+      const badgeLabel = eventType === "closed" ? "Fermé" : "Férié";
+      return {
+        id: String(entry?.id || `calendar_event_${index}`),
+        type: eventType,
+        label: String(entry?.label || badgeLabel).trim() || badgeLabel,
+        notes: String(entry?.notes || "").trim(),
+        isMandatory: Boolean(entry?.is_mandatory) && eventType === "holiday",
+        eventDate,
+        eventIso: toIsoUtcDate(eventDate),
+        badgeLabel,
+        color: eventType === "closed" ? VACATIONS_CLOSED_BAR_COLOR : VACATIONS_HOLIDAY_BAR_COLOR,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.eventIso === right.eventIso) {
+        return left.label.localeCompare(right.label, "fr", { sensitivity: "base" });
+      }
+      return left.eventIso.localeCompare(right.eventIso);
+    });
+
   const months = Array.from({ length: monthsToShow }, (_, index) => {
     const monthStart = addUtcMonths(rangeStart, index);
     const monthEnd = endOfUtcMonth(monthStart);
@@ -5094,19 +5161,25 @@ const buildVacationsDisplayPayload = (employeesList, settings, { previewFallback
 
   return {
     entries,
+    calendarEvents,
     months,
     employeeCount: uniqueEmployees.size,
     vacationCount: entries.length,
     periodCount: entries.length,
     monthRange: rangeLabel,
     year: rangeStart.getUTCFullYear(),
+    hasVisibleData: Boolean(entries.length || calendarEvents.length),
   };
 };
 
-const getVacationsDisplayPayload = async ({ previewFallback = false, forceEmployees = false } = {}) => {
-  const employees = await ensureTeamEmployeesData(forceEmployees);
+const getVacationsDisplayPayload = async ({ previewFallback = false, forceEmployees = false, forceEvents = false } = {}) => {
+  const [employees, calendarEvents] = await Promise.all([
+    ensureTeamEmployeesData(forceEmployees),
+    ensureCalendarEventsData(forceEvents),
+  ]);
   return buildVacationsDisplayPayload(employees, vacationsSlideSettings || DEFAULT_VACATIONS_SLIDE, {
     previewFallback,
+    calendarEventsList: calendarEvents,
   });
 };
 
@@ -6105,6 +6178,24 @@ const renderVacationsSlide = (item) => {
       };
     })
     .filter(Boolean);
+  const calendarEvents = (Array.isArray(payload?.calendarEvents) ? payload.calendarEvents : [])
+    .map((entry) => {
+      const eventDate = entry?.eventDate instanceof Date
+        ? startOfUtcDay(entry.eventDate)
+        : parseIsoUtcDate(entry?.eventIso || entry?.date || entry?.start);
+      if (!eventDate) return null;
+      const eventType = String(entry?.type || "").trim().toLowerCase() === "closed" ? "closed" : "holiday";
+      const fallbackLabel = eventType === "closed" ? "Fermé" : "Férié";
+      return {
+        ...entry,
+        type: eventType,
+        label: String(entry?.label || fallbackLabel).trim() || fallbackLabel,
+        badgeLabel: String(entry?.badgeLabel || fallbackLabel).trim() || fallbackLabel,
+        color: entry?.color || (eventType === "closed" ? VACATIONS_CLOSED_BAR_COLOR : VACATIONS_HOLIDAY_BAR_COLOR),
+        eventDate,
+      };
+    })
+    .filter(Boolean);
 
   const sameUtcDate = (left, right) => toIsoUtcDate(left) === toIsoUtcDate(right);
   const sameUtcMonth = (left, right) => (
@@ -6174,22 +6265,45 @@ const renderVacationsSlide = (item) => {
   const getSegments = (week, labelDate) => {
     const currentStart = startOfUtcMonth(labelDate);
     const currentEnd = endOfUtcMonth(labelDate);
-    return entries
+    const vacationSegments = entries
       .map((entry) => {
         const segmentStart = new Date(Math.max(entry.startDate.getTime(), week.start.getTime(), currentStart.getTime()));
         const segmentEnd = new Date(Math.min(entry.endDate.getTime(), week.end.getTime(), currentEnd.getTime()));
         if (segmentStart > segmentEnd) return null;
         return {
-          employeeName: entry.employeeName,
+          label: entry.employeeName,
+          fullLabel: entry.employeeName,
+          kind: "vacation",
+          priority: 1,
           color: entry.color,
           startIndex: segmentStart.getUTCDay(),
           endIndex: segmentEnd.getUTCDay(),
           span: segmentEnd.getUTCDay() - segmentStart.getUTCDay() + 1,
         };
       })
-      .filter(Boolean)
+      .filter(Boolean);
+    const eventSegments = calendarEvents
+      .filter((entry) => (
+        sameUtcMonth(entry.eventDate, labelDate)
+        && entry.eventDate >= week.start
+        && entry.eventDate <= week.end
+        && entry.eventDate >= currentStart
+        && entry.eventDate <= currentEnd
+      ))
+      .map((entry) => ({
+        label: entry.badgeLabel,
+        fullLabel: entry.label,
+        kind: entry.type,
+        priority: 0,
+        color: entry.color,
+        startIndex: entry.eventDate.getUTCDay(),
+        endIndex: entry.eventDate.getUTCDay(),
+        span: 1,
+      }));
+    return [...eventSegments, ...vacationSegments]
       .sort((left, right) => {
         if (left.startIndex !== right.startIndex) return left.startIndex - right.startIndex;
+        if ((left.priority || 0) !== (right.priority || 0)) return (left.priority || 0) - (right.priority || 0);
         return right.endIndex - left.endIndex;
       });
   };
@@ -6199,7 +6313,13 @@ const renderVacationsSlide = (item) => {
     segments.forEach((segment) => {
       const bar = document.createElement("div");
       bar.className = "vacation-bar";
-      bar.textContent = segment.employeeName;
+      if (segment.kind && segment.kind !== "vacation") {
+        bar.classList.add("calendar-event-bar", `calendar-event-bar--${segment.kind}`);
+      }
+      bar.textContent = segment.label;
+      if (segment.fullLabel) {
+        bar.title = segment.fullLabel;
+      }
       bar.style.background = segment.color;
       const leftPercent = (segment.startIndex / 7) * 100;
       const widthPercent = (segment.span / 7) * 100;
@@ -6259,7 +6379,7 @@ const renderVacationsSlide = (item) => {
   [
     { className: "vacation", label: "Vacances" },
     { className: "holiday", label: "Fériés" },
-    { className: "birthday", label: "Fêtes non fériées" },
+    { className: "closed", label: "Fermé" },
   ].forEach((entry) => {
     const legendItem = document.createElement("div");
     legendItem.className = "legend-item";
@@ -6820,7 +6940,7 @@ const injectAutoSlidesIntoPlaylist = async (items) => {
   }
 
   if (vacationsSlideSettings.enabled) {
-    if (vacationsData?.entries?.length) {
+    if (vacationsData?.hasVisibleData) {
       const vacationsItem = buildVacationsSlideItem(vacationsData);
       autoEntries.push({
         ...vacationsItem,

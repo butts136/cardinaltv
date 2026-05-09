@@ -19,6 +19,7 @@ import tempfile
 import zlib
 import subprocess
 import sys
+import unicodedata
 import urllib.parse
 import urllib.request
 import uuid
@@ -68,6 +69,8 @@ CHRISTMAS_SLIDE_ASSETS_DIR = DATA_DIR / "christmas" / "background"
 CHRISTMAS_CONFIG_FILE = DATA_DIR / "christmas" / "config.json"
 VACATIONS_SLIDE_DIR = DATA_DIR / "vacations"
 VACATIONS_SLIDE_ASSETS_DIR = VACATIONS_SLIDE_DIR / "background"
+CALENDAR_EVENTS_DIR = DATA_DIR / "calendar_events"
+CALENDAR_EVENTS_CONFIG_FILE = CALENDAR_EVENTS_DIR / "config.json"
 NEWS_SLIDE_DIR = DATA_DIR / "news"
 NEWS_CONFIG_FILE = NEWS_SLIDE_DIR / "news.json"
 LEGACY_NEWS_CONFIG_FILE = NEWS_SLIDE_DIR / "config.json"
@@ -575,6 +578,7 @@ TIME_CHANGE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 CHRISTMAS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 CHRISTMAS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 VACATIONS_SLIDE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+CALENDAR_EVENTS_DIR.mkdir(parents=True, exist_ok=True)
 NEWS_SLIDE_DIR.mkdir(parents=True, exist_ok=True)
 WEATHER_SLIDE_DIR.mkdir(parents=True, exist_ok=True)
 WEATHER_BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
@@ -1728,6 +1732,169 @@ def _write_time_change_config_file(config: Dict[str, Any]) -> Dict[str, Any]:
         TIME_CHANGE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with TIME_CHANGE_CONFIG_FILE.open("w", encoding="utf-8") as handle:
             json.dump(normalized, handle, ensure_ascii=True, indent=2)
+    except OSError:
+        pass
+    return normalized
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Calendar events configuration (Quebec holidays and company closures)
+# ───────────────────────────────────────────────────────────────────────────────
+
+CALENDAR_EVENT_TYPES = {"holiday", "closed"}
+CALENDAR_EVENTS_REQUIRED_YEAR_COUNT = 3
+
+
+def _calendar_event_sort_key(event: Dict[str, Any]) -> Tuple[str, str, str]:
+    return (
+        str(event.get("date") or ""),
+        str(event.get("type") or ""),
+        str(event.get("label") or "").casefold(),
+    )
+
+
+def _calendar_event_slug(label: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(label or ""))
+    ascii_text = "".join(ch for ch in normalized if not unicodedata.combining(ch)).lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text).strip("-")
+    return slug or "event"
+
+
+def _calendar_easter_sunday(year: int) -> date:
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return date(year, month, day)
+
+
+def _first_weekday_of_month(year: int, month: int, weekday: int, occurrence: int = 1) -> date:
+    current = date(year, month, 1)
+    offset = (weekday - current.weekday()) % 7
+    return current + timedelta(days=offset + (max(1, occurrence) - 1) * 7)
+
+
+def _last_weekday_on_or_before(year: int, month: int, day_of_month: int, weekday: int) -> date:
+    current = date(year, month, day_of_month)
+    offset = (current.weekday() - weekday) % 7
+    return current - timedelta(days=offset)
+
+
+def _build_required_quebec_holidays(year: int) -> List[Dict[str, Any]]:
+    easter = _calendar_easter_sunday(year)
+    holidays = [
+        ("Jour de l'An", date(year, 1, 1)),
+        ("Vendredi saint", easter - timedelta(days=2)),
+        ("Journée nationale des patriotes", _last_weekday_on_or_before(year, 5, 24, 0)),
+        ("Fête nationale", date(year, 6, 24)),
+        ("Fête du Canada", date(year, 7, 1)),
+        ("Fête du Travail", _first_weekday_of_month(year, 9, 0, 1)),
+        ("Action de grâce", _first_weekday_of_month(year, 10, 0, 2)),
+        ("Noël", date(year, 12, 25)),
+    ]
+    return [
+        {
+            "id": f"holiday_{year}_{_calendar_event_slug(label)}",
+            "type": "holiday",
+            "date": holiday_date.isoformat(),
+            "label": label,
+            "notes": "",
+            "is_mandatory": True,
+        }
+        for label, holiday_date in holidays
+    ]
+
+
+def _default_calendar_events_config() -> Dict[str, Any]:
+    current_year = datetime.now(QUEBEC_TZ).year
+    events: List[Dict[str, Any]] = []
+    for year in range(current_year, current_year + CALENDAR_EVENTS_REQUIRED_YEAR_COUNT):
+        events.extend(_build_required_quebec_holidays(year))
+    events.sort(key=_calendar_event_sort_key)
+    return {"events": events}
+
+
+def _normalize_calendar_event(raw: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(raw, dict):
+        return None
+    event_type = str(raw.get("type") or "").strip().lower()
+    if event_type not in CALENDAR_EVENT_TYPES:
+        return None
+    event_id = str(raw.get("id") or "").strip() or uuid.uuid4().hex[:12]
+    try:
+        event_date = date.fromisoformat(str(raw.get("date") or "").strip())
+    except (TypeError, ValueError):
+        return None
+    default_label = "Férié" if event_type == "holiday" else "Fermé"
+    label = str(raw.get("label") or "").strip() or default_label
+    notes = str(raw.get("notes") or "").strip()
+    is_mandatory = bool(raw.get("is_mandatory")) and event_type == "holiday"
+    return {
+        "id": event_id,
+        "type": event_type,
+        "date": event_date.isoformat(),
+        "label": label,
+        "notes": notes,
+        "is_mandatory": is_mandatory,
+    }
+
+
+def _normalize_calendar_events_config(raw: Any) -> Dict[str, Any]:
+    source_events = raw.get("events") if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+    required_events = _default_calendar_events_config()["events"]
+    required_by_id = {entry["id"]: copy.deepcopy(entry) for entry in required_events}
+    normalized_by_id: Dict[str, Dict[str, Any]] = {}
+    if isinstance(source_events, list):
+        for entry in source_events:
+            normalized = _normalize_calendar_event(entry)
+            if not normalized:
+                continue
+            normalized_by_id[normalized["id"]] = normalized
+
+    merged: List[Dict[str, Any]] = []
+    for event_id, required in required_by_id.items():
+        current = normalized_by_id.pop(event_id, None)
+        if current:
+            current["type"] = "holiday"
+            current["is_mandatory"] = True
+            if not current.get("label"):
+                current["label"] = required["label"]
+            merged.append(current)
+        else:
+            merged.append(required)
+
+    merged.extend(normalized_by_id.values())
+    merged.sort(key=_calendar_event_sort_key)
+    return {"events": merged}
+
+
+def _load_calendar_events_config() -> Dict[str, Any]:
+    raw = None
+    if CALENDAR_EVENTS_CONFIG_FILE.exists():
+        try:
+            with CALENDAR_EVENTS_CONFIG_FILE.open("r", encoding="utf-8") as handle:
+                raw = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            raw = None
+    return _normalize_calendar_events_config(raw)
+
+
+def _save_calendar_events_config(config: Any) -> Dict[str, Any]:
+    normalized = _normalize_calendar_events_config(config)
+    try:
+        CALENDAR_EVENTS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with CALENDAR_EVENTS_CONFIG_FILE.open("w", encoding="utf-8") as handle:
+            json.dump(normalized, handle, ensure_ascii=False, indent=2)
     except OSError:
         pass
     return normalized
@@ -4652,6 +4819,11 @@ def vacations_page() -> Any:
     return render_template("vacations.html")
 
 
+@bp.route("/diaporama/feries-modifications-horaires", endpoint="calendar_events")
+def calendar_events_page() -> Any:
+    return render_template("calendar_events.html")
+
+
 @bp.route("/diaporama/noel")
 def christmas() -> Any:
     return render_template("christmas.html")
@@ -5276,6 +5448,10 @@ def _custom_slide_to_api_item(slide_id: str) -> Optional[Dict[str, Any]]:
 
 @bp.app_context_processor
 def _inject_custom_slides_nav() -> Dict[str, Any]:
+    def _nav_sort_key(value: str) -> str:
+        normalized = unicodedata.normalize("NFKD", str(value or ""))
+        return "".join(ch for ch in normalized if not unicodedata.combining(ch)).casefold()
+
     index = _load_custom_slides_index()
     slides: List[Dict[str, Any]] = []
     for entry in index.get("slides", []):
@@ -5286,7 +5462,67 @@ def _inject_custom_slides_nav() -> Dict[str, Any]:
             continue
         name = entry.get("name") or slide_id
         slides.append({"id": slide_id, "name": name})
-    return {"custom_slides_nav": slides}
+
+    settings = store.get_settings()
+    news_config = _load_news_config()
+    weather_config = _load_weather_config()
+    dynamic_slides = [
+        {
+            "endpoint": "main.birthday",
+            "label": "Anniversaire",
+            "url": url_for("main.birthday"),
+            "enabled": bool((settings.get("birthday_slide") or {}).get("enabled")),
+        },
+        {
+            "endpoint": "main.vacations",
+            "label": "Calendrier",
+            "url": url_for("main.vacations"),
+            "enabled": bool((settings.get("vacations_slide") or {}).get("enabled")),
+        },
+        {
+            "endpoint": "main.time_change",
+            "label": "Changement d'heure",
+            "url": url_for("main.time_change"),
+            "enabled": bool((settings.get("time_change_slide") or {}).get("enabled")),
+        },
+        {
+            "endpoint": "main.calendar_events",
+            "label": "Fériés et modifications d'horaires",
+            "url": url_for("main.calendar_events"),
+            "enabled": bool((settings.get("vacations_slide") or {}).get("enabled")),
+        },
+        {
+            "endpoint": "main.weather",
+            "label": "Météo",
+            "url": url_for("main.weather"),
+            "enabled": bool(weather_config.get("enabled", False)),
+        },
+        {
+            "endpoint": "main.christmas",
+            "label": "Noël",
+            "url": url_for("main.christmas"),
+            "enabled": bool((settings.get("christmas_slide") or {}).get("enabled")),
+        },
+        {
+            "endpoint": "main.news",
+            "label": "Nouvelles",
+            "url": url_for("main.news"),
+            "enabled": bool(news_config.get("enabled", False)),
+        },
+        {
+            "endpoint": "main.team",
+            "label": "Notre Équipe",
+            "url": url_for("main.team"),
+            "enabled": bool((settings.get("team_slide") or {}).get("enabled")),
+        },
+    ]
+    dynamic_slides.sort(key=lambda entry: _nav_sort_key(entry.get("label", "")))
+
+    return {
+        "custom_slides_nav": slides,
+        "dynamic_slides_nav": dynamic_slides,
+        "dynamic_slide_endpoints": [entry["endpoint"] for entry in dynamic_slides],
+    }
 
 
 @bp.route("/diaporama/diapos-personnalisees", endpoint="custom_slides")
@@ -6236,6 +6472,21 @@ def update_settings_api() -> Any:
     except ValueError as exc:
         abort(400, description=str(exc))
     return jsonify(updated)
+
+
+@bp.get("/api/calendar-events")
+def api_get_calendar_events() -> Any:
+    return jsonify(_load_calendar_events_config())
+
+
+@bp.put("/api/calendar-events")
+@bp.patch("/api/calendar-events")
+def api_update_calendar_events() -> Any:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, (dict, list)):
+        abort(400, description="Requête invalide.")
+    config = payload if isinstance(payload, dict) else {"events": payload}
+    return jsonify(_save_calendar_events_config(config))
 
 
 @bp.post("/api/log-key-event")

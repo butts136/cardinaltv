@@ -1,0 +1,352 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Fériés et modifications d'horaires · Cardinal TV{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    :root {
+      --calendar-events-border-soft: rgba(255, 255, 255, 0.1);
+      --calendar-events-border-strong: rgba(148, 163, 184, 0.28);
+      --calendar-events-text-muted: rgba(226, 232, 240, 0.72);
+      --calendar-events-holiday: #2563eb;
+      --calendar-events-holiday-soft: rgba(37, 99, 235, 0.14);
+      --calendar-events-closed: #be123c;
+      --calendar-events-closed-soft: rgba(190, 18, 60, 0.14);
+      --calendar-events-success: #15803d;
+      --calendar-events-danger: #b91c1c;
+    }
+
+    .calendar-events-admin-page {
+      display: grid;
+      gap: 18px;
+    }
+
+    .calendar-events-status {
+      min-height: 1.4rem;
+      font-size: 0.95rem;
+      color: rgba(15, 23, 42, 0.62);
+    }
+
+    .calendar-events-status[data-state="success"] {
+      color: var(--calendar-events-success);
+    }
+
+    .calendar-events-status[data-state="error"] {
+      color: var(--calendar-events-danger);
+    }
+
+    .calendar-events-preview-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #000000;
+      box-shadow: 0 18px 42px rgba(2, 6, 23, 0.24);
+    }
+
+    .calendar-events-preview-viewport {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1920px;
+      height: 1080px;
+      transform: scale(var(--calendar-events-preview-scale, 1));
+      transform-origin: top left;
+    }
+
+    .calendar-events-preview-viewport iframe {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      border: 0;
+      display: block;
+      background: #000000;
+    }
+
+    .calendar-events-preview-status {
+      min-height: 1.2rem;
+      margin-top: 10px;
+      color: rgba(226, 232, 240, 0.72);
+      font-size: 0.9rem;
+    }
+
+    .calendar-events-inline-hint {
+      margin: 0 0 16px;
+      color: var(--calendar-events-text-muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .calendar-events-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .calendar-event-row {
+      display: grid;
+      grid-template-columns: auto minmax(180px, 1.15fr) minmax(140px, 180px) minmax(200px, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--calendar-events-border-soft);
+      background:
+        radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 28%),
+        rgba(15, 23, 42, 0.72);
+      box-shadow: 0 18px 40px rgba(2, 6, 23, 0.18);
+    }
+
+    .calendar-event-pill {
+      min-width: 84px;
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 14px;
+      border-radius: 999px;
+      color: #ffffff;
+      font-size: 0.82rem;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .calendar-event-pill.is-holiday {
+      background: linear-gradient(135deg, #38bdf8, var(--calendar-events-holiday));
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
+    }
+
+    .calendar-event-pill.is-closed {
+      background: linear-gradient(135deg, #fb7185, var(--calendar-events-closed));
+      box-shadow: 0 12px 28px rgba(190, 18, 60, 0.24);
+    }
+
+    .calendar-event-field {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .calendar-event-field label {
+      color: var(--calendar-events-text-muted);
+      font-size: 0.75rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .calendar-event-field input {
+      min-height: 46px;
+      border-radius: 14px;
+      border: 1px solid var(--calendar-events-border-strong);
+      background: rgba(15, 23, 42, 0.52);
+      color: #f8fafc;
+      padding: 0 14px;
+      font-size: 0.96rem;
+      font-weight: 700;
+      min-width: 0;
+    }
+
+    .calendar-event-field input:focus {
+      outline: 2px solid rgba(56, 189, 248, 0.22);
+      border-color: rgba(56, 189, 248, 0.55);
+    }
+
+    .calendar-event-side {
+      display: grid;
+      gap: 8px;
+      justify-items: end;
+      min-width: 126px;
+    }
+
+    .calendar-event-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 900;
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      white-space: nowrap;
+    }
+
+    .calendar-event-chip.is-holiday {
+      color: #bfdbfe;
+      background: var(--calendar-events-holiday-soft);
+      border-color: rgba(37, 99, 235, 0.22);
+    }
+
+    .calendar-event-chip.is-closed {
+      color: #fecdd3;
+      background: var(--calendar-events-closed-soft);
+      border-color: rgba(190, 18, 60, 0.22);
+    }
+
+    .calendar-event-delete {
+      min-width: 42px;
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(248, 113, 113, 0.22);
+      background: rgba(248, 113, 113, 0.16);
+      color: #fecaca;
+    }
+
+    .calendar-event-delete:hover {
+      background: rgba(248, 113, 113, 0.24);
+    }
+
+    .calendar-event-delete svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.25;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .calendar-events-empty {
+      margin: 0;
+      padding: 16px 18px;
+      border-radius: 18px;
+      border: 1px dashed rgba(148, 163, 184, 0.3);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--calendar-events-text-muted);
+      font-weight: 700;
+    }
+
+    .calendar-events-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .calendar-events-actions .primary-button,
+    .calendar-events-actions .secondary-button {
+      min-width: 190px;
+    }
+
+    .calendar-events-footer-status {
+      margin-top: 8px;
+    }
+
+    @media (max-width: 900px) {
+      .calendar-event-row {
+        grid-template-columns: 1fr;
+      }
+
+      .calendar-event-side {
+        justify-items: stretch;
+        min-width: 0;
+      }
+
+      .calendar-events-actions .primary-button,
+      .calendar-events-actions .secondary-button {
+        width: 100%;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block page_title %}Fériés et modifications d'horaires{% endblock %}
+{% block page_subtitle %}
+  <p class="page-subtitle">Cette page modifie la même diapositive Calendrier que les vacances, avec les badges Férié et Fermé dans l'aperçu réel.</p>
+{% endblock %}
+{% block header_actions %}
+  <a href="{{ url_for('main.vacations') }}" class="secondary-button">Calendrier</a>
+  <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
+{% endblock %}
+
+{% block content %}
+  <div class="calendar-events-admin-page" id="calendar-events-admin-page">
+    <section class="card" id="calendar-events-preview-card">
+      <div class="section-header">
+        <div>
+          <h2>Aperçu Calendrier</h2>
+          <p class="playlist-subtitle">Même diapositive réelle que la page Calendrier, affichée dans un frame 16:9 sans bandes informatives.</p>
+        </div>
+        <div class="custom-toggle-control">
+          <label class="visibility-toggle">
+            <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
+            <div class="visibility-toggle-switch">
+              <input id="calendar-events-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapo Calendrier" />
+              <span class="visibility-toggle-slider"></span>
+            </div>
+            <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
+          </label>
+        </div>
+      </div>
+      <div class="section-content">
+        <div class="calendar-events-preview-frame" id="calendar-events-preview-frame">
+          <div class="calendar-events-preview-viewport" id="calendar-events-preview-viewport">
+            <iframe
+              id="calendar-events-slideshow-preview"
+              title="Aperçu diapositive Calendrier"
+              loading="eager"
+              src="{{ url_for('main.slideshow') }}?preview=1&slide=vacations&hide_bands=1"
+            ></iframe>
+          </div>
+        </div>
+        <div id="calendar-events-preview-status" class="calendar-events-preview-status" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="card" id="calendar-holidays-card">
+      <div class="section-header">
+        <div>
+          <h2>Fériés obligatoires au Québec</h2>
+          <p class="playlist-subtitle">Ces journées apparaissent avec le badge Férié dans le Calendrier. Elles restent présentes dans la liste, mais leur date et leur libellé peuvent être ajustés.</p>
+        </div>
+      </div>
+      <div class="section-content">
+        <p class="calendar-events-inline-hint">Les entrées officielles sont chargées automatiquement pour les années à venir afin que le Calendrier conserve toujours sa couverture annuelle.</p>
+        <div id="calendar-holidays-list" class="calendar-events-list"></div>
+      </div>
+    </section>
+
+    <section class="card" id="calendar-closures-card">
+      <div class="section-header">
+        <div>
+          <h2>Fermetures et modifications d'horaires</h2>
+          <p class="playlist-subtitle">Ajoutez ici les journées où l'entreprise sera fermée. Elles apparaissent avec le badge Fermé dans la même diapositive Calendrier.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="primary-button" id="calendar-closures-add">Ajouter une fermeture</button>
+        </div>
+      </div>
+      <div class="section-content">
+        <div id="calendar-closures-list" class="calendar-events-list"></div>
+      </div>
+    </section>
+
+    <section class="card" id="calendar-events-actions-card">
+      <div class="section-content">
+        <div class="calendar-events-actions">
+          <button type="button" class="secondary-button" id="calendar-events-reload">Annuler et recharger</button>
+          <button type="button" class="primary-button" id="calendar-events-save">Enregistrer les changements</button>
+        </div>
+        <div id="calendar-events-status" class="calendar-events-status calendar-events-footer-status" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script defer src="{{ url_for('static', filename='js/calendar_events_editor.js') }}?v=20260509-01"></script>
+{% endblock %}

@@ -7,7 +7,7 @@
     <meta name="description" content="Cardinal TV - Système de diaporama et affichage dynamique" />
     <title>{% block title %}Cardinal TV{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
-    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260509-10' %}
+    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260509-11' %}
     {% if defer_admin_css|default(false) %}
       <link rel="preload" href="{{ core_css_url }}" as="style" onload="this.onload=null;this.rel='stylesheet'" />
       <noscript><link rel="stylesheet" href="{{ core_css_url }}" /></noscript>
@@ -36,21 +36,14 @@
         'main.custom_slide',
         'main.birthday',
   'main.vacations',
+          'main.calendar_events',
         'main.time_change',
         'main.christmas',
         'main.news',
         'main.weather',
         'main.temporary',
       ] %}
-{% set fetes_endpoints = [
-        'main.team',
-        'main.birthday',
-  'main.vacations',
-        'main.time_change',
-        'main.christmas',
-        'main.news',
-        'main.weather',
-      ] %}
+{% set fetes_endpoints = dynamic_slide_endpoints|default([]) %}
 {% set custom_endpoints = [
         'main.custom_slides',
         'main.custom_slide',
@@ -84,13 +77,12 @@
               <span class="nav-submenu-arrow">▼</span>
             </button>
             <div class="nav-submenu-content {% if endpoint in fetes_endpoints %}is-open{% endif %}">
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.team' %}is-active{% endif %}" href="{{ url_for('main.team') }}">Notre Équipe</a>
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.birthday' %}is-active{% endif %}" href="{{ url_for('main.birthday') }}">Anniversaire</a>
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.vacations' %}is-active{% endif %}" href="{{ url_for('main.vacations') }}">Calendrier</a>
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.time_change' %}is-active{% endif %}" href="{{ url_for('main.time_change') }}">Changement d'heure</a>
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.christmas' %}is-active{% endif %}" href="{{ url_for('main.christmas') }}">Noël</a>
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.news' %}is-active{% endif %}" href="{{ url_for('main.news') }}">Nouvelles</a>
-              <a class="nav-sublink nav-sublink--nested {% if endpoint == 'main.weather' %}is-active{% endif %}" href="{{ url_for('main.weather') }}">Météo</a>
+              {% for slide in dynamic_slides_nav|default([]) %}
+                <a class="nav-sublink nav-sublink--nested {% if endpoint == slide.endpoint %}is-active{% endif %}" href="{{ slide.url }}">
+                  <span class="nav-sublink-label">{{ slide.label }}</span>
+                  <span class="nav-status-orb {% if slide.enabled %}is-enabled{% else %}is-disabled{% endif %}" aria-hidden="true"></span>
+                </a>
+              {% endfor %}
             </div>
           </div>
 
