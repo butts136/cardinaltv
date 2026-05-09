@@ -6067,27 +6067,10 @@ const renderVacationsSlide = (item) => {
 
   const topbar = document.createElement("div");
   topbar.className = "vacations-slide-topbar";
-  const badge = document.createElement("div");
-  badge.className = "vacations-slide-badge";
-  badge.textContent = "Planification RH";
-  const stats = document.createElement("div");
-  stats.className = "vacations-slide-stats";
-  const buildStat = (label, value) => {
-    const chip = document.createElement("div");
-    chip.className = "vacations-slide-stat";
-    const valueEl = document.createElement("strong");
-    valueEl.textContent = String(value);
-    const labelEl = document.createElement("span");
-    labelEl.textContent = label;
-    chip.append(valueEl, labelEl);
-    return chip;
-  };
-  stats.append(
-    buildStat("Périodes", payload?.periodCount ?? 0),
-    buildStat("Employés", payload?.employeeCount ?? 0),
-    buildStat("Fenêtre", payload?.monthRange || "12 mois"),
-  );
-  topbar.append(badge, stats);
+  const title = document.createElement("div");
+  title.className = "vacations-slide-title";
+  title.textContent = String(settings.text1 || "Calendrier des vacances").trim() || "Calendrier des vacances";
+  topbar.appendChild(title);
 
   const scroller = document.createElement("div");
   scroller.className = "vacations-slide-scroller";
@@ -6202,52 +6185,6 @@ const renderVacationsSlide = (item) => {
   scroller.appendChild(monthsGrid);
   shell.append(topbar, scroller);
   frame.append(backdrop, shell);
-
-  if (!isEditorPreview) {
-    const overlay = document.createElement("div");
-    overlay.className = "vacations-slide-overlay";
-    const linesWrapper = document.createElement("div");
-    linesWrapper.className = "vacations-lines";
-    const overlayWidth = BASE_CANVAS_WIDTH;
-    const overlayHeight = BASE_CANVAS_HEIGHT;
-    const lines = normalizeVacationsLines(settings);
-    lines.forEach((line, index) => {
-      const wrapper = document.createElement("div");
-      wrapper.className = `vacations-line ${index === 0 ? "vacations-line--primary" : ""}`.trim();
-      const opts = line.options || VACATIONS_TEXT_OPTIONS_DEFAULT;
-      const content = document.createElement("span");
-      content.className = "vacations-line-content";
-      content.textContent = formatVacationsOverlayMessage(line.text || "", payload);
-      wrapper.style.color = opts.color || "#ffffff";
-      wrapper.style.fontWeight = opts.bold ? "700" : "400";
-      wrapper.style.fontStyle = opts.italic ? "italic" : "normal";
-      wrapper.style.textDecoration = opts.underline ? "underline" : "none";
-      wrapper.style.fontSize = `${opts.font_size || VACATIONS_TEXT_OPTIONS_DEFAULT.font_size}px`;
-      applyLineBackground(wrapper, opts);
-      const offsetX = Number.isFinite(Number(opts.offset_x_percent)) ? Number(opts.offset_x_percent) : 0;
-      const offsetY = Number.isFinite(Number(opts.offset_y_percent)) ? Number(opts.offset_y_percent) : 0;
-      wrapper.style.left = `${Math.min(100, Math.max(0, 50 + offsetX))}%`;
-      wrapper.style.top = `${Math.min(100, Math.max(0, 50 - offsetY))}%`;
-      const renderedText = content.textContent || "";
-      if (sharedRenderers?.layoutOverlayTextLine) {
-        sharedRenderers.layoutOverlayTextLine(
-          wrapper,
-          content,
-          renderedText,
-          line.text || "",
-          opts,
-          overlayWidth,
-          overlayHeight,
-        );
-      } else {
-        layoutOverlayLine(wrapper, content, renderedText, opts, overlayWidth, overlayHeight);
-      }
-      wrapper.appendChild(content);
-      linesWrapper.appendChild(wrapper);
-    });
-    overlay.appendChild(linesWrapper);
-    frame.appendChild(overlay);
-  }
 
   viewport.appendChild(frame);
 

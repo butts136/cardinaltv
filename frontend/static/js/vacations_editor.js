@@ -1,7 +1,6 @@
 (() => {
   const boot = () => {
     const appGlobals = window.CardinalApp || {};
-    const defaults = window.CardinalSlideshowDefaults || {};
     const { fetchJSON } = appGlobals;
 
     if (!fetchJSON) {
@@ -15,37 +14,29 @@
     }
 
     const previewFrame = document.getElementById("vacations-editor-slideshow-preview");
-    const settingsSaveButton = document.getElementById("vacations-settings-save");
-    const settingsStatus = document.getElementById("vacations-settings-status");
+    const employeesList = document.getElementById("vacations-employees-list");
     const employeesStatus = document.getElementById("vacations-employees-status");
     const refreshEmployeesButton = document.getElementById("vacations-employees-refresh");
-    const employeesList = document.getElementById("vacations-employees-list");
 
-    const enabledInput = document.getElementById("vacations-enabled");
-    const orderIndexInput = document.getElementById("vacations-order-index");
-    const durationInput = document.getElementById("vacations-duration");
-    const monthsToShowInput = document.getElementById("vacations-months-to-show");
-    const initialWeeksInput = document.getElementById("vacations-initial-full-weeks");
-    const scrollDelayInput = document.getElementById("vacations-scroll-delay");
-    const scrollSpeedInput = document.getElementById("vacations-scroll-speed");
-    const pauseBottomInput = document.getElementById("vacations-pause-bottom");
-    const pauseTopInput = document.getElementById("vacations-pause-top");
+    const modal = document.getElementById("vacations-period-modal");
+    const modalTitle = document.getElementById("vacations-period-modal-title");
+    const modalEmployee = document.getElementById("vacations-period-modal-employee");
+    const modalStart = document.getElementById("vacations-period-start");
+    const modalEnd = document.getElementById("vacations-period-end");
+    const modalStatus = document.getElementById("vacations-period-modal-status");
+    const modalSave = document.getElementById("vacations-period-modal-save");
+    const modalCancel = document.getElementById("vacations-period-modal-cancel");
+    const modalClose = document.getElementById("vacations-period-modal-close");
 
-    const DEFAULT_SETTINGS = {
-      enabled: false,
-      order_index: 0,
-      duration: 20,
-      months_to_show: 12,
-      initial_full_weeks: 8,
-      scroll_start_delay_ms: 4500,
-      scroll_speed_px_per_second: 26,
-      pause_at_bottom_ms: 5000,
-      pause_at_top_ms: 3000,
-      ...(defaults.DEFAULT_VACATIONS_SLIDE || {}),
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const ICON_PATHS = {
+      plus: "M12 5v14M5 12h14",
+      pencil: "M12.5 6.5l5 5L8 21H3v-5l9.5-9.5ZM15.5 3.5l5 5",
+      trash: "M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13",
     };
 
     let employees = [];
-    let settings = { ...DEFAULT_SETTINGS };
+    let activeEdit = null;
 
     const makeId = () => {
       if (window.crypto?.randomUUID) {
@@ -67,9 +58,6 @@
 
     const extractErrorMessage = (error) => {
       const message = error instanceof Error ? error.message : String(error || "");
-      if (!message) {
-        return "Erreur inattendue.";
-      }
       return stripHtml(message) || "Erreur inattendue.";
     };
 
@@ -83,71 +71,6 @@
       }
     };
 
-    const normalizeSettings = (raw = {}) => ({
-      ...DEFAULT_SETTINGS,
-      ...raw,
-      enabled: Boolean(raw?.enabled),
-      order_index: Number.isFinite(Number(raw?.order_index)) ? Number(raw.order_index) : DEFAULT_SETTINGS.order_index,
-      duration: Number.isFinite(Number(raw?.duration)) ? Number(raw.duration) : DEFAULT_SETTINGS.duration,
-      months_to_show: Number.isFinite(Number(raw?.months_to_show)) ? Number(raw.months_to_show) : DEFAULT_SETTINGS.months_to_show,
-      initial_full_weeks: Number.isFinite(Number(raw?.initial_full_weeks))
-        ? Number(raw.initial_full_weeks)
-        : DEFAULT_SETTINGS.initial_full_weeks,
-      scroll_start_delay_ms: Number.isFinite(Number(raw?.scroll_start_delay_ms))
-        ? Number(raw.scroll_start_delay_ms)
-        : DEFAULT_SETTINGS.scroll_start_delay_ms,
-      scroll_speed_px_per_second: Number.isFinite(Number(raw?.scroll_speed_px_per_second))
-        ? Number(raw.scroll_speed_px_per_second)
-        : DEFAULT_SETTINGS.scroll_speed_px_per_second,
-      pause_at_bottom_ms: Number.isFinite(Number(raw?.pause_at_bottom_ms))
-        ? Number(raw.pause_at_bottom_ms)
-        : DEFAULT_SETTINGS.pause_at_bottom_ms,
-      pause_at_top_ms: Number.isFinite(Number(raw?.pause_at_top_ms))
-        ? Number(raw.pause_at_top_ms)
-        : DEFAULT_SETTINGS.pause_at_top_ms,
-    });
-
-    const formatDate = (value) => {
-      const text = String(value || "").trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-        return "";
-      }
-      const parsed = new Date(`${text}T00:00:00Z`);
-      if (Number.isNaN(parsed.getTime())) {
-        return text;
-      }
-      return new Intl.DateTimeFormat("fr-CA", {
-        timeZone: "UTC",
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      }).format(parsed);
-    };
-
-    const fillSettingsForm = () => {
-      if (enabledInput) enabledInput.checked = Boolean(settings.enabled);
-      if (orderIndexInput) orderIndexInput.value = `${Math.round(Number(settings.order_index) || 0)}`;
-      if (durationInput) durationInput.value = `${Math.round(Number(settings.duration) || DEFAULT_SETTINGS.duration)}`;
-      if (monthsToShowInput) monthsToShowInput.value = `${Math.round(Number(settings.months_to_show) || DEFAULT_SETTINGS.months_to_show)}`;
-      if (initialWeeksInput) initialWeeksInput.value = `${Math.round(Number(settings.initial_full_weeks) || DEFAULT_SETTINGS.initial_full_weeks)}`;
-      if (scrollDelayInput) scrollDelayInput.value = `${Math.round(Number(settings.scroll_start_delay_ms) || DEFAULT_SETTINGS.scroll_start_delay_ms)}`;
-      if (scrollSpeedInput) scrollSpeedInput.value = `${Number(settings.scroll_speed_px_per_second) || DEFAULT_SETTINGS.scroll_speed_px_per_second}`;
-      if (pauseBottomInput) pauseBottomInput.value = `${Math.round(Number(settings.pause_at_bottom_ms) || DEFAULT_SETTINGS.pause_at_bottom_ms)}`;
-      if (pauseTopInput) pauseTopInput.value = `${Math.round(Number(settings.pause_at_top_ms) || DEFAULT_SETTINGS.pause_at_top_ms)}`;
-    };
-
-    const readSettingsPatch = () => ({
-      enabled: Boolean(enabledInput?.checked),
-      order_index: Number(orderIndexInput?.value || 0),
-      duration: Number(durationInput?.value || DEFAULT_SETTINGS.duration),
-      months_to_show: Number(monthsToShowInput?.value || DEFAULT_SETTINGS.months_to_show),
-      initial_full_weeks: Number(initialWeeksInput?.value || DEFAULT_SETTINGS.initial_full_weeks),
-      scroll_start_delay_ms: Number(scrollDelayInput?.value || DEFAULT_SETTINGS.scroll_start_delay_ms),
-      scroll_speed_px_per_second: Number(scrollSpeedInput?.value || DEFAULT_SETTINGS.scroll_speed_px_per_second),
-      pause_at_bottom_ms: Number(pauseBottomInput?.value || DEFAULT_SETTINGS.pause_at_bottom_ms),
-      pause_at_top_ms: Number(pauseTopInput?.value || DEFAULT_SETTINGS.pause_at_top_ms),
-    });
-
     const refreshPreview = () => {
       if (!previewFrame) return;
       try {
@@ -159,225 +82,389 @@
       }
     };
 
-    const createPeriodRow = (vacation = {}) => {
-      const row = document.createElement("div");
-      row.className = "vacations-period-row";
-      row.dataset.periodId = String(vacation.id || makeId());
-      row.innerHTML = `
-        <div class="vacations-period-grid">
-          <label>
-            Début
-            <input type="date" data-field="start_date" value="${escapeHTML(vacation.start_date || "")}" />
-          </label>
-          <label>
-            Fin
-            <input type="date" data-field="end_date" value="${escapeHTML(vacation.end_date || "")}" />
-          </label>
-          <label>
-            Libellé
-            <input type="text" data-field="label" maxlength="120" placeholder="Vacances, relâche, congé..." value="${escapeHTML(vacation.label || "")}" />
-          </label>
-          <label>
-            Notes
-            <textarea data-field="notes" placeholder="Détail optionnel visible uniquement dans l'admin.">${escapeHTML(vacation.notes || "")}</textarea>
-          </label>
-        </div>
-        <div class="vacations-period-actions">
-          <div class="vacations-period-buttons">
-            <button type="button" class="primary-button" data-action="save-period">Enregistrer la période</button>
-            <button type="button" class="secondary-button" data-action="delete-period">Supprimer la période</button>
-          </div>
-          <span class="vacations-status" data-role="row-status" aria-live="polite"></span>
-        </div>
-      `;
-      return row;
+    const todayIso = () => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
     };
 
-    const serializePeriodsForCard = (card) =>
-      Array.from(card.querySelectorAll(".vacations-period-row")).reduce((result, row) => {
-        const startDate = String(row.querySelector('[data-field="start_date"]')?.value || "").trim();
-        const endDate = String(row.querySelector('[data-field="end_date"]')?.value || "").trim();
-        const label = String(row.querySelector('[data-field="label"]')?.value || "").trim();
-        const notes = String(row.querySelector('[data-field="notes"]')?.value || "").trim();
-        if (!startDate || !endDate) {
-          return result;
+    const parseIsoDate = (value) => {
+      const text = String(value || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+      const date = new Date(`${text}T00:00:00Z`);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const formatDate = (value) => {
+      const parsed = parseIsoDate(value);
+      if (!parsed) return "";
+      return new Intl.DateTimeFormat("fr-CA", {
+        timeZone: "UTC",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(parsed);
+    };
+
+    const formatPeriodLabel = (period) => {
+      const start = formatDate(period.start_date);
+      const end = formatDate(period.end_date);
+      if (!start && !end) {
+        return "Période de vacances";
+      }
+      if (start === end) {
+        return `Du ${start}`;
+      }
+      return `Du ${start} au ${end}`;
+    };
+
+    const normalizePeriod = (period = {}) => {
+      const start_date = String(period.start_date || period.start || "").trim();
+      const end_date = String(period.end_date || period.end || "").trim();
+      if (!start_date || !end_date) {
+        return null;
+      }
+      return {
+        id: String(period.id || makeId()),
+        start_date,
+        end_date,
+        label: String(period.label || "").trim(),
+        notes: String(period.notes || "").trim(),
+      };
+    };
+
+    const normalizeEmployee = (employee) => {
+      const vacations = Array.isArray(employee?.vacations)
+        ? employee.vacations.map((period) => normalizePeriod(period)).filter(Boolean)
+        : [];
+      return {
+        ...employee,
+        vacations,
+      };
+    };
+
+    const icon = (name) => {
+      const svg = document.createElementNS(SVG_NS, "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", ICON_PATHS[name] || ICON_PATHS.plus);
+      svg.appendChild(path);
+      return svg;
+    };
+
+    const iconButton = (name, label, extraClass = "") => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `icon-button vacations-mini-button ${extraClass}`.trim();
+      button.setAttribute("aria-label", label);
+      button.appendChild(icon(name));
+      return button;
+    };
+
+    const escapeSelector = (value) =>
+      String(value ?? "").replace(/["\\]/g, "\\$&");
+
+    const sortPeriods = (periods) =>
+      [...periods].sort((left, right) => {
+        const leftStart = left.start_date || "";
+        const rightStart = right.start_date || "";
+        if (leftStart === rightStart) {
+          return (left.end_date || "").localeCompare(right.end_date || "");
         }
-        result.push({
-          id: row.dataset.periodId || makeId(),
-          start_date: startDate,
-          end_date: endDate,
-          label,
-          notes,
+        return leftStart.localeCompare(rightStart);
+      });
+
+    const findEmployee = (employeeId) => employees.find((employee) => String(employee.id) === String(employeeId));
+
+    const findPeriod = (employee, periodId) => {
+      if (!employee || !Array.isArray(employee.vacations)) return null;
+      return employee.vacations.find((period) => String(period.id) === String(periodId)) || null;
+    };
+
+    const applyModalState = () => {
+      if (!modal) return;
+      modal.hidden = !activeEdit;
+      modal.setAttribute("aria-hidden", activeEdit ? "false" : "true");
+      document.body.classList.toggle("modal-open", Boolean(activeEdit));
+    };
+
+    const closeModal = () => {
+      activeEdit = null;
+      setStatus(modalStatus, "");
+      if (modalStart) modalStart.value = "";
+      if (modalEnd) modalEnd.value = "";
+      if (modalEmployee) modalEmployee.textContent = "";
+      if (modalTitle) modalTitle.textContent = "Période de vacances";
+      applyModalState();
+    };
+
+    const openModal = ({ employeeId, periodId = null } = {}) => {
+      const employee = findEmployee(employeeId);
+      if (!employee) return;
+      const period = periodId ? findPeriod(employee, periodId) : null;
+      activeEdit = {
+        employeeId: String(employee.id),
+        periodId: period ? String(period.id) : "",
+      };
+      if (modalTitle) {
+        modalTitle.textContent = period ? "Modifier la période" : "Ajouter une période";
+      }
+      if (modalEmployee) {
+        modalEmployee.textContent = employee.name || "Employé";
+      }
+      if (modalStart) {
+        modalStart.value = period?.start_date || todayIso();
+      }
+      if (modalEnd) {
+        modalEnd.value = period?.end_date || todayIso();
+      }
+      setStatus(modalStatus, "");
+      applyModalState();
+      setTimeout(() => modalStart?.focus(), 0);
+    };
+
+    const buildEmployeeCard = (employee) => {
+      const card = document.createElement("article");
+      card.className = "vacations-employee-card";
+      card.dataset.employeeId = String(employee.id || "");
+
+      const header = document.createElement("div");
+      header.className = "vacations-employee-header";
+
+      const identity = document.createElement("div");
+      const name = document.createElement("h3");
+      name.textContent = employee.name || "Employé";
+      const meta = document.createElement("p");
+      const metaBits = [];
+      if (employee.role) metaBits.push(employee.role);
+      if (employee.position) metaBits.push(employee.position);
+      if (employee.hire_date) metaBits.push(`Embauche: ${formatDate(employee.hire_date)}`);
+      meta.className = "vacations-employee-meta";
+      meta.textContent = metaBits.length ? metaBits.join(" • ") : "Carte vacances";
+      identity.append(name, meta);
+
+      const addButton = iconButton("plus", "Ajouter une période");
+      addButton.dataset.action = "add-period";
+      addButton.classList.add("vacations-add-button");
+
+      header.append(identity, addButton);
+
+      const list = document.createElement("div");
+      list.className = "vacations-period-list";
+      const vacations = sortPeriods(employee.vacations || []);
+      if (!vacations.length) {
+        const empty = document.createElement("p");
+        empty.className = "vacations-empty-periods";
+        empty.textContent = "Aucune période enregistrée.";
+        list.appendChild(empty);
+      } else {
+        vacations.forEach((period) => {
+          const row = document.createElement("div");
+          row.className = "vacations-period-row";
+          row.dataset.periodId = String(period.id || "");
+
+          const main = document.createElement("div");
+          main.className = "vacations-period-main";
+          const range = document.createElement("strong");
+          range.textContent = formatPeriodLabel(period);
+          main.appendChild(range);
+
+          const details = document.createElement("span");
+          const label = period.label ? period.label : "Vacances";
+          details.textContent = period.notes ? `${label} • ${period.notes}` : label;
+          main.appendChild(details);
+
+          const actions = document.createElement("div");
+          actions.className = "vacations-period-actions";
+          const editButton = iconButton("pencil", "Éditer la période");
+          editButton.dataset.action = "edit-period";
+          const deleteButton = iconButton("trash", "Supprimer la période");
+          deleteButton.dataset.action = "delete-period";
+          actions.append(editButton, deleteButton);
+
+          row.append(main, actions);
+          list.appendChild(row);
         });
-        return result;
-      }, []);
+      }
+
+      const status = document.createElement("div");
+      status.className = "vacations-status";
+      status.dataset.role = "card-status";
+      status.setAttribute("aria-live", "polite");
+
+      card.append(header, list, status);
+      return card;
+    };
 
     const renderEmployees = () => {
       if (!employeesList) return;
       if (!Array.isArray(employees) || !employees.length) {
-        employeesList.innerHTML = '<p class="vacations-empty-periods">Aucun employé disponible.</p>';
+        employeesList.replaceChildren();
+        const empty = document.createElement("p");
+        empty.className = "vacations-empty-periods";
+        empty.textContent = "Aucun employé disponible.";
+        employeesList.appendChild(empty);
         return;
       }
 
-      employeesList.replaceChildren(
-        ...employees.map((employee) => {
-          const card = document.createElement("article");
-          card.className = "vacations-employee-card";
-          card.dataset.employeeId = String(employee.id || "");
-
-          const periods = Array.isArray(employee.vacations) ? employee.vacations : [];
-          const metaBits = [];
-          if (employee.role) metaBits.push(employee.role);
-          if (employee.hire_date) metaBits.push(`Embauche: ${formatDate(employee.hire_date)}`);
-
-          card.innerHTML = `
-            <div class="vacations-employee-header">
-              <div>
-                <h3>${escapeHTML(employee.name || "Employé")}</h3>
-                <p class="vacations-employee-meta">${escapeHTML(metaBits.join(" • ") || "Aucune information complémentaire")}</p>
-              </div>
-              <button type="button" class="secondary-button" data-action="add-period">Ajouter une période</button>
-            </div>
-            <div class="vacations-periods"></div>
-            <div class="vacations-status" data-role="card-status" aria-live="polite"></div>
-          `;
-
-          const periodsHost = card.querySelector(".vacations-periods");
-          if (periods.length) {
-            periods.forEach((vacation) => periodsHost?.appendChild(createPeriodRow(vacation)));
-          } else if (periodsHost) {
-            const empty = document.createElement("p");
-            empty.className = "vacations-empty-periods";
-            empty.textContent = "Aucune période de vacances enregistrée pour cet employé.";
-            periodsHost.appendChild(empty);
-          }
-          return card;
-        }),
-      );
-    };
-
-    const loadSettings = async ({ silent = false } = {}) => {
-      if (!silent) setStatus(settingsStatus, "Chargement des paramètres...", "info");
-      const data = await fetchJSON("api/settings");
-      settings = normalizeSettings(data?.vacations_slide || {});
-      fillSettingsForm();
-      if (!silent) setStatus(settingsStatus, "", "info");
+      employeesList.replaceChildren(...employees.map((employee) => buildEmployeeCard(employee)));
     };
 
     const loadEmployees = async ({ silent = false } = {}) => {
       if (!silent) setStatus(employeesStatus, "Chargement des employés...", "info");
       const data = await fetchJSON("api/employees");
-      employees = Array.isArray(data?.employees) ? data.employees : [];
+      employees = Array.isArray(data?.employees) ? data.employees.map((employee) => normalizeEmployee(employee)) : [];
       renderEmployees();
       if (!silent) setStatus(employeesStatus, "", "info");
     };
 
-    const saveSettings = async () => {
-      setStatus(settingsStatus, "Enregistrement...", "info");
-      settingsSaveButton?.setAttribute("disabled", "disabled");
-      try {
-        const response = await fetchJSON("api/settings", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vacations_slide: readSettingsPatch() }),
+    const persistEmployeeVacations = async (employeeId, vacations) => {
+      const response = await fetchJSON(`api/employees/${encodeURIComponent(employeeId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vacations }),
+      });
+      const updated = normalizeEmployee(response?.employee || { id: employeeId, vacations });
+      employees = employees.map((employee) => (String(employee.id) === String(employeeId) ? updated : employee));
+      renderEmployees();
+      refreshPreview();
+      return updated;
+    };
+
+    const saveModal = async () => {
+      if (!activeEdit) return;
+      const employee = findEmployee(activeEdit.employeeId);
+      if (!employee) return;
+
+      const startDate = String(modalStart?.value || "").trim();
+      const endDate = String(modalEnd?.value || "").trim();
+      if (!startDate || !endDate) {
+        setStatus(modalStatus, "Choisissez deux dates.", "error");
+        return;
+      }
+      if (endDate < startDate) {
+        setStatus(modalStatus, "La date de fin doit être postérieure ou égale à la date de début.", "error");
+        return;
+      }
+
+      const vacations = sortPeriods(Array.isArray(employee.vacations) ? employee.vacations : []);
+      const nextPeriods = [];
+      let replaced = false;
+      vacations.forEach((period) => {
+        if (activeEdit.periodId && String(period.id) === String(activeEdit.periodId)) {
+          nextPeriods.push({
+            ...period,
+            start_date: startDate,
+            end_date: endDate,
+          });
+          replaced = true;
+          return;
+        }
+        nextPeriods.push(period);
+      });
+
+      if (!replaced) {
+        nextPeriods.push({
+          id: makeId(),
+          start_date: startDate,
+          end_date: endDate,
+          label: "",
+          notes: "",
         });
-        settings = normalizeSettings(response?.vacations_slide || readSettingsPatch());
-        fillSettingsForm();
-        setStatus(settingsStatus, "Paramètres enregistrés.", "success");
-        refreshPreview();
+      }
+
+      const card = employeesList?.querySelector?.(`[data-employee-id="${escapeSelector(String(employee.id))}"]`);
+      const cardStatus = card?.querySelector('[data-role="card-status"]') || modalStatus;
+      setStatus(cardStatus, "Enregistrement...", "info");
+      try {
+        await persistEmployeeVacations(employee.id, nextPeriods);
+        setStatus(employeesStatus, "Période enregistrée.", "success");
+        setStatus(cardStatus, "Période enregistrée.", "success");
+        closeModal();
       } catch (error) {
-        setStatus(settingsStatus, extractErrorMessage(error), "error");
-      } finally {
-        settingsSaveButton?.removeAttribute("disabled");
+        const message = extractErrorMessage(error);
+        setStatus(cardStatus, message, "error");
+        setStatus(modalStatus, message, "error");
       }
     };
 
-    const persistEmployeeCard = async (card, successMessage) => {
-      const employeeId = String(card?.dataset?.employeeId || "").trim();
-      if (!employeeId) return;
-      const cardStatus = card.querySelector('[data-role="card-status"]');
-      const vacations = serializePeriodsForCard(card);
-      setStatus(cardStatus, "Enregistrement des périodes...", "info");
-      setStatus(employeesStatus, "", "info");
-      try {
-        await fetchJSON(`api/employees/${encodeURIComponent(employeeId)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vacations }),
-        });
-        setStatus(cardStatus, successMessage, "success");
-        await loadEmployees({ silent: true });
-        setStatus(employeesStatus, successMessage, "success");
-        refreshPreview();
-      } catch (error) {
-        setStatus(cardStatus, extractErrorMessage(error), "error");
-        setStatus(employeesStatus, extractErrorMessage(error), "error");
-      }
-    };
+    employeesList?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-action]");
+      if (!button) return;
+      const card = button.closest(".vacations-employee-card");
+      if (!card) return;
+      const employeeId = String(card.dataset.employeeId || "");
+      const periodRow = button.closest(".vacations-period-row");
 
-    settingsSaveButton?.addEventListener("click", () => {
-      void saveSettings();
+      switch (button.dataset.action) {
+        case "add-period":
+          openModal({ employeeId });
+          break;
+        case "edit-period":
+          openModal({ employeeId, periodId: periodRow?.dataset?.periodId || "" });
+          break;
+        case "delete-period": {
+          const employee = findEmployee(employeeId);
+          const periodId = String(periodRow?.dataset?.periodId || "");
+          if (!employee || !periodId) return;
+          const confirmed = window.confirm("Supprimer cette période de vacances ?");
+          if (!confirmed) return;
+          const nextPeriods = sortPeriods(employee.vacations || []).filter((period) => String(period.id) !== periodId);
+          setStatus(card.querySelector('[data-role="card-status"]'), "Suppression...", "info");
+          void persistEmployeeVacations(employee.id, nextPeriods)
+            .then(() => {
+              setStatus(employeesStatus, "Période supprimée.", "success");
+            })
+            .catch((error) => {
+              const message = extractErrorMessage(error);
+              setStatus(card.querySelector('[data-role="card-status"]'), message, "error");
+              setStatus(employeesStatus, message, "error");
+            });
+          break;
+        }
+        default:
+          break;
+      }
     });
 
     refreshEmployeesButton?.addEventListener("click", () => {
       void loadEmployees();
     });
 
-    employeesList?.addEventListener("click", (event) => {
-      const actionButton = event.target.closest("[data-action]");
-      if (!actionButton) return;
-      const card = actionButton.closest(".vacations-employee-card");
-      const periodsHost = card?.querySelector(".vacations-periods");
-      if (!card || !periodsHost) return;
-
-      if (actionButton.dataset.action === "add-period") {
-        const emptyState = periodsHost.querySelector(".vacations-empty-periods");
-        if (emptyState) emptyState.remove();
-        const today = new Date();
-        const isoToday = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()))
-          .toISOString()
-          .slice(0, 10);
-        const row = createPeriodRow({ start_date: isoToday, end_date: isoToday });
-        periodsHost.appendChild(row);
-        row.querySelector('[data-field="start_date"]')?.focus();
-        return;
+    modalCancel?.addEventListener("click", closeModal);
+    modalClose?.addEventListener("click", closeModal);
+    modal?.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        closeModal();
       }
-
-      const row = actionButton.closest(".vacations-period-row");
-      if (!row) return;
-
-      if (actionButton.dataset.action === "save-period") {
-        const rowStatus = row.querySelector('[data-role="row-status"]');
-        const startDate = String(row.querySelector('[data-field="start_date"]')?.value || "").trim();
-        const endDate = String(row.querySelector('[data-field="end_date"]')?.value || "").trim();
-        if (!startDate || !endDate) {
-          setStatus(rowStatus, "Renseignez une date de début et de fin.", "error");
-          return;
-        }
-        if (endDate < startDate) {
-          setStatus(rowStatus, "La fin doit être postérieure ou égale au début.", "error");
-          return;
-        }
-        setStatus(rowStatus, "", "info");
-        void persistEmployeeCard(card, "Périodes enregistrées.");
-        return;
+    });
+    modalSave?.addEventListener("click", () => {
+      void saveModal();
+    });
+    modalStart?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void saveModal();
       }
-
-      if (actionButton.dataset.action === "delete-period") {
-        row.remove();
-        if (!periodsHost.querySelector(".vacations-period-row")) {
-          const empty = document.createElement("p");
-          empty.className = "vacations-empty-periods";
-          empty.textContent = "Aucune période de vacances enregistrée pour cet employé.";
-          periodsHost.appendChild(empty);
-        }
-        void persistEmployeeCard(card, "Période supprimée.");
+    });
+    modalEnd?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void saveModal();
       }
     });
 
-    void Promise.all([loadSettings(), loadEmployees()]).catch((error) => {
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && activeEdit) {
+        closeModal();
+      }
+    });
+
+    void loadEmployees().catch((error) => {
       const message = extractErrorMessage(error);
-      setStatus(settingsStatus, message, "error");
       setStatus(employeesStatus, message, "error");
     });
   };

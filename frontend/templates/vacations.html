@@ -10,27 +10,6 @@
       gap: 18px;
     }
 
-    .vacations-settings-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 14px;
-      align-items: end;
-    }
-
-    .vacations-settings-grid label,
-    .vacations-period-grid label {
-      display: grid;
-      gap: 6px;
-      font-weight: 600;
-      color: rgba(15, 23, 42, 0.82);
-    }
-
-    .vacations-toggle-wrap {
-      display: grid;
-      gap: 8px;
-      align-self: center;
-    }
-
     .vacations-status {
       min-height: 1.4rem;
       font-size: 0.95rem;
@@ -43,6 +22,38 @@
 
     .vacations-status[data-state="error"] {
       color: #b91c1c;
+    }
+
+    .custom-section[data-editor-kind="vacations"] .custom-editor {
+      grid-template-columns: 1fr;
+    }
+
+    .custom-section[data-editor-kind="vacations"] .preview-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .custom-section[data-editor-kind="vacations"] .text-options-column,
+    .custom-section[data-editor-kind="vacations"] .background-upload,
+    .custom-section[data-editor-kind="vacations"] .text-add-button,
+    .custom-section[data-editor-kind="vacations"] .selected-text-panel {
+      display: none !important;
+    }
+
+    .custom-section[data-editor-kind="vacations"] .preview-section .playlist-subtitle {
+      display: none;
+    }
+
+    .custom-section[data-editor-kind="vacations"] .preview-column {
+      max-width: none;
+      width: 100%;
+    }
+
+    .custom-section[data-editor-kind="vacations"] .preview-frame-inner {
+      min-height: clamp(480px, 66vh, 860px);
+    }
+
+    .custom-section[data-editor-kind="vacations"] .slideshow-preview-iframe {
+      width: 100%;
     }
 
     .vacations-employees-toolbar {
@@ -60,6 +71,9 @@
     }
 
     .vacations-employee-card {
+      display: grid;
+      gap: 14px;
+      min-height: 180px;
       border: 1px solid rgba(15, 23, 42, 0.08);
       border-radius: 16px;
       padding: 16px;
@@ -74,7 +88,6 @@
       justify-content: space-between;
       gap: 12px;
       align-items: flex-start;
-      margin-bottom: 14px;
       flex-wrap: wrap;
     }
 
@@ -89,47 +102,82 @@
       font-size: 0.95rem;
     }
 
-    .vacations-periods {
+    .vacations-period-list {
       display: grid;
-      gap: 12px;
+      gap: 10px;
     }
 
     .vacations-period-row {
       border: 1px solid rgba(15, 23, 42, 0.08);
       border-radius: 14px;
-      padding: 12px;
-      background: rgba(255, 255, 255, 0.9);
-    }
-
-    .vacations-period-grid {
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.92);
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 12px;
+      align-items: center;
+      min-height: 68px;
     }
 
-    .vacations-period-grid textarea {
-      min-height: 88px;
-      resize: vertical;
+    .vacations-period-main {
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .vacations-period-main strong {
+      font-size: 0.98rem;
+      line-height: 1.2;
+    }
+
+    .vacations-period-main span {
+      color: rgba(15, 23, 42, 0.62);
+      font-size: 0.9rem;
+      line-height: 1.25;
     }
 
     .vacations-period-actions {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 10px;
       align-items: center;
-      margin-top: 12px;
       flex-wrap: wrap;
     }
 
-    .vacations-period-buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+    .vacations-mini-button {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .vacations-mini-button svg {
+      width: 17px;
+      height: 17px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.25;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .vacations-add-button {
+      background: linear-gradient(135deg, #14b8a6, #0f766e);
+      color: #ffffff;
+      border-color: transparent;
+      box-shadow: 0 10px 20px rgba(15, 118, 110, 0.22);
+    }
+
+    .vacations-add-button:hover {
+      background: linear-gradient(135deg, #10a898, #0d6a64);
     }
 
     .vacations-empty-periods {
       margin: 0;
-      padding: 16px;
+      padding: 14px 16px;
       border: 1px dashed rgba(15, 23, 42, 0.18);
       border-radius: 14px;
       color: rgba(15, 23, 42, 0.62);
@@ -146,6 +194,70 @@
       margin-top: 8px;
     }
 
+    .vacations-modal[hidden] {
+      display: none !important;
+    }
+
+    .vacations-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(2, 6, 23, 0.62);
+      backdrop-filter: blur(6px);
+    }
+
+    .vacations-modal-panel {
+      width: min(560px, 100%);
+      border-radius: 18px;
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.35);
+      padding: 18px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .vacations-modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .vacations-modal-header h3 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .vacations-modal-header p {
+      margin: 4px 0 0;
+      color: rgba(15, 23, 42, 0.62);
+      font-size: 0.95rem;
+    }
+
+    .vacations-modal-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .vacations-modal-grid label {
+      display: grid;
+      gap: 6px;
+      font-weight: 600;
+      color: rgba(15, 23, 42, 0.82);
+    }
+
+    .vacations-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     @media (max-width: 720px) {
       .vacations-period-actions,
       .vacations-employees-toolbar,
@@ -157,10 +269,21 @@
         width: 100%;
       }
 
-      .vacations-period-buttons button,
       .vacations-employee-header button,
       .vacations-employees-toolbar button {
         width: 100%;
+      }
+
+      .vacations-period-row {
+        grid-template-columns: 1fr;
+      }
+
+      .vacations-period-actions {
+        justify-content: flex-start;
+      }
+
+      .vacations-modal-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -168,7 +291,7 @@
 
 {% block page_title %}Vacances{% endblock %}
 {% block page_subtitle %}
-  <p class="page-subtitle">Gérez la diapositive dynamique des vacances et les périodes de congé de chaque employé.</p>
+  <p class="page-subtitle">Aperçu de la diapositive et gestion des périodes de vacances par employé.</p>
 {% endblock %}
 {% block header_actions %}
   <a href="{{ url_for('main.slideshow_overview') }}" class="secondary-button">Vue générale</a>
@@ -176,88 +299,14 @@
 
 {% block content %}
   <div class="vacations-admin-page" id="vacations-admin-page">
-    <section class="card" id="vacations-settings-card">
-      <div class="section-header">
-        <div>
-          <h2>Paramètres de la diapositive</h2>
-          <p class="playlist-subtitle">Cadence d’affichage, ordre dans le diaporama et comportement du calendrier défilant.</p>
-        </div>
-      </div>
-      <div class="section-content">
-        <form id="vacations-settings-form" class="vacations-settings-grid">
-          <div class="vacations-toggle-wrap">
-            <label class="visibility-toggle">
-              <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
-              <div class="visibility-toggle-switch">
-                <input id="vacations-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapositive Vacances" />
-                <span class="visibility-toggle-slider"></span>
-              </div>
-              <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
-            </label>
-            <p class="vacations-inline-hint">La slide n’est injectée que si des périodes existent dans la fenêtre affichée.</p>
-          </div>
-
-          <label for="vacations-order-index">
-            Ordre auto
-            <input id="vacations-order-index" type="number" min="0" step="1" value="0" />
-          </label>
-
-          <label for="vacations-duration">
-            Durée (secondes)
-            <input id="vacations-duration" type="number" min="5" max="600" step="1" value="20" />
-          </label>
-
-          <label for="vacations-months-to-show">
-            Mois à afficher
-            <input id="vacations-months-to-show" type="number" min="1" max="24" step="1" value="12" />
-          </label>
-
-          <label for="vacations-initial-full-weeks">
-            Semaines visibles au départ
-            <input id="vacations-initial-full-weeks" type="number" min="1" max="24" step="1" value="8" />
-          </label>
-
-          <label for="vacations-scroll-delay">
-            Délai avant défilement (ms)
-            <input id="vacations-scroll-delay" type="number" min="0" max="60000" step="100" value="4500" />
-          </label>
-
-          <label for="vacations-scroll-speed">
-            Vitesse de défilement (px/s)
-            <input id="vacations-scroll-speed" type="number" min="1" max="300" step="1" value="26" />
-          </label>
-
-          <label for="vacations-pause-bottom">
-            Pause en bas (ms)
-            <input id="vacations-pause-bottom" type="number" min="0" max="60000" step="100" value="5000" />
-          </label>
-
-          <label for="vacations-pause-top">
-            Pause en haut (ms)
-            <input id="vacations-pause-top" type="number" min="0" max="60000" step="100" value="3000" />
-          </label>
-        </form>
-
-        <div class="birthday-preview-actions">
-          <button type="button" class="primary-button" id="vacations-settings-save">Enregistrer</button>
-          <span id="vacations-settings-status" class="vacations-status" aria-live="polite"></span>
-        </div>
-      </div>
-    </section>
-
     {% set editor_prefix = "vacations" %}
     {% set editor_kind = "vacations" %}
-    {% set editor_title = "Éditeur Vacances" %}
-    {% set editor_description = "Gérez le fond et les textes superposés de la diapositive Vacances." %}
-    {% set editor_tokens = [
-      {"code": "[employee_count]", "label": "Nombre d’employés concernés"},
-      {"code": "[vacation_count]", "label": "Nombre total de périodes"},
-      {"code": "[period_count]", "label": "Alias du nombre total de périodes"},
-      {"code": "[month_range]", "label": "Fenêtre affichée (ex. mai 2026 - avril 2027)"},
-      {"code": "[year]", "label": "Année courante"},
-    ] %}
+    {% set editor_title = "Aperçu Vacances" %}
+    {% set editor_description = "Aperçu identique à la diapositive réelle, sans édition de texte." %}
+    {% set editor_tokens = [] %}
     {% set show_meta = False %}
     {% set show_enabled_toggle = False %}
+    {% set show_text_editor = False %}
     {% include "partials/live_editor_section.html" %}
 
     <section class="card" id="vacations-employees-card">
@@ -276,11 +325,40 @@
         <div id="vacations-employees-status" class="vacations-status vacations-global-status" aria-live="polite"></div>
       </div>
     </section>
+
+    <div class="vacations-modal" id="vacations-period-modal" hidden aria-hidden="true">
+      <div class="vacations-modal-panel" role="dialog" aria-modal="true" aria-labelledby="vacations-period-modal-title">
+        <div class="vacations-modal-header">
+          <div>
+            <h3 id="vacations-period-modal-title">Période de vacances</h3>
+            <p id="vacations-period-modal-employee"></p>
+          </div>
+          <button type="button" class="icon-button vacations-mini-button" id="vacations-period-modal-close" aria-label="Fermer">
+            ×
+          </button>
+        </div>
+        <div class="vacations-modal-grid">
+          <label for="vacations-period-start">
+            Du
+            <input id="vacations-period-start" type="date" />
+          </label>
+          <label for="vacations-period-end">
+            Au
+            <input id="vacations-period-end" type="date" />
+          </label>
+        </div>
+        <div id="vacations-period-modal-status" class="vacations-status" aria-live="polite"></div>
+        <div class="vacations-modal-actions">
+          <button type="button" class="secondary-button" id="vacations-period-modal-cancel">Annuler</button>
+          <button type="button" class="primary-button" id="vacations-period-modal-save">Enregistrer</button>
+        </div>
+      </div>
+    </div>
   </div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/live_editor.js') }}?v=20260509-03"></script>
-  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-03"></script>
+  <script src="{{ url_for('static', filename='js/live_editor.js') }}?v=20260509-04"></script>
+  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-04"></script>
 {% endblock %}
