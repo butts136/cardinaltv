@@ -8842,3 +8842,60 @@ details.collapsible:not([open]) .birthday-text-footer {
   font-size: calc(14px * var(--cui-scale));
   line-height: 1;
 }
+
+/* Final compact layout lock for playlist media controls.
+   Remove any residual invisible height from line boxes, baseline alignment,
+   or older shared field-group styles around the isolated inputs. */
+.playlist-section .media-card:not(.auto-slide-card) .media-card-grid,
+.playlist-section .media-card:not(.auto-slide-card) .media-card-grid-row {
+  line-height: 1;
+}
+
+.playlist-section .media-card:not(.auto-slide-card) .field-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  align-self: flex-start;
+  flex: 0 0 auto;
+}
+
+.playlist-section .media-card:not(.auto-slide-card) .field-group > span {
+  display: block;
+  margin: 0;
+  line-height: 1.08;
+}
+
+.playlist-section .media-card:not(.auto-slide-card) .field-group > .cui-date-picker-50,
+.playlist-section .media-card:not(.auto-slide-card) .field-group > .cui-number-wrapper-50 {
+  display: block;
+  margin: 0;
+  padding: 0;
+  line-height: 0;
+  align-self: flex-start;
+}
+
+.playlist-section .cui-number-wrapper-50,
+.playlist-section .cui-date-picker-50 {
+  display: block;
+  vertical-align: top;
+}
+
+.playlist-section .cui-number-field,
+.playlist-section .cui-date-field,
+.playlist-section .cui-number-buttons,
+.playlist-section .cui-calendar-button {
+  display: flex;
+  vertical-align: top;
+}
+
+.playlist-section .cui-number-input,
+.playlist-section .cui-date-input,
+.playlist-section .cui-number-step-button,
+.playlist-section .cui-calendar-button {
+  line-height: 1;
+}
