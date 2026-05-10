@@ -1773,11 +1773,15 @@
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .media-card-grid {
-  gap: 0.45rem;
+  grid-template-columns: repeat(2, max-content);
+  justify-content: start;
+  align-items: start;
+  column-gap: 0.65rem;
+  row-gap: 0.35rem;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .field-group--date {
-  grid-column: 1 / -1;
+  grid-column: auto;
   width: fit-content;
   max-width: 100%;
   align-self: start;
@@ -1786,6 +1790,7 @@
 .playlist-section .media-card:not(.auto-slide-card) .field-group--number,
 .playlist-section .media-card:not(.auto-slide-card) .field-group--date {
   min-width: 0;
+  justify-self: start;
 }
 
 .playlist-section .media-card-actions {
