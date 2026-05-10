@@ -1776,6 +1776,9 @@
   grid-template-columns: repeat(2, max-content);
   justify-content: start;
   align-items: start;
+  align-content: start;
+  justify-items: start;
+  grid-auto-rows: max-content;
   column-gap: 0.65rem;
   row-gap: 0.35rem;
 }
