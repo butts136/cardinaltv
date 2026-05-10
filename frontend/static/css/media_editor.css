@@ -7540,6 +7540,37 @@ details.collapsible:not([open]) .birthday-text-footer {
     grid-template-columns: 1fr;
   }
 
+  .playlist-section .media-card:not(.auto-slide-card) .media-card-details,
+  .playlist-section .media-card:not(.auto-slide-card) .media-card-grid,
+  .playlist-section .media-card:not(.auto-slide-card) .media-card-grid-row,
+  .playlist-section .media-card:not(.auto-slide-card) .field-group,
+  .playlist-section .media-card:not(.auto-slide-card) .field-group--date,
+  .playlist-section .media-card:not(.auto-slide-card) .field-group--number {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) .media-card-grid {
+    align-self: stretch;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) .media-card-grid-row {
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+    row-gap: 0.7rem;
+  }
+
+  .playlist-section .media-card:not(.auto-slide-card) .playlist-date-time-wrapper,
+  .playlist-section .media-card:not(.auto-slide-card) .playlist-number-wrapper,
+  .playlist-section .media-card:not(.auto-slide-card) .cui-date-picker-50,
+  .playlist-section .media-card:not(.auto-slide-card) .cui-number-wrapper-50 {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
   .playlist-section .media-card-actions {
     display: flex;
     flex-wrap: wrap;

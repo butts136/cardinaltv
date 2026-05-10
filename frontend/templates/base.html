@@ -44,6 +44,7 @@
         'main.weather',
         'main.temporary',
       ] %}
+{% set calendar_endpoints = calendar_nav_endpoints|default([]) %}
 {% set fetes_endpoints = dynamic_slide_endpoints|default([]) %}
 {% set custom_endpoints = [
         'main.custom_slides',
@@ -71,6 +72,21 @@
           <a class="nav-sublink {% if endpoint == 'main.playlist' %}is-active{% endif %}" href="{{ url_for('main.playlist') }}">Ordre des diapositives</a>
           <a class="nav-sublink {% if endpoint == 'main.employees' %}is-active{% endif %}" href="{{ url_for('main.employees') }}">Employés</a>
           <a class="nav-sublink {% if endpoint == 'main.info_bands' %}is-active{% endif %}" href="{{ url_for('main.info_bands') }}">Bandes informatives</a>
+
+          <div class="nav-submenu {% if endpoint in calendar_endpoints %}is-expanded{% endif %}">
+            <button type="button" class="nav-submenu-toggle {% if endpoint in calendar_endpoints %}is-active{% endif %}" aria-expanded="{{ 'true' if endpoint in calendar_endpoints else 'false' }}">
+              <span>Calendrier</span>
+              <span class="nav-submenu-arrow">▼</span>
+            </button>
+            <div class="nav-submenu-content {% if endpoint in calendar_endpoints %}is-open{% endif %}">
+              {% for slide in calendar_nav|default([]) %}
+                <a class="nav-sublink nav-sublink--nested {% if endpoint == slide.endpoint %}is-active{% endif %}" href="{{ slide.url }}">
+                  <span class="nav-sublink-label">{{ slide.label }}</span>
+                  <span class="nav-status-orb {% if slide.enabled %}is-enabled{% else %}is-disabled{% endif %}" aria-hidden="true"></span>
+                </a>
+              {% endfor %}
+            </div>
+          </div>
 
           <div class="nav-submenu {% if endpoint in fetes_endpoints %}is-expanded{% endif %}">
             <button type="button" class="nav-submenu-toggle {% if endpoint in fetes_endpoints %}is-active{% endif %}" aria-expanded="{{ 'true' if endpoint in fetes_endpoints else 'false' }}">

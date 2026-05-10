@@ -5553,6 +5553,21 @@ def _inject_custom_slides_nav() -> Dict[str, Any]:
     settings = store.get_settings()
     news_config = _load_news_config()
     weather_config = _load_weather_config()
+    calendar_nav = [
+        {
+            "endpoint": "main.vacations",
+            "label": "Vacances",
+            "url": url_for("main.vacations"),
+            "enabled": bool((settings.get("vacations_slide") or {}).get("enabled")),
+        },
+        {
+            "endpoint": "main.calendar_events",
+            "label": "Fériés et modifications d'horaires",
+            "url": url_for("main.calendar_events"),
+            "enabled": bool((settings.get("vacations_slide") or {}).get("enabled")),
+        },
+    ]
+
     dynamic_slides = [
         {
             "endpoint": "main.birthday",
@@ -5561,22 +5576,10 @@ def _inject_custom_slides_nav() -> Dict[str, Any]:
             "enabled": bool((settings.get("birthday_slide") or {}).get("enabled")),
         },
         {
-            "endpoint": "main.vacations",
-            "label": "Calendrier",
-            "url": url_for("main.vacations"),
-            "enabled": bool((settings.get("vacations_slide") or {}).get("enabled")),
-        },
-        {
             "endpoint": "main.time_change",
             "label": "Changement d'heure",
             "url": url_for("main.time_change"),
             "enabled": bool((settings.get("time_change_slide") or {}).get("enabled")),
-        },
-        {
-            "endpoint": "main.calendar_events",
-            "label": "Fériés et modifications d'horaires",
-            "url": url_for("main.calendar_events"),
-            "enabled": bool((settings.get("vacations_slide") or {}).get("enabled")),
         },
         {
             "endpoint": "main.weather",
@@ -5613,6 +5616,8 @@ def _inject_custom_slides_nav() -> Dict[str, Any]:
 
     return {
         "custom_slides_nav": slides,
+        "calendar_nav": calendar_nav,
+        "calendar_nav_endpoints": [entry["endpoint"] for entry in calendar_nav],
         "dynamic_slides_nav": dynamic_slides,
         "dynamic_slide_endpoints": [entry["endpoint"] for entry in dynamic_slides],
     }
