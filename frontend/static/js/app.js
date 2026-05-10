@@ -1779,6 +1779,15 @@ const createPlaylistActionButton = ({ kind, label }) => {
         </g>
         <path class="icon-line cui-icon-line" d="M17 50H47" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
       </svg>`;
+  } else if (kind === "rename") {
+    iconMarkup = `
+      <svg class="playlist-action-icon cui-action-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-main cui-icon-main">
+          <path d="M15 45.5V52H21.5L45.5 28L39 21.5L15 45.5Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+          <path d="M35.5 25L42 31.5" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+          <path d="M18 52H50" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+        </g>
+      </svg>`;
   } else if (kind === "archive") {
     iconMarkup = `
       <svg class="playlist-action-icon cui-action-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
@@ -1866,6 +1875,65 @@ const createPlaylistAutoSaveController = (itemId, buildPayload, onStateChange) =
     },
   };
 };
+
+const showPlaylistSavedPopup = (() => {
+  let popup = null;
+  let progressBar = null;
+  let hideTimer = null;
+
+  const ensurePopup = () => {
+    if (popup && progressBar) {
+      return;
+    }
+
+    popup = document.createElement("div");
+    popup.className = "playlist-save-popup";
+    popup.setAttribute("role", "status");
+    popup.setAttribute("aria-live", "polite");
+
+    const content = document.createElement("div");
+    content.className = "playlist-save-popup-content";
+
+    const icon = document.createElement("div");
+    icon.className = "playlist-save-popup-icon";
+    icon.textContent = "✓";
+
+    const label = document.createElement("div");
+    label.className = "playlist-save-popup-label";
+    label.textContent = "Sauvegardé";
+
+    const progress = document.createElement("div");
+    progress.className = "playlist-save-popup-progress";
+
+    progressBar = document.createElement("div");
+    progressBar.className = "playlist-save-popup-progress-bar";
+
+    progress.appendChild(progressBar);
+    content.append(icon, label);
+    popup.append(content, progress);
+    document.body.appendChild(popup);
+  };
+
+  return () => {
+    ensurePopup();
+
+    if (hideTimer) {
+      window.clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+
+    popup.classList.add("visible");
+    progressBar.classList.remove("running");
+    void progressBar.offsetWidth;
+    progressBar.classList.add("running");
+
+    hideTimer = window.setTimeout(() => {
+      popup.classList.remove("visible");
+      progressBar.classList.remove("running");
+      hideTimer = null;
+    }, 3000);
+  };
+})();
 
 const createPlaylistNumberField = ({
   value = 0,
@@ -2232,10 +2300,13 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
     const panelHeight = pickerPanel.offsetHeight;
     const spaceAbove = wrapperRect.top;
     const spaceBelow = window.innerHeight - wrapperRect.bottom;
+    pickerPanel.style.left = `${wrapperRect.left + (wrapperRect.width / 2)}px`;
     if (spaceBelow >= panelHeight + gap || spaceBelow >= spaceAbove) {
+      pickerPanel.style.top = `${wrapperRect.bottom + gap}px`;
       pickerPanel.classList.add("below");
       pickerPanel.classList.add("cui-below");
     } else {
+      pickerPanel.style.top = `${Math.max(gap, wrapperRect.top - panelHeight - gap)}px`;
       pickerPanel.classList.add("above");
       pickerPanel.classList.add("cui-above");
     }
@@ -2279,6 +2350,8 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
 
   function closePicker() {
     pickerPanel.classList.remove("open", "cui-open", "above", "below", "cui-above", "cui-below");
+    pickerPanel.style.left = "";
+    pickerPanel.style.top = "";
     detachLayoutListeners();
   }
 
@@ -2494,18 +2567,16 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
   meta.textContent = infoParts.join(" • ");
 
   const renameButton = document.createElement("button");
-  renameButton.type = "button";
-  renameButton.className = "secondary-button icon-button playlist-rename-button";
-  renameButton.setAttribute("aria-label", "Renommer");
-  renameButton.title = "Renommer";
-  renameButton.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 16.5V20h3.5L18 9.5l-3.5-3.5L4 16.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-      <path d="M13 6l3.5 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    </svg>`;
-  renameButton.addEventListener("click", () => renameMedia(item));
+  const renameActionButton = createPlaylistActionButton({
+    kind: "rename",
+    label: "Renommer",
+  });
+  renameActionButton.addEventListener("click", () => {
+    pulsePlaylistActionButton(renameActionButton);
+    renameMedia(item);
+  });
 
-  titleContainer.append(title, meta, renameButton);
+  titleContainer.append(title, meta);
   titleRow.appendChild(titleContainer);
 
   const enabledInput = document.createElement("input");
@@ -2535,43 +2606,21 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
     controls.appendChild(createToggle("Muet", muteInput));
   }
 
+  const details = document.createElement("div");
+  details.className = "media-card-details";
+
   const grid = document.createElement("div");
   grid.className = "media-card-grid";
 
-  const datesRow = document.createElement("div");
-  datesRow.className = "media-card-grid-row media-card-grid-row--dates";
-
-  const numbersRow = document.createElement("div");
-  numbersRow.className = "media-card-grid-row media-card-grid-row--numbers";
+  const controlsRow = document.createElement("div");
+  controlsRow.className = "media-card-grid-row media-card-grid-row--compact";
 
   let autoSaveController = null;
-  let autoSaveStatusTimer = null;
-  const autoSaveStatus = document.createElement("p");
-  autoSaveStatus.className = "playlist-autosave-status";
   const setAutoSaveStatus = (state) => {
-    if (autoSaveStatusTimer) {
-      window.clearTimeout(autoSaveStatusTimer);
-      autoSaveStatusTimer = null;
-    }
-    autoSaveStatus.dataset.state = state;
     card.dataset.autosaveState = state;
-    if (state === "saving") {
-      autoSaveStatus.textContent = "Enregistrement...";
-      return;
-    }
-    if (state === "error") {
-      autoSaveStatus.textContent = "Erreur d'enregistrement";
-      return;
-    }
     if (state === "saved") {
-      autoSaveStatus.textContent = "Enregistré";
-      autoSaveStatusTimer = window.setTimeout(() => {
-        autoSaveStatus.dataset.state = "idle";
-        autoSaveStatus.textContent = "Sauvegarde auto";
-      }, 1400);
-      return;
+      showPlaylistSavedPopup();
     }
-    autoSaveStatus.textContent = "Sauvegarde auto";
   };
 
   const requestAutoSave = () => {
@@ -2584,14 +2633,14 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
     ariaLabel: "Date de début",
     onCommit: requestAutoSave,
   });
-  datesRow.appendChild(createFieldGroup("Début", startField.root, "field-group--date"));
+  controlsRow.appendChild(createFieldGroup("Début", startField.root, "field-group--date"));
 
   const endField = createPlaylistDateTimeField({
     value: formatDateForInput(item.end_at),
     ariaLabel: "Date de fin",
     onCommit: requestAutoSave,
   });
-  datesRow.appendChild(createFieldGroup("Fin", endField.root, "field-group--date"));
+  controlsRow.appendChild(createFieldGroup("Fin", endField.root, "field-group--date"));
 
   let durationField = null;
   if (kind !== "video") {
@@ -2603,7 +2652,7 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
       ariaLabel: "Durée",
       onCommit: requestAutoSave,
     });
-    numbersRow.appendChild(createFieldGroup("Durée (s)", durationField.root, "field-group--number"));
+    controlsRow.appendChild(createFieldGroup("Durée (s)", durationField.root, "field-group--number"));
   }
 
   const skipField = createPlaylistNumberField({
@@ -2614,12 +2663,8 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
     ariaLabel: "Sauts",
     onCommit: requestAutoSave,
   });
-  numbersRow.appendChild(createFieldGroup("Sauts", skipField.root, "field-group--number"));
-
-  grid.appendChild(datesRow);
-  if (numbersRow.childElementCount > 0) {
-    grid.appendChild(numbersRow);
-  }
+  controlsRow.appendChild(createFieldGroup("Sauts", skipField.root, "field-group--number"));
+  grid.appendChild(controlsRow);
 
   const buildPayload = () => {
     const payload = {
@@ -2647,6 +2692,9 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
 
   const actions = document.createElement("div");
   actions.className = "media-card-actions cui-actions-50";
+
+  const footer = document.createElement("div");
+  footer.className = "media-card-footer";
 
   const archiveButton = createPlaylistActionButton({
     kind: archivedView ? "restore" : "archive",
@@ -2714,12 +2762,15 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
   if (downloadButton) {
     actions.append(downloadButton);
   }
-  actions.append(archiveButton, deleteButton);
+  actions.append(renameActionButton, archiveButton, deleteButton);
+
+  footer.append(actions);
+  details.append(grid);
 
   if (controls.childElementCount > 0) {
-    card.append(header, controls, grid, autoSaveStatus, actions);
+    card.append(header, controls, details, footer);
   } else {
-    card.append(header, grid, autoSaveStatus, actions);
+    card.append(header, details, footer);
   }
   return card;
 };
@@ -3074,34 +3125,26 @@ const setSlideEntrySkipRoundsState = async (type, value, slideId = null) => {
 };
 
 const createSkipRoundsControl = (type, currentValue, slideId = null) => {
-  const wrapper = document.createElement("label");
-  wrapper.className = "field-group auto-skip-field";
-
-  const label = document.createElement("span");
-  label.textContent = "Saut";
-
-  const input = document.createElement("input");
-  input.type = "number";
-  input.min = "0";
-  input.step = "1";
-  input.value = Math.max(0, Number(currentValue) || 0);
-  input.dataset.field = "skip_rounds";
-
   let commitTimer = null;
   const scheduleCommit = () => {
     if (commitTimer) clearTimeout(commitTimer);
     commitTimer = setTimeout(() => {
-      void setSlideEntrySkipRoundsState(type, input.value, slideId).catch((error) => {
+      void setSlideEntrySkipRoundsState(type, numberField.getValue(), slideId).catch((error) => {
         console.error("Impossible de mettre à jour le saut:", error);
       });
     }, 220);
   };
 
-  input.addEventListener("change", scheduleCommit);
-  input.addEventListener("blur", scheduleCommit);
+  const numberField = createPlaylistNumberField({
+    value: Math.max(0, Number(currentValue) || 0),
+    min: 0,
+    max: 999,
+    step: 1,
+    ariaLabel: "Sauts",
+    onCommit: scheduleCommit,
+  });
 
-  wrapper.append(label, input);
-  return wrapper;
+  return createFieldGroup("Sauts", numberField.root, "field-group--number auto-skip-field");
 };
 
 const createTeamSlideCard = (globalIndex, displayNumber, autoCount, totalAuto) => {
