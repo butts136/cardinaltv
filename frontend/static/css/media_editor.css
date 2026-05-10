@@ -1256,6 +1256,13 @@
   align-items: center;
 }
 
+.playlist-section {
+  --playlist-card-action-scale: 0.5;
+  --playlist-toolbar-scale: 1;
+  --playlist-number-scale: 0.5;
+  --playlist-date-scale: 0.5;
+}
+
 .playlist-section .playlist-actions {
   display: flex;
   gap: 8px;
@@ -1267,17 +1274,323 @@
   flex-wrap: wrap;
 }
 
+.playlist-section .playlist-toolbar-actions {
+  gap: calc(22px * var(--playlist-toolbar-scale));
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+.playlist-section .playlist-toolbar-button {
+  --playlist-button-scale: var(--playlist-toolbar-scale);
+  position: relative;
+  width: calc(92px * var(--playlist-button-scale));
+  height: calc(92px * var(--playlist-button-scale));
+  border: none;
+  border-radius: calc(28px * var(--playlist-button-scale));
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  color: white;
+  transition:
+    box-shadow 0.28s ease,
+    filter 0.28s ease;
+}
+
+.playlist-section .playlist-toolbar-button {
+  flex-direction: column;
+  gap: calc(6px * var(--playlist-button-scale));
+  padding: calc(8px * var(--playlist-button-scale));
+}
+
+.playlist-section .playlist-toolbar-button::before {
+  content: "";
+  position: absolute;
+  inset: -45%;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.38),
+    transparent 65%
+  );
+  transform: translateX(-75%) rotate(15deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.playlist-section .playlist-toolbar-button::after {
+  content: "";
+  position: absolute;
+  inset: calc(8px * var(--playlist-button-scale));
+  border-radius: calc(22px * var(--playlist-button-scale));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.playlist-section .playlist-toolbar-icon {
+  position: relative;
+  z-index: 3;
+  width: calc(54px * var(--playlist-button-scale));
+  height: calc(54px * var(--playlist-button-scale));
+  color: white;
+  filter: drop-shadow(0 calc(5px * var(--playlist-button-scale)) calc(8px * var(--playlist-button-scale)) rgba(0,0,0,0.35));
+}
+
+.playlist-section .playlist-toolbar-icon svg {
+  width: 100%;
+  height: 100%;
+  transform: scale(1.12);
+  transform-origin: center;
+}
+
+.playlist-section .playlist-toolbar-label {
+  position: relative;
+  z-index: 3;
+  color: white;
+  font-size: calc(12px * var(--playlist-button-scale));
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: calc(0.2px * var(--playlist-button-scale));
+  text-align: center;
+  text-shadow: 0 calc(4px * var(--playlist-button-scale)) calc(10px * var(--playlist-button-scale)) rgba(0,0,0,0.35);
+}
+
+.playlist-section .playlist-toolbar-badge {
+  position: relative;
+  z-index: 3;
+  min-width: calc(24px * var(--playlist-button-scale));
+  padding: calc(4px * var(--playlist-button-scale)) calc(8px * var(--playlist-button-scale));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: white;
+  font-size: calc(11px * var(--playlist-button-scale));
+  font-weight: 900;
+  line-height: 1;
+}
+
+.playlist-section .playlist-toolbar-button:hover,
+.playlist-section .playlist-toolbar-button.clicked {
+  filter: brightness(1.08);
+}
+
+.playlist-section .playlist-toolbar-button:hover::before,
+.playlist-section .playlist-toolbar-button.clicked::before {
+  opacity: 1;
+  animation: playlistLightSweep 1.45s ease-in-out infinite;
+}
+
+.playlist-section .playlist-toolbar-button:hover .playlist-glow-ring,
+.playlist-section .playlist-toolbar-button.clicked .playlist-glow-ring {
+  animation: playlistRingPulse 1.05s ease-in-out infinite;
+}
+
+.playlist-section .playlist-toolbar-button:active:not(:disabled) {
+  filter: brightness(0.95);
+  box-shadow:
+    0 calc(22px * var(--playlist-button-scale)) calc(45px * var(--playlist-button-scale)) rgba(0, 0, 0, 0.42),
+    inset 0 calc(5px * var(--playlist-button-scale)) calc(12px * var(--playlist-button-scale)) rgba(0,0,0,0.22);
+}
+
+.playlist-section .playlist-toolbar-button:disabled,
+.playlist-section .playlist-toolbar-button.is-busy {
+  opacity: 0.28;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.playlist-section .toolbar-upload-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-hide-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #f97316, #dc2626);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-show-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #22c55e, #15803d);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-slideshow-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #06b6d4, #2563eb);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-refresh-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #6366f1, #1d4ed8);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-archive-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #f59e0b, #ea580c);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-upload-button:hover,
+.playlist-section .toolbar-upload-button.clicked {
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    0 0 30px rgba(124, 58, 237, 0.42),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-hide-button:hover,
+.playlist-section .toolbar-hide-button.clicked {
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    0 0 30px rgba(239, 68, 68, 0.4),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-show-button:hover,
+.playlist-section .toolbar-show-button.clicked {
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    0 0 30px rgba(34, 197, 94, 0.36),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-slideshow-button:hover,
+.playlist-section .toolbar-slideshow-button.clicked {
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    0 0 30px rgba(37, 99, 235, 0.36),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-refresh-button:hover,
+.playlist-section .toolbar-refresh-button.clicked {
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    0 0 30px rgba(99, 102, 241, 0.36),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .toolbar-archive-button:hover,
+.playlist-section .toolbar-archive-button.clicked {
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.38),
+    0 0 30px rgba(245, 158, 11, 0.4),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 -8px 20px rgba(0,0,0,0.18);
+}
+
+.playlist-section .playlist-toolbar-button--inline {
+  width: auto;
+  min-width: calc(222px * var(--playlist-toolbar-scale));
+  height: auto;
+  min-height: calc(72px * var(--playlist-toolbar-scale));
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: calc(12px * var(--playlist-toolbar-scale));
+  padding: calc(14px * var(--playlist-toolbar-scale)) calc(16px * var(--playlist-toolbar-scale));
+}
+
+.playlist-section .playlist-toolbar-button--inline .playlist-toolbar-label {
+  flex: 1;
+  text-align: left;
+}
+
+.playlist-section .playlist-toolbar-button--inline .playlist-toolbar-icon {
+  width: calc(46px * var(--playlist-toolbar-scale));
+  height: calc(46px * var(--playlist-toolbar-scale));
+}
+
+.playlist-section .playlist-toolbar-button--inline .playlist-toolbar-icon svg {
+  transform: scale(1.08);
+}
+
+.playlist-section .toolbar-upload-button:hover .icon-main,
+.playlist-section .toolbar-upload-button.clicked .icon-main {
+  animation: playlistToolbarUploadArrow 1.05s ease-in-out infinite;
+}
+
+.playlist-section .toolbar-upload-button:hover .icon-line,
+.playlist-section .toolbar-upload-button.clicked .icon-line {
+  animation: playlistLinePulse 1.05s ease-in-out infinite;
+}
+
+.playlist-section .toolbar-hide-button:hover .icon-slash,
+.playlist-section .toolbar-hide-button.clicked .icon-slash {
+  animation: playlistToolbarSlash 0.9s ease-in-out infinite;
+}
+
+.playlist-section .toolbar-show-button:hover .icon-eye,
+.playlist-section .toolbar-show-button.clicked .icon-eye {
+  animation: playlistToolbarEyePulse 1s ease-in-out infinite;
+}
+
+.playlist-section .toolbar-slideshow-button:hover .icon-play,
+.playlist-section .toolbar-slideshow-button.clicked .icon-play {
+  animation: playlistToolbarPlayPulse 1s ease-in-out infinite;
+}
+
+.playlist-section .toolbar-refresh-button:hover .icon-main,
+.playlist-section .toolbar-refresh-button.clicked .icon-main {
+  animation: playlistToolbarRotate 1.05s linear infinite;
+  transform-origin: center;
+}
+
+.playlist-section .toolbar-archive-button:hover .icon-main,
+.playlist-section .toolbar-archive-button.clicked .icon-main {
+  animation: playlistArchiveArrow 1.05s ease-in-out infinite;
+}
+
+.playlist-section .toolbar-archive-button:hover .icon-box,
+.playlist-section .toolbar-archive-button.clicked .icon-box {
+  animation: playlistBoxPulse 1.05s ease-in-out infinite;
+}
+
 .playlist-section .media-list {
   gap: 1rem;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) {
-  padding: 0.75rem 1.1rem;
-  gap: 0.65rem;
+  padding: 0.6rem 0.9rem;
+  gap: 0.5rem;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .media-card-header--with-thumb {
-  gap: 0.5rem;
+  gap: 0.4rem;
   grid-template-columns: auto 1fr auto;
   align-items: start;
 }
@@ -1288,18 +1601,18 @@
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .title-thumb-row {
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .title-container h3 {
   margin: 0;
-  font-size: 1.05rem;
-  line-height: 1.25;
+  font-size: 1rem;
+  line-height: 1.18;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .media-meta {
   margin-top: 0.25rem;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .media-card-controls {
@@ -1307,18 +1620,18 @@
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .media-card-grid {
-  gap: 0.6rem;
+  gap: 0.45rem;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .field-group {
-  gap: 0.25rem;
+  gap: 0.18rem;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) input[type="text"],
 .playlist-section .media-card:not(.auto-slide-card) input[type="number"],
 .playlist-section .media-card:not(.auto-slide-card) input[type="datetime-local"],
 .playlist-section .media-card:not(.auto-slide-card) select {
-  padding: 8px 10px;
+  padding: 7px 9px;
 }
 
 .playlist-section .compact-thumb {
@@ -1460,11 +1773,14 @@
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .media-card-grid {
-  gap: 0.9rem;
+  gap: 0.45rem;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .field-group--date {
   grid-column: 1 / -1;
+  width: fit-content;
+  max-width: 100%;
+  align-self: start;
 }
 
 .playlist-section .media-card:not(.auto-slide-card) .field-group--number,
@@ -1475,13 +1791,13 @@
 .playlist-section .media-card-actions {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
 .playlist-section .playlist-autosave-status {
-  margin: -0.05rem 0 0;
-  font-size: 0.82rem;
+  margin: -0.02rem 0 0;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: rgba(226, 232, 240, 0.72);
@@ -1500,25 +1816,33 @@
 }
 
 .playlist-section .playlist-action-button {
+  --playlist-button-scale: var(--playlist-card-action-scale);
   position: relative;
-  width: 68px;
-  height: 68px;
+  width: calc(92px * var(--playlist-button-scale));
+  height: calc(92px * var(--playlist-button-scale));
   border: none;
-  border-radius: 22px;
+  border-radius: calc(28px * var(--playlist-button-scale));
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  color: #ffffff;
-  transition: box-shadow 0.28s ease, filter 0.28s ease, transform 0.2s ease;
+  color: white;
+  transition:
+    box-shadow 0.28s ease,
+    filter 0.28s ease;
 }
 
 .playlist-section .playlist-action-button::before {
   content: "";
   position: absolute;
   inset: -45%;
-  background: linear-gradient(120deg, transparent 35%, rgba(255, 255, 255, 0.38), transparent 65%);
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.38),
+    transparent 65%
+  );
   transform: translateX(-75%) rotate(15deg);
   opacity: 0;
   pointer-events: none;
@@ -1527,8 +1851,8 @@
 .playlist-section .playlist-action-button::after {
   content: "";
   position: absolute;
-  inset: 6px;
-  border-radius: 17px;
+  inset: calc(8px * var(--playlist-button-scale));
+  border-radius: calc(22px * var(--playlist-button-scale));
   border: 1px solid rgba(255, 255, 255, 0.22);
   pointer-events: none;
 }
@@ -1538,9 +1862,9 @@
     linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
     linear-gradient(135deg, #2563eb, #7c3aed);
   box-shadow:
-    0 18px 32px rgba(0, 0, 0, 0.38),
+    0 calc(22px * var(--playlist-button-scale)) calc(45px * var(--playlist-button-scale)) rgba(0, 0, 0, 0.42),
     inset 0 1px 0 rgba(255,255,255,0.35),
-    inset 0 -8px 18px rgba(0,0,0,0.18);
+    inset 0 calc(-8px * var(--playlist-button-scale)) calc(20px * var(--playlist-button-scale)) rgba(0,0,0,0.18);
 }
 
 .playlist-section .archive-button,
@@ -1549,9 +1873,9 @@
     linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
     linear-gradient(135deg, #f59e0b, #ea580c);
   box-shadow:
-    0 18px 32px rgba(0, 0, 0, 0.38),
+    0 calc(22px * var(--playlist-button-scale)) calc(45px * var(--playlist-button-scale)) rgba(0, 0, 0, 0.42),
     inset 0 1px 0 rgba(255,255,255,0.35),
-    inset 0 -8px 18px rgba(0,0,0,0.18);
+    inset 0 calc(-8px * var(--playlist-button-scale)) calc(20px * var(--playlist-button-scale)) rgba(0,0,0,0.18);
 }
 
 .playlist-section .delete-button {
@@ -1559,36 +1883,45 @@
     linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
     linear-gradient(135deg, #ef4444, #991b1b);
   box-shadow:
-    0 18px 32px rgba(0, 0, 0, 0.38),
+    0 calc(22px * var(--playlist-button-scale)) calc(45px * var(--playlist-button-scale)) rgba(0, 0, 0, 0.42),
     inset 0 1px 0 rgba(255,255,255,0.35),
-    inset 0 -8px 18px rgba(0,0,0,0.18);
+    inset 0 calc(-8px * var(--playlist-button-scale)) calc(20px * var(--playlist-button-scale)) rgba(0,0,0,0.18);
 }
 
 .playlist-section .playlist-action-icon {
   position: relative;
   z-index: 3;
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 5px 8px rgba(0,0,0,0.35));
+  width: calc(50px * var(--playlist-button-scale));
+  height: calc(50px * var(--playlist-button-scale));
+  color: white;
+  filter: drop-shadow(0 calc(5px * var(--playlist-button-scale)) calc(8px * var(--playlist-button-scale)) rgba(0,0,0,0.35));
 }
 
 .playlist-section .playlist-action-icon svg {
   width: 100%;
   height: 100%;
+  display: block;
+  transform: scale(1.15);
+  transform-origin: center;
 }
 
-.playlist-section .playlist-glow-ring {
+.playlist-section .playlist-toolbar-button .playlist-glow-ring,
+.playlist-section .playlist-action-button .playlist-glow-ring {
   position: absolute;
-  width: 44px;
-  height: 44px;
+  width: calc(58px * var(--playlist-button-scale));
+  height: calc(58px * var(--playlist-button-scale));
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.38);
   opacity: 0;
   z-index: 1;
   pointer-events: none;
+}
+
+.playlist-section .icon-main,
+.playlist-section .icon-line,
+.playlist-section .icon-lid,
+.playlist-section .icon-box {
+  transform-origin: center;
 }
 
 .playlist-section .playlist-action-button:hover,
@@ -1599,10 +1932,10 @@
 .playlist-section .download-button:hover,
 .playlist-section .download-button.clicked {
   box-shadow:
-    0 18px 32px rgba(0, 0, 0, 0.38),
-    0 0 28px rgba(124, 58, 237, 0.42),
+    0 calc(22px * var(--playlist-button-scale)) calc(45px * var(--playlist-button-scale)) rgba(0, 0, 0, 0.42),
+    0 0 calc(34px * var(--playlist-button-scale)) rgba(124, 58, 237, 0.42),
     inset 0 1px 0 rgba(255,255,255,0.42),
-    inset 0 -8px 18px rgba(0,0,0,0.18);
+    inset 0 calc(-8px * var(--playlist-button-scale)) calc(20px * var(--playlist-button-scale)) rgba(0,0,0,0.18);
 }
 
 .playlist-section .archive-button:hover,
@@ -1610,19 +1943,19 @@
 .playlist-section .restore-button:hover,
 .playlist-section .restore-button.clicked {
   box-shadow:
-    0 18px 32px rgba(0, 0, 0, 0.38),
-    0 0 28px rgba(245, 158, 11, 0.42),
+    0 calc(22px * var(--playlist-button-scale)) calc(45px * var(--playlist-button-scale)) rgba(0, 0, 0, 0.42),
+    0 0 calc(34px * var(--playlist-button-scale)) rgba(245, 158, 11, 0.42),
     inset 0 1px 0 rgba(255,255,255,0.42),
-    inset 0 -8px 18px rgba(0,0,0,0.18);
+    inset 0 calc(-8px * var(--playlist-button-scale)) calc(20px * var(--playlist-button-scale)) rgba(0,0,0,0.18);
 }
 
 .playlist-section .delete-button:hover,
 .playlist-section .delete-button.clicked {
   box-shadow:
-    0 18px 32px rgba(0, 0, 0, 0.38),
-    0 0 28px rgba(239, 68, 68, 0.42),
+    0 calc(22px * var(--playlist-button-scale)) calc(45px * var(--playlist-button-scale)) rgba(0, 0, 0, 0.42),
+    0 0 calc(34px * var(--playlist-button-scale)) rgba(239, 68, 68, 0.42),
     inset 0 1px 0 rgba(255,255,255,0.42),
-    inset 0 -8px 18px rgba(0,0,0,0.18);
+    inset 0 calc(-8px * var(--playlist-button-scale)) calc(20px * var(--playlist-button-scale)) rgba(0,0,0,0.18);
 }
 
 .playlist-section .playlist-action-button:hover::before,
@@ -1675,39 +2008,71 @@
 
 .playlist-section .playlist-action-button:active:not(:disabled) {
   filter: brightness(0.95);
-  transform: translateY(1px);
   box-shadow:
-    0 14px 28px rgba(0, 0, 0, 0.32),
-    inset 0 5px 12px rgba(0,0,0,0.22);
+    0 calc(22px * var(--playlist-button-scale)) calc(45px * var(--playlist-button-scale)) rgba(0, 0, 0, 0.42),
+    inset 0 calc(5px * var(--playlist-button-scale)) calc(12px * var(--playlist-button-scale)) rgba(0,0,0,0.22);
 }
 
 .playlist-section .playlist-action-button:disabled,
 .playlist-section .playlist-action-button.is-busy {
-  opacity: 0.58;
+  opacity: 0.28;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.playlist-section .playlist-rename-button {
+  min-width: 0;
+  width: calc(40px * var(--playlist-card-action-scale));
+  height: calc(40px * var(--playlist-card-action-scale));
+  padding: 0;
+  border-radius: calc(12px * var(--playlist-card-action-scale));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playlist-section .playlist-rename-button svg {
+  width: 58%;
+  height: 58%;
+  display: block;
+}
+
+.playlist-section .playlist-action-button.is-busy {
   cursor: wait;
 }
 
 .playlist-section .playlist-date-time-wrapper,
 .playlist-section .playlist-number-wrapper {
   position: relative;
-  width: 100%;
+  display: block;
+  max-width: 100%;
+  justify-self: start;
+  flex: 0 0 auto;
+}
+
+.playlist-section .playlist-number-wrapper {
+  width: min(100%, calc(230px * var(--playlist-number-scale)));
+}
+
+.playlist-section .playlist-date-time-wrapper {
+  width: min(100%, calc(360px * var(--playlist-date-scale)));
 }
 
 .playlist-section .playlist-date-time-field {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 60px;
-  padding: 6px;
-  border-radius: 20px;
+  height: calc(74px * var(--playlist-date-scale));
+  padding: calc(8px * var(--playlist-date-scale));
+  border-radius: calc(24px * var(--playlist-date-scale));
   background:
-    linear-gradient(145deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04)),
+    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
     linear-gradient(135deg, #1e293b, #111827);
   box-shadow:
-    0 18px 34px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255,255,255,0.18),
-    inset 0 -8px 20px rgba(0,0,0,0.18);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+    0 calc(22px * var(--playlist-date-scale)) calc(45px * var(--playlist-date-scale)) rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 calc(-8px * var(--playlist-date-scale)) calc(20px * var(--playlist-date-scale)) rgba(0,0,0,0.18);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   overflow: hidden;
 }
 
@@ -1715,51 +2080,53 @@
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 0 14px;
   border: none;
   outline: none;
   background: transparent;
-  color: #f8fafc;
-  font-size: 1rem;
+  color: white;
+  padding: 0 calc(18px * var(--playlist-date-scale));
+  font-size: calc(22px * var(--playlist-date-scale));
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: calc(0.2px * var(--playlist-date-scale));
   cursor: pointer;
-  box-shadow: none;
 }
 
 .playlist-section .playlist-date-time-input::placeholder {
-  color: rgba(226, 232, 240, 0.52);
+  color: rgba(255,255,255,0.52);
 }
 
 .playlist-section .playlist-calendar-button {
   position: relative;
-  width: 46px;
-  height: 46px;
+  width: calc(58px * var(--playlist-date-scale));
+  height: calc(58px * var(--playlist-date-scale));
   border: none;
-  border-radius: 15px;
+  border-radius: calc(18px * var(--playlist-date-scale));
   cursor: pointer;
-  color: #ffffff;
+  color: white;
   background:
     linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
     linear-gradient(135deg, #2563eb, #7c3aed);
   box-shadow:
-    0 10px 20px rgba(0, 0, 0, 0.24),
-    inset 0 1px 0 rgba(255,255,255,0.3),
-    inset 0 -6px 14px rgba(0,0,0,0.16);
-  display: inline-flex;
+    0 calc(12px * var(--playlist-date-scale)) calc(26px * var(--playlist-date-scale)) rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 calc(-6px * var(--playlist-date-scale)) calc(14px * var(--playlist-date-scale)) rgba(0,0,0,0.18);
+  display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
   transition: filter 0.25s ease, box-shadow 0.25s ease;
 }
 
-.playlist-section .playlist-calendar-button::before,
-.playlist-section .playlist-step-button::before,
-.playlist-section .playlist-number-field::before {
+.playlist-section .playlist-calendar-button::before {
   content: "";
   position: absolute;
-  inset: -70%;
-  background: linear-gradient(120deg, transparent 35%, rgba(255, 255, 255, 0.3), transparent 65%);
+  inset: -60%;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.38),
+    transparent 65%
+  );
   transform: translateX(-75%) rotate(15deg);
   opacity: 0;
   pointer-events: none;
@@ -1768,15 +2135,13 @@
 .playlist-section .playlist-calendar-button:hover {
   filter: brightness(1.08);
   box-shadow:
-    0 10px 20px rgba(0, 0, 0, 0.24),
-    0 0 24px rgba(124, 58, 237, 0.34),
-    inset 0 1px 0 rgba(255,255,255,0.36),
-    inset 0 -6px 14px rgba(0,0,0,0.16);
+    0 calc(12px * var(--playlist-date-scale)) calc(26px * var(--playlist-date-scale)) rgba(0, 0, 0, 0.32),
+    0 0 calc(28px * var(--playlist-date-scale)) rgba(124, 58, 237, 0.42),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 calc(-6px * var(--playlist-date-scale)) calc(14px * var(--playlist-date-scale)) rgba(0,0,0,0.18);
 }
 
-.playlist-section .playlist-calendar-button:hover::before,
-.playlist-section .playlist-step-button:hover:not(:disabled)::before,
-.playlist-section .playlist-number-field:hover::before {
+.playlist-section .playlist-calendar-button:hover::before {
   opacity: 1;
   animation: playlistLightSweep 1.4s ease-in-out infinite;
 }
@@ -1784,9 +2149,13 @@
 .playlist-section .playlist-calendar-button svg {
   position: relative;
   z-index: 2;
-  width: 24px;
-  height: 24px;
-  filter: drop-shadow(0 4px 7px rgba(0,0,0,0.35));
+  display: block;
+  flex: 0 0 auto;
+  width: calc(31px * var(--playlist-date-scale));
+  height: calc(31px * var(--playlist-date-scale));
+  min-width: calc(31px * var(--playlist-date-scale));
+  min-height: calc(31px * var(--playlist-date-scale));
+  filter: drop-shadow(0 calc(4px * var(--playlist-date-scale)) calc(7px * var(--playlist-date-scale)) rgba(0,0,0,0.35));
 }
 
 .playlist-section .playlist-calendar-button:hover .calendar-icon-body {
@@ -1796,16 +2165,16 @@
 .playlist-section .playlist-picker-panel {
   position: absolute;
   left: 50%;
-  width: min(360px, calc(100vw - 48px));
-  padding: 14px;
-  border-radius: 24px;
+  width: min(calc(390px * var(--playlist-date-scale)), calc(100vw - 48px));
+  padding: calc(18px * var(--playlist-date-scale));
+  border-radius: calc(30px * var(--playlist-date-scale));
   background:
-    linear-gradient(145deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04)),
+    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
     linear-gradient(135deg, #1e293b, #0f172a);
   box-shadow:
-    0 30px 60px rgba(0, 0, 0, 0.5),
+    0 calc(30px * var(--playlist-date-scale)) calc(70px * var(--playlist-date-scale)) rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(255,255,255,0.18),
-    inset 0 -10px 26px rgba(0,0,0,0.2);
+    inset 0 calc(-10px * var(--playlist-date-scale)) calc(26px * var(--playlist-date-scale)) rgba(0,0,0,0.22);
   border: 1px solid rgba(255,255,255,0.14);
   opacity: 0;
   pointer-events: none;
@@ -1815,14 +2184,14 @@
 
 .playlist-section .playlist-picker-panel.above {
   top: auto;
-  bottom: calc(100% + 12px);
-  transform: translateX(-50%) translateY(10px) scale(0.96);
+  bottom: calc(100% + calc(14px * var(--playlist-date-scale)));
+  transform: translateX(-50%) translateY(calc(12px * var(--playlist-date-scale))) scale(0.96);
 }
 
 .playlist-section .playlist-picker-panel.below {
-  top: calc(100% + 12px);
+  top: calc(100% + calc(14px * var(--playlist-date-scale)));
   bottom: auto;
-  transform: translateX(-50%) translateY(-10px) scale(0.96);
+  transform: translateX(-50%) translateY(calc(-12px * var(--playlist-date-scale))) scale(0.96);
 }
 
 .playlist-section .playlist-picker-panel.open.above,
@@ -1836,216 +2205,254 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 12px;
+  margin-bottom: calc(16px * var(--playlist-date-scale));
 }
 
 .playlist-section .playlist-month-title {
-  color: #ffffff;
-  font-size: 1rem;
+  color: white;
+  font-size: calc(22px * var(--playlist-date-scale));
   font-weight: 900;
   text-transform: capitalize;
-  letter-spacing: 0.02em;
+  letter-spacing: calc(0.3px * var(--playlist-date-scale));
 }
 
 .playlist-section .playlist-nav-button {
-  width: 38px;
-  height: 38px;
+  width: calc(42px * var(--playlist-date-scale));
+  height: calc(42px * var(--playlist-date-scale));
   border: none;
-  border-radius: 13px;
+  border-radius: calc(15px * var(--playlist-date-scale));
   cursor: pointer;
-  color: #ffffff;
+  color: white;
   background:
     linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
     rgba(255,255,255,0.08);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.18),
-    0 8px 18px rgba(0,0,0,0.24);
-  font-size: 1.15rem;
+    0 calc(8px * var(--playlist-date-scale)) calc(18px * var(--playlist-date-scale)) rgba(0,0,0,0.24);
+  font-size: calc(22px * var(--playlist-date-scale));
   font-weight: 900;
   transition: filter 0.22s ease, background 0.22s ease;
 }
 
-.playlist-section .playlist-nav-button:hover {
+.playlist-section .playlist-nav-button:hover:not(:disabled) {
   filter: brightness(1.16);
   background:
     linear-gradient(145deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06)),
     rgba(124,58,237,0.28);
 }
 
-.playlist-section .playlist-weekdays,
-.playlist-section .playlist-calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+.playlist-section .playlist-nav-button:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
 }
 
 .playlist-section .playlist-weekdays {
-  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: calc(7px * var(--playlist-date-scale));
+  margin-bottom: calc(8px * var(--playlist-date-scale));
+}
+
+.playlist-section .playlist-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: calc(7px * var(--playlist-date-scale));
 }
 
 .playlist-section .playlist-weekday {
   text-align: center;
   color: rgba(255,255,255,0.58);
-  font-size: 0.72rem;
+  font-size: calc(13px * var(--playlist-date-scale));
   font-weight: 900;
   text-transform: uppercase;
 }
 
-.playlist-section .playlist-day-button,
-.playlist-section .playlist-empty-day {
-  height: 34px;
-}
-
 .playlist-section .playlist-day-button {
   position: relative;
+  height: calc(43px * var(--playlist-date-scale));
   border: none;
-  border-radius: 12px;
+  border-radius: calc(15px * var(--playlist-date-scale));
   cursor: pointer;
-  color: #ffffff;
-  font-size: 0.92rem;
+  color: white;
+  font-size: calc(16px * var(--playlist-date-scale));
   font-weight: 900;
   background: rgba(255,255,255,0.08);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.12),
-    0 8px 16px rgba(0,0,0,0.18);
+    0 calc(8px * var(--playlist-date-scale)) calc(16px * var(--playlist-date-scale)) rgba(0,0,0,0.18);
   transition: filter 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
 }
 
-.playlist-section .playlist-day-button:hover {
+.playlist-section .playlist-day-button:hover:not(:disabled) {
   filter: brightness(1.12);
   background: rgba(124,58,237,0.32);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.2),
-    0 0 18px rgba(124,58,237,0.24),
-    0 8px 16px rgba(0,0,0,0.18);
+    0 0 calc(22px * var(--playlist-date-scale)) rgba(124,58,237,0.3),
+    0 calc(8px * var(--playlist-date-scale)) calc(16px * var(--playlist-date-scale)) rgba(0,0,0,0.18);
 }
 
 .playlist-section .playlist-day-button.selected {
   background:
-    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.06)),
+    linear-gradient(145deg, rgba(255,255,255,0.25), rgba(255,255,255,0.06)),
     linear-gradient(135deg, #2563eb, #7c3aed);
   box-shadow:
-    0 0 22px rgba(124,58,237,0.38),
-    inset 0 1px 0 rgba(255,255,255,0.3),
-    0 10px 18px rgba(0,0,0,0.22);
+    0 0 calc(26px * var(--playlist-date-scale)) rgba(124,58,237,0.42),
+    inset 0 1px 0 rgba(255,255,255,0.32),
+    0 calc(10px * var(--playlist-date-scale)) calc(18px * var(--playlist-date-scale)) rgba(0,0,0,0.22);
 }
 
 .playlist-section .playlist-day-button.today::after {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: 6px;
-  width: 4px;
-  height: 4px;
+  bottom: calc(7px * var(--playlist-date-scale));
+  width: calc(5px * var(--playlist-date-scale));
+  height: calc(5px * var(--playlist-date-scale));
   border-radius: 50%;
-  background: #ffffff;
+  background: white;
   transform: translateX(-50%);
   opacity: 0.85;
 }
 
+.playlist-section .playlist-day-button:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.playlist-section .playlist-empty-day {
+  height: calc(43px * var(--playlist-date-scale));
+}
+
 .playlist-section .playlist-time-section {
-  margin-top: 14px;
-  padding: 12px;
-  border-radius: 20px;
+  margin-top: calc(18px * var(--playlist-date-scale));
+  padding: calc(14px * var(--playlist-date-scale));
+  border-radius: calc(24px * var(--playlist-date-scale));
   background:
-    linear-gradient(145deg, rgba(255,255,255,0.1), rgba(255,255,255,0.03)),
-    rgba(255,255,255,0.05);
+    linear-gradient(145deg, rgba(255,255,255,0.11), rgba(255,255,255,0.035)),
+    rgba(255,255,255,0.055);
   border: 1px solid rgba(255,255,255,0.12);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(14px * var(--playlist-date-scale));
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.12),
-    0 12px 24px rgba(0,0,0,0.16);
+    0 calc(12px * var(--playlist-date-scale)) calc(24px * var(--playlist-date-scale)) rgba(0,0,0,0.16);
+}
+
+.playlist-section .playlist-time-column {
+  min-width: 0;
 }
 
 .playlist-section .playlist-time-label {
   color: rgba(255,255,255,0.68);
-  font-size: 0.72rem;
+  font-size: calc(13px * var(--playlist-date-scale));
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0 0 8px;
+  letter-spacing: calc(0.8px * var(--playlist-date-scale));
+  margin: 0 0 calc(8px * var(--playlist-date-scale));
   text-align: center;
 }
 
-.playlist-section .playlist-time-stepper,
-.playlist-section .playlist-number-field {
+.playlist-section .playlist-time-stepper {
   position: relative;
-  padding: 8px;
-  border-radius: 20px;
+  padding: calc(10px * var(--playlist-date-scale));
+  border-radius: calc(22px * var(--playlist-date-scale));
   background:
-    linear-gradient(145deg, rgba(15,23,42,0.9), rgba(30,41,59,0.82)),
+    linear-gradient(145deg, rgba(15,23,42,0.9), rgba(30,41,59,0.8)),
     rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   box-shadow:
-    inset 0 10px 18px rgba(0,0,0,0.22),
-    inset 0 -10px 18px rgba(255,255,255,0.035),
-    0 10px 20px rgba(0,0,0,0.16);
+    inset 0 calc(10px * var(--playlist-date-scale)) calc(18px * var(--playlist-date-scale)) rgba(0,0,0,0.22),
+    inset 0 calc(-10px * var(--playlist-date-scale)) calc(18px * var(--playlist-date-scale)) rgba(255,255,255,0.035),
+    0 calc(10px * var(--playlist-date-scale)) calc(20px * var(--playlist-date-scale)) rgba(0,0,0,0.16);
   overflow: hidden;
-}
-
-.playlist-section .playlist-step-button {
-  position: relative;
-  border: none;
-  border-radius: 14px;
-  cursor: pointer;
-  color: #ffffff;
-  background:
-    linear-gradient(145deg, rgba(255,255,255,0.2), rgba(255,255,255,0.04)),
-    linear-gradient(135deg, #2563eb, #7c3aed);
-  box-shadow:
-    0 8px 18px rgba(0,0,0,0.2),
-    inset 0 1px 0 rgba(255,255,255,0.25),
-    inset 0 -5px 12px rgba(0,0,0,0.18);
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-  transition: filter 0.18s ease, box-shadow 0.18s ease;
 }
 
 .playlist-section .playlist-time-stepper .playlist-step-button {
+  position: relative;
   width: 100%;
-  height: 34px;
-}
-
-.playlist-section .playlist-step-button:hover:not(:disabled) {
-  filter: brightness(1.12);
+  height: calc(42px * var(--playlist-date-scale));
+  border: none;
+  border-radius: calc(16px * var(--playlist-date-scale));
+  cursor: pointer;
+  color: white;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.20), rgba(255,255,255,0.04)),
+    rgba(124,58,237,0.20);
   box-shadow:
-    0 0 20px rgba(124,58,237,0.28),
-    inset 0 1px 0 rgba(255,255,255,0.26),
-    0 8px 18px rgba(0,0,0,0.2);
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 calc(8px * var(--playlist-date-scale)) calc(18px * var(--playlist-date-scale)) rgba(0,0,0,0.20);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  transition: filter 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
-.playlist-section .playlist-step-button:disabled {
+.playlist-section .playlist-time-stepper .playlist-step-button::before {
+  content: "";
+  position: absolute;
+  inset: -70%;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.32),
+    transparent 65%
+  );
+  transform: translateX(-75%) rotate(15deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.playlist-section .playlist-time-stepper .playlist-step-button:hover:not(:disabled) {
+  filter: brightness(1.12);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.06)),
+    linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow:
+    0 0 calc(22px * var(--playlist-date-scale)) rgba(124,58,237,0.34),
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    0 calc(8px * var(--playlist-date-scale)) calc(18px * var(--playlist-date-scale)) rgba(0,0,0,0.20);
+}
+
+.playlist-section .playlist-time-stepper .playlist-step-button:hover:not(:disabled)::before {
+  opacity: 1;
+  animation: playlistLightSweep 1.2s ease-in-out infinite;
+}
+
+.playlist-section .playlist-time-stepper .playlist-step-button:disabled {
   opacity: 0.26;
   cursor: not-allowed;
   filter: grayscale(1);
 }
 
-.playlist-section .playlist-step-button svg {
+.playlist-section .playlist-time-stepper .playlist-step-button svg {
   position: relative;
   z-index: 2;
-  width: 20px;
-  height: 20px;
-  filter: drop-shadow(0 4px 7px rgba(0,0,0,0.35));
+  display: block;
+  flex: 0 0 auto;
+  width: calc(24px * var(--playlist-date-scale));
+  height: calc(24px * var(--playlist-date-scale));
+  min-width: calc(24px * var(--playlist-date-scale));
+  min-height: calc(24px * var(--playlist-date-scale));
+  filter: drop-shadow(0 calc(4px * var(--playlist-date-scale)) calc(7px * var(--playlist-date-scale)) rgba(0,0,0,0.35));
 }
 
-.playlist-section .playlist-step-button:hover:not(:disabled) svg {
+.playlist-section .playlist-time-stepper .playlist-step-button:hover:not(:disabled) svg {
   animation: playlistArrowBounce 0.72s ease-in-out infinite;
 }
 
-.playlist-section .playlist-time-display,
-.playlist-section .playlist-number-input {
-  height: 52px;
-  border-radius: 16px;
-  color: #ffffff;
-  font-size: 1.55rem;
+.playlist-section .playlist-time-display {
+  height: calc(68px * var(--playlist-date-scale));
+  margin: calc(10px * var(--playlist-date-scale)) 0;
+  border-radius: calc(20px * var(--playlist-date-scale));
+  color: white;
+  font-size: calc(34px * var(--playlist-date-scale));
   font-weight: 950;
-  letter-spacing: 0.04em;
+  letter-spacing: calc(1px * var(--playlist-date-scale));
   display: flex;
   justify-content: center;
   align-items: center;
@@ -2053,21 +2460,51 @@
     linear-gradient(145deg, rgba(255,255,255,0.22), rgba(255,255,255,0.045)),
     linear-gradient(135deg, rgba(37,99,235,0.85), rgba(124,58,237,0.85));
   box-shadow:
-    0 0 22px rgba(124,58,237,0.28),
+    0 0 calc(26px * var(--playlist-date-scale)) rgba(124,58,237,0.35),
     inset 0 1px 0 rgba(255,255,255,0.28),
-    inset 0 -8px 18px rgba(0,0,0,0.18);
-  text-shadow: 0 4px 10px rgba(0,0,0,0.35);
-}
-
-.playlist-section .playlist-time-display {
-  margin: 8px 0;
+    inset 0 calc(-8px * var(--playlist-date-scale)) calc(18px * var(--playlist-date-scale)) rgba(0,0,0,0.18);
+  text-shadow: 0 calc(4px * var(--playlist-date-scale)) calc(10px * var(--playlist-date-scale)) rgba(0,0,0,0.35);
+  transition: transform 0.18s ease, filter 0.18s ease;
 }
 
 .playlist-section .playlist-number-field {
-  min-height: 64px;
+  position: relative;
+  width: 100%;
+  height: calc(86px * var(--playlist-number-scale));
+  padding: calc(8px * var(--playlist-number-scale));
+  border-radius: calc(26px * var(--playlist-number-scale));
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: calc(10px * var(--playlist-number-scale));
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #1e293b, #111827);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow:
+    0 calc(22px * var(--playlist-number-scale)) calc(45px * var(--playlist-number-scale)) rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 calc(-8px * var(--playlist-number-scale)) calc(20px * var(--playlist-number-scale)) rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+
+.playlist-section .playlist-number-field::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255,255,255,0.18),
+    transparent 65%
+  );
+  transform: translateX(-75%) rotate(15deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.playlist-section .playlist-number-field:hover::before {
+  opacity: 1;
+  animation: playlistLightSweep 1.6s ease-in-out infinite;
 }
 
 .playlist-section .playlist-number-input {
@@ -2075,21 +2512,43 @@
   z-index: 2;
   flex: 1;
   min-width: 0;
+  height: 100%;
   border: none;
   outline: none;
+  border-radius: calc(20px * var(--playlist-number-scale));
   text-align: center;
-  padding: 0 10px;
+  color: white;
+  font-size: calc(34px * var(--playlist-number-scale));
+  font-weight: 950;
+  letter-spacing: calc(1px * var(--playlist-number-scale));
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.22), rgba(255,255,255,0.045)),
+    linear-gradient(135deg, rgba(37,99,235,0.85), rgba(124,58,237,0.85));
+  box-shadow:
+    0 0 calc(26px * var(--playlist-number-scale)) rgba(124,58,237,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.28),
+    inset 0 calc(-8px * var(--playlist-number-scale)) calc(18px * var(--playlist-number-scale)) rgba(0,0,0,0.18);
+  text-shadow: 0 calc(4px * var(--playlist-number-scale)) calc(10px * var(--playlist-number-scale)) rgba(0,0,0,0.35);
+  transition:
+    filter 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.playlist-section .playlist-number-input:focus {
+  filter: brightness(1.08);
+  box-shadow:
+    0 0 calc(34px * var(--playlist-number-scale)) rgba(124,58,237,0.48),
+    inset 0 1px 0 rgba(255,255,255,0.32),
+    inset 0 calc(-8px * var(--playlist-number-scale)) calc(18px * var(--playlist-number-scale)) rgba(0,0,0,0.18);
 }
 
 .playlist-section .playlist-number-input::-webkit-outer-spin-button,
 .playlist-section .playlist-number-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
   appearance: none;
   margin: 0;
 }
 
 .playlist-section .playlist-number-input {
-  -webkit-appearance: none;
   -moz-appearance: textfield;
   appearance: textfield;
 }
@@ -2097,41 +2556,123 @@
 .playlist-section .playlist-stepper-buttons {
   position: relative;
   z-index: 2;
-  width: 44px;
+  width: calc(58px * var(--playlist-number-scale));
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: calc(8px * var(--playlist-number-scale));
 }
 
 .playlist-section .playlist-stepper-buttons .playlist-step-button {
+  position: relative;
   flex: 1;
+  border: none;
+  border-radius: calc(18px * var(--playlist-number-scale));
+  cursor: pointer;
+  color: white;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow:
+    0 calc(10px * var(--playlist-number-scale)) calc(22px * var(--playlist-number-scale)) rgba(0,0,0,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 calc(-5px * var(--playlist-number-scale)) calc(12px * var(--playlist-number-scale)) rgba(0,0,0,0.18);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  transition:
+    filter 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.playlist-section .playlist-number-input.value-up,
+.playlist-section .playlist-stepper-buttons .playlist-step-button::before {
+  content: "";
+  position: absolute;
+  inset: -80%;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255,255,255,0.36),
+    transparent 65%
+  );
+  transform: translateX(-75%) rotate(15deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.playlist-section .playlist-stepper-buttons .playlist-step-button:hover:not(:disabled) {
+  filter: brightness(1.12);
+  box-shadow:
+    0 0 calc(22px * var(--playlist-number-scale)) rgba(124,58,237,0.40),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 calc(-5px * var(--playlist-number-scale)) calc(12px * var(--playlist-number-scale)) rgba(0,0,0,0.18);
+}
+
+.playlist-section .playlist-stepper-buttons .playlist-step-button:hover:not(:disabled)::before {
+  opacity: 1;
+  animation: playlistLightSweep 1.2s ease-in-out infinite;
+}
+
+.playlist-section .playlist-stepper-buttons .playlist-step-button:active:not(:disabled) {
+  filter: brightness(0.95);
+  box-shadow:
+    0 calc(8px * var(--playlist-number-scale)) calc(18px * var(--playlist-number-scale)) rgba(0,0,0,0.30),
+    inset 0 calc(4px * var(--playlist-number-scale)) calc(10px * var(--playlist-number-scale)) rgba(0,0,0,0.22);
+}
+
+.playlist-section .playlist-stepper-buttons .playlist-step-button:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.playlist-section .playlist-stepper-buttons .playlist-step-button svg {
+  position: relative;
+  z-index: 2;
+  display: block;
+  flex: 0 0 auto;
+  width: calc(23px * var(--playlist-number-scale));
+  height: calc(23px * var(--playlist-number-scale));
+  min-width: calc(23px * var(--playlist-number-scale));
+  min-height: calc(23px * var(--playlist-number-scale));
+  filter: drop-shadow(0 calc(4px * var(--playlist-number-scale)) calc(7px * var(--playlist-number-scale)) rgba(0,0,0,0.35));
+}
+
+.playlist-section .playlist-stepper-buttons .playlist-step-button:hover:not(:disabled) svg {
+  animation: playlistNumberArrowBounce 0.7s ease-in-out infinite;
+}
+
+.playlist-section .playlist-number-input.value-up {
+  animation: playlistNumberValueUp 0.22s ease;
+}
+
+.playlist-section .playlist-number-input.value-down {
+  animation: playlistNumberValueDown 0.22s ease;
+}
+
 .playlist-section .playlist-time-display.pulse-up {
   animation: playlistValueUp 0.24s ease;
 }
 
-.playlist-section .playlist-number-input.value-down,
 .playlist-section .playlist-time-display.pulse-down {
   animation: playlistValueDown 0.24s ease;
 }
 
 .playlist-section .playlist-picker-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 14px;
+  gap: calc(12px * var(--playlist-date-scale));
+  margin-top: calc(16px * var(--playlist-date-scale));
 }
 
 .playlist-section .playlist-picker-action {
   flex: 1;
-  height: 42px;
+  height: calc(50px * var(--playlist-date-scale));
   border: none;
-  border-radius: 15px;
+  border-radius: calc(18px * var(--playlist-date-scale));
   cursor: pointer;
-  color: #ffffff;
-  font-size: 0.88rem;
+  color: white;
+  font-size: calc(16px * var(--playlist-date-scale));
   font-weight: 900;
   transition: filter 0.22s ease, box-shadow 0.22s ease;
 }
@@ -2142,7 +2683,7 @@
     rgba(255,255,255,0.1);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.16),
-    0 9px 20px rgba(0,0,0,0.24);
+    0 calc(9px * var(--playlist-date-scale)) calc(20px * var(--playlist-date-scale)) rgba(0,0,0,0.24);
 }
 
 .playlist-section .playlist-apply-button {
@@ -2150,7 +2691,7 @@
     linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
     linear-gradient(135deg, #22c55e, #16a34a);
   box-shadow:
-    0 12px 24px rgba(34,197,94,0.2),
+    0 calc(12px * var(--playlist-date-scale)) calc(24px * var(--playlist-date-scale)) rgba(34,197,94,0.25),
     inset 0 1px 0 rgba(255,255,255,0.32);
 }
 
@@ -2158,37 +2699,789 @@
   filter: brightness(1.1);
 }
 
+.playlist-section .cui-actions-50 {
+  --cui-scale: 0.5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(22px * var(--cui-scale));
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.playlist-section .cui-action-button {
+  position: relative;
+  width: calc(92px * var(--cui-scale));
+  height: calc(92px * var(--cui-scale));
+  border: none;
+  border-radius: calc(28px * var(--cui-scale));
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  transition:
+    box-shadow 0.28s ease,
+    filter 0.28s ease;
+}
+
+.playlist-section .cui-action-button::before {
+  content: "";
+  position: absolute;
+  inset: -45%;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.38),
+    transparent 65%
+  );
+  transform: translateX(-75%) rotate(15deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.playlist-section .cui-action-button::after {
+  content: "";
+  position: absolute;
+  inset: calc(8px * var(--cui-scale));
+  border-radius: calc(22px * var(--cui-scale));
+  border: calc(1px * var(--cui-scale)) solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.playlist-section .cui-download-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow:
+    0 calc(22px * var(--cui-scale)) calc(45px * var(--cui-scale)) rgba(0,0,0,0.42),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.35),
+    inset 0 calc(-8px * var(--cui-scale)) calc(20px * var(--cui-scale)) rgba(0,0,0,0.18);
+}
+
+.playlist-section .cui-archive-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #f59e0b, #ea580c);
+  box-shadow:
+    0 calc(22px * var(--cui-scale)) calc(45px * var(--cui-scale)) rgba(0,0,0,0.42),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.35),
+    inset 0 calc(-8px * var(--cui-scale)) calc(20px * var(--cui-scale)) rgba(0,0,0,0.18);
+}
+
+.playlist-section .cui-delete-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #ef4444, #991b1b);
+  box-shadow:
+    0 calc(22px * var(--cui-scale)) calc(45px * var(--cui-scale)) rgba(0,0,0,0.42),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.35),
+    inset 0 calc(-8px * var(--cui-scale)) calc(20px * var(--cui-scale)) rgba(0,0,0,0.18);
+}
+
+.playlist-section .cui-action-icon {
+  position: relative;
+  z-index: 3;
+  width: calc(48px * var(--cui-scale));
+  height: calc(48px * var(--cui-scale));
+  color: white;
+  filter: drop-shadow(0 calc(5px * var(--cui-scale)) calc(8px * var(--cui-scale)) rgba(0,0,0,0.35));
+}
+
+.playlist-section .cui-glow-ring {
+  position: absolute;
+  width: calc(58px * var(--cui-scale));
+  height: calc(58px * var(--cui-scale));
+  border-radius: 50%;
+  border: calc(2px * var(--cui-scale)) solid rgba(255,255,255,0.38);
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.playlist-section .cui-action-button:hover,
+.playlist-section .cui-action-button.cui-clicked {
+  filter: brightness(1.08);
+}
+
+.playlist-section .cui-action-button:hover::before,
+.playlist-section .cui-action-button.cui-clicked::before {
+  opacity: 1;
+  animation: cuiLightSweep 1.45s ease-in-out infinite;
+}
+
+.playlist-section .cui-action-button:hover .cui-glow-ring,
+.playlist-section .cui-action-button.cui-clicked .cui-glow-ring {
+  animation: cuiRingPulse 1.05s ease-in-out infinite;
+}
+
+.playlist-section .cui-download-button:hover .cui-icon-main,
+.playlist-section .cui-download-button.cui-clicked .cui-icon-main {
+  animation: cuiDownloadArrow 1.05s ease-in-out infinite;
+}
+
+.playlist-section .cui-download-button:hover .cui-icon-line,
+.playlist-section .cui-download-button.cui-clicked .cui-icon-line {
+  animation: cuiLinePulse 1.05s ease-in-out infinite;
+}
+
+.playlist-section .cui-archive-button:hover .cui-icon-main,
+.playlist-section .cui-archive-button.cui-clicked .cui-icon-main {
+  animation: cuiArchiveArrow 1.05s ease-in-out infinite;
+}
+
+.playlist-section .cui-archive-button:hover .cui-icon-box,
+.playlist-section .cui-archive-button.cui-clicked .cui-icon-box {
+  animation: cuiBoxPulse 1.05s ease-in-out infinite;
+}
+
+.playlist-section .cui-delete-button:hover .cui-icon-lid,
+.playlist-section .cui-delete-button.cui-clicked .cui-icon-lid {
+  animation: cuiTrashLid 1.05s ease-in-out infinite;
+}
+
+.playlist-section .cui-delete-button:hover .cui-icon-main,
+.playlist-section .cui-delete-button.cui-clicked .cui-icon-main {
+  animation: cuiTrashShake 1.05s ease-in-out infinite;
+}
+
+.playlist-section .cui-action-button:active {
+  filter: brightness(0.95);
+}
+
+.playlist-section .cui-number-wrapper-50 {
+  --cui-scale: 0.5;
+  position: relative;
+  width: calc(260px * var(--cui-scale));
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.playlist-section .cui-number-field {
+  position: relative;
+  width: 100%;
+  height: calc(86px * var(--cui-scale));
+  padding: calc(8px * var(--cui-scale));
+  border-radius: calc(26px * var(--cui-scale));
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--cui-scale));
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #1e293b, #111827);
+  border: calc(1px * var(--cui-scale)) solid rgba(255,255,255,0.14);
+  box-shadow:
+    0 calc(22px * var(--cui-scale)) calc(45px * var(--cui-scale)) rgba(0,0,0,0.42),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.22),
+    inset 0 calc(-8px * var(--cui-scale)) calc(20px * var(--cui-scale)) rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+
+.playlist-section .cui-number-input {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  border-radius: calc(20px * var(--cui-scale));
+  text-align: center;
+  color: white;
+  font-size: calc(34px * var(--cui-scale));
+  font-weight: 950;
+  letter-spacing: calc(1px * var(--cui-scale));
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.22), rgba(255,255,255,0.045)),
+    linear-gradient(135deg, rgba(37,99,235,0.85), rgba(124,58,237,0.85));
+  box-shadow:
+    0 0 calc(26px * var(--cui-scale)) rgba(124,58,237,0.35),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.28),
+    inset 0 calc(-8px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(0,0,0,0.18);
+  text-shadow: 0 calc(4px * var(--cui-scale)) calc(10px * var(--cui-scale)) rgba(0,0,0,0.35);
+  transition:
+    filter 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.playlist-section .cui-number-input:focus {
+  filter: brightness(1.08);
+  box-shadow:
+    0 0 calc(34px * var(--cui-scale)) rgba(124,58,237,0.48),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.32),
+    inset 0 calc(-8px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(0,0,0,0.18);
+}
+
+.playlist-section .cui-number-input::-webkit-outer-spin-button,
+.playlist-section .cui-number-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.playlist-section .cui-number-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.playlist-section .cui-number-buttons {
+  position: relative;
+  z-index: 2;
+  width: calc(58px * var(--cui-scale));
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(8px * var(--cui-scale));
+}
+
+.playlist-section .cui-number-step-button {
+  position: relative;
+  flex: 1;
+  border: none;
+  border-radius: calc(18px * var(--cui-scale));
+  cursor: pointer;
+  color: white;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow:
+    0 calc(10px * var(--cui-scale)) calc(22px * var(--cui-scale)) rgba(0,0,0,0.28),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.35),
+    inset 0 calc(-5px * var(--cui-scale)) calc(12px * var(--cui-scale)) rgba(0,0,0,0.18);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  transition:
+    filter 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.playlist-section .cui-number-step-button::before {
+  content: "";
+  position: absolute;
+  inset: -80%;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255,255,255,0.36),
+    transparent 65%
+  );
+  transform: translateX(-75%) rotate(15deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.playlist-section .cui-number-step-button:hover:not(:disabled) {
+  filter: brightness(1.12);
+  box-shadow:
+    0 0 calc(22px * var(--cui-scale)) rgba(124,58,237,0.40),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.42),
+    inset 0 calc(-5px * var(--cui-scale)) calc(12px * var(--cui-scale)) rgba(0,0,0,0.18);
+}
+
+.playlist-section .cui-number-step-button:hover:not(:disabled)::before {
+  opacity: 1;
+  animation: cuiNumberLightSweep 1.2s ease-in-out infinite;
+}
+
+.playlist-section .cui-number-step-button:active:not(:disabled) {
+  filter: brightness(0.95);
+  box-shadow:
+    0 calc(8px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(0,0,0,0.30),
+    inset 0 calc(4px * var(--cui-scale)) calc(10px * var(--cui-scale)) rgba(0,0,0,0.22);
+}
+
+.playlist-section .cui-number-step-button:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.playlist-section .cui-number-step-button svg {
+  position: relative;
+  z-index: 2;
+  width: calc(23px * var(--cui-scale));
+  height: calc(23px * var(--cui-scale));
+  filter: drop-shadow(0 calc(4px * var(--cui-scale)) calc(7px * var(--cui-scale)) rgba(0,0,0,0.35));
+}
+
+.playlist-section .cui-number-step-button:hover:not(:disabled) svg {
+  animation: cuiNumberArrowBounce 0.7s ease-in-out infinite;
+}
+
+.playlist-section .cui-number-input.cui-value-up {
+  animation: cuiNumberValueUp 0.22s ease;
+}
+
+.playlist-section .cui-number-input.cui-value-down {
+  animation: cuiNumberValueDown 0.22s ease;
+}
+
+.playlist-section .cui-date-picker-50 {
+  --cui-scale: 0.5;
+  position: relative;
+  width: calc(390px * var(--cui-scale));
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.playlist-section .cui-date-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: calc(74px * var(--cui-scale));
+  padding: calc(8px * var(--cui-scale));
+  border-radius: calc(24px * var(--cui-scale));
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #1e293b, #111827);
+  box-shadow:
+    0 calc(22px * var(--cui-scale)) calc(45px * var(--cui-scale)) rgba(0,0,0,0.42),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.22),
+    inset 0 calc(-8px * var(--cui-scale)) calc(20px * var(--cui-scale)) rgba(0,0,0,0.18);
+  border: calc(1px * var(--cui-scale)) solid rgba(255,255,255,0.14);
+  overflow: hidden;
+}
+
+.playlist-section .cui-date-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: white;
+  padding: 0 calc(18px * var(--cui-scale));
+  font-size: calc(22px * var(--cui-scale));
+  font-weight: 800;
+  letter-spacing: calc(0.2px * var(--cui-scale));
+  cursor: pointer;
+}
+
+.playlist-section .cui-date-input::placeholder {
+  color: rgba(255,255,255,0.55);
+}
+
+.playlist-section .cui-calendar-button {
+  position: relative;
+  width: calc(58px * var(--cui-scale));
+  height: calc(58px * var(--cui-scale));
+  border: none;
+  border-radius: calc(18px * var(--cui-scale));
+  cursor: pointer;
+  color: white;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow:
+    0 calc(12px * var(--cui-scale)) calc(26px * var(--cui-scale)) rgba(0,0,0,0.32),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.35),
+    inset 0 calc(-6px * var(--cui-scale)) calc(14px * var(--cui-scale)) rgba(0,0,0,0.18);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  transition: filter 0.25s ease, box-shadow 0.25s ease;
+}
+
+.playlist-section .cui-calendar-button svg {
+  position: relative;
+  z-index: 2;
+  width: calc(31px * var(--cui-scale));
+  height: calc(31px * var(--cui-scale));
+  filter: drop-shadow(0 calc(4px * var(--cui-scale)) calc(7px * var(--cui-scale)) rgba(0,0,0,0.35));
+}
+
+.playlist-section .cui-picker-panel {
+  position: absolute;
+  left: 50%;
+  width: calc(390px * var(--cui-scale));
+  padding: calc(18px * var(--cui-scale));
+  border-radius: calc(30px * var(--cui-scale));
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #1e293b, #0f172a);
+  box-shadow:
+    0 calc(30px * var(--cui-scale)) calc(70px * var(--cui-scale)) rgba(0,0,0,0.55),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.18),
+    inset 0 calc(-10px * var(--cui-scale)) calc(26px * var(--cui-scale)) rgba(0,0,0,0.22);
+  border: calc(1px * var(--cui-scale)) solid rgba(255,255,255,0.14);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s ease, transform 0.24s ease;
+  z-index: 9999;
+}
+
+.playlist-section .cui-picker-panel.cui-above {
+  top: auto;
+  bottom: calc(100% + calc(14px * var(--cui-scale)));
+  transform: translateX(-50%) translateY(calc(12px * var(--cui-scale))) scale(0.96);
+}
+
+.playlist-section .cui-picker-panel.cui-below {
+  top: calc(100% + calc(14px * var(--cui-scale)));
+  bottom: auto;
+  transform: translateX(-50%) translateY(calc(-12px * var(--cui-scale))) scale(0.96);
+}
+
+.playlist-section .cui-picker-panel.cui-open.cui-above,
+.playlist-section .cui-picker-panel.cui-open.cui-below {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.playlist-section .cui-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: calc(16px * var(--cui-scale));
+}
+
+.playlist-section .cui-month-title {
+  color: white;
+  font-size: calc(22px * var(--cui-scale));
+  font-weight: 900;
+  text-transform: capitalize;
+  letter-spacing: calc(0.3px * var(--cui-scale));
+}
+
+.playlist-section .cui-nav-button {
+  width: calc(42px * var(--cui-scale));
+  height: calc(42px * var(--cui-scale));
+  border: none;
+  border-radius: calc(15px * var(--cui-scale));
+  cursor: pointer;
+  color: white;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
+    rgba(255,255,255,0.08);
+  box-shadow:
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.18),
+    0 calc(8px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(0,0,0,0.24);
+  font-size: calc(22px * var(--cui-scale));
+  font-weight: 900;
+}
+
+.playlist-section .cui-weekdays,
+.playlist-section .cui-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: calc(7px * var(--cui-scale));
+}
+
+.playlist-section .cui-weekdays {
+  margin-bottom: calc(8px * var(--cui-scale));
+}
+
+.playlist-section .cui-weekday {
+  text-align: center;
+  color: rgba(255,255,255,0.58);
+  font-size: calc(13px * var(--cui-scale));
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.playlist-section .cui-day-button {
+  position: relative;
+  height: calc(43px * var(--cui-scale));
+  border: none;
+  border-radius: calc(15px * var(--cui-scale));
+  cursor: pointer;
+  color: white;
+  font-size: calc(16px * var(--cui-scale));
+  font-weight: 900;
+  background: rgba(255,255,255,0.08);
+  box-shadow:
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.12),
+    0 calc(8px * var(--cui-scale)) calc(16px * var(--cui-scale)) rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+
+.playlist-section .cui-day-button.cui-selected {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.25), rgba(255,255,255,0.06)),
+    linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow:
+    0 0 calc(26px * var(--cui-scale)) rgba(124,58,237,0.42),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.32),
+    0 calc(10px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(0,0,0,0.22);
+}
+
+.playlist-section .cui-day-button.cui-today::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(7px * var(--cui-scale));
+  width: calc(5px * var(--cui-scale));
+  height: calc(5px * var(--cui-scale));
+  border-radius: 50%;
+  background: white;
+  transform: translateX(-50%);
+  opacity: 0.85;
+}
+
+.playlist-section .cui-empty-day {
+  height: calc(43px * var(--cui-scale));
+}
+
+.playlist-section .cui-time-section {
+  margin-top: calc(18px * var(--cui-scale));
+  padding: calc(14px * var(--cui-scale));
+  border-radius: calc(24px * var(--cui-scale));
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.11), rgba(255,255,255,0.035)),
+    rgba(255,255,255,0.055);
+  border: calc(1px * var(--cui-scale)) solid rgba(255,255,255,0.12);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(14px * var(--cui-scale));
+  box-shadow:
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.12),
+    0 calc(12px * var(--cui-scale)) calc(24px * var(--cui-scale)) rgba(0,0,0,0.16);
+}
+
+.playlist-section .cui-time-column {
+  min-width: 0;
+}
+
+.playlist-section .cui-time-label {
+  color: rgba(255,255,255,0.68);
+  font-size: calc(13px * var(--cui-scale));
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: calc(0.8px * var(--cui-scale));
+  margin: 0 0 calc(8px * var(--cui-scale));
+  text-align: center;
+}
+
+.playlist-section .cui-time-stepper {
+  position: relative;
+  padding: calc(10px * var(--cui-scale));
+  border-radius: calc(22px * var(--cui-scale));
+  background:
+    linear-gradient(145deg, rgba(15,23,42,0.9), rgba(30,41,59,0.8)),
+    rgba(255,255,255,0.06);
+  border: calc(1px * var(--cui-scale)) solid rgba(255,255,255,0.1);
+  box-shadow:
+    inset 0 calc(10px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(0,0,0,0.22),
+    inset 0 calc(-10px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(255,255,255,0.035),
+    0 calc(10px * var(--cui-scale)) calc(20px * var(--cui-scale)) rgba(0,0,0,0.16);
+  overflow: hidden;
+}
+
+.playlist-section .cui-step-button {
+  position: relative;
+  width: 100%;
+  height: calc(42px * var(--cui-scale));
+  border: none;
+  border-radius: calc(16px * var(--cui-scale));
+  cursor: pointer;
+  color: white;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.20), rgba(255,255,255,0.04)),
+    rgba(124,58,237,0.20);
+  box-shadow:
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.18),
+    0 calc(8px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(0,0,0,0.20);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.playlist-section .cui-time-display {
+  height: calc(68px * var(--cui-scale));
+  margin: calc(10px * var(--cui-scale)) 0;
+  border-radius: calc(20px * var(--cui-scale));
+  color: white;
+  font-size: calc(34px * var(--cui-scale));
+  font-weight: 950;
+  letter-spacing: calc(1px * var(--cui-scale));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.22), rgba(255,255,255,0.045)),
+    linear-gradient(135deg, rgba(37,99,235,0.85), rgba(124,58,237,0.85));
+  box-shadow:
+    0 0 calc(26px * var(--cui-scale)) rgba(124,58,237,0.35),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.28),
+    inset 0 calc(-8px * var(--cui-scale)) calc(18px * var(--cui-scale)) rgba(0,0,0,0.18);
+  text-shadow: 0 calc(4px * var(--cui-scale)) calc(10px * var(--cui-scale)) rgba(0,0,0,0.35);
+}
+
+.playlist-section .cui-picker-actions {
+  display: flex;
+  gap: calc(12px * var(--cui-scale));
+  margin-top: calc(16px * var(--cui-scale));
+}
+
+.playlist-section .cui-picker-action {
+  flex: 1;
+  height: calc(50px * var(--cui-scale));
+  border: none;
+  border-radius: calc(18px * var(--cui-scale));
+  cursor: pointer;
+  color: white;
+  font-size: calc(16px * var(--cui-scale));
+  font-weight: 900;
+}
+
+.playlist-section .cui-now-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04)),
+    rgba(255,255,255,0.1);
+  box-shadow:
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.16),
+    0 calc(9px * var(--cui-scale)) calc(20px * var(--cui-scale)) rgba(0,0,0,0.24);
+}
+
+.playlist-section .cui-apply-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow:
+    0 calc(12px * var(--cui-scale)) calc(24px * var(--cui-scale)) rgba(34,197,94,0.25),
+    inset 0 calc(1px * var(--cui-scale)) 0 rgba(255,255,255,0.32);
+}
+
+.playlist-section .cui-picker-action:hover {
+  filter: brightness(1.1);
+}
+
+@keyframes cuiDownloadArrow {
+  0% { transform: translateY(0); opacity: 1; }
+  35% { transform: translateY(4.5px); opacity: 0.75; }
+  65% { transform: translateY(-2px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes cuiArchiveArrow {
+  0% { transform: translateY(-1px); opacity: 1; }
+  40% { transform: translateY(4px); opacity: 0.75; }
+  70% { transform: translateY(0.5px); opacity: 1; }
+  100% { transform: translateY(-1px); opacity: 1; }
+}
+
+@keyframes cuiLinePulse {
+  0% { transform: scaleX(1); opacity: 1; }
+  35% { transform: scaleX(1.32); opacity: 0.72; }
+  70% { transform: scaleX(0.9); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes cuiBoxPulse {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes cuiTrashLid {
+  0% { transform: rotate(0deg) translateY(0); }
+  35% { transform: rotate(-12deg) translateY(-1.5px); }
+  70% { transform: rotate(6deg) translateY(-0.5px); }
+  100% { transform: rotate(0deg) translateY(0); }
+}
+
+@keyframes cuiTrashShake {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+  75% { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes cuiRingPulse {
+  0% { transform: scale(0.55); opacity: 0; }
+  35% { opacity: 0.45; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes cuiLightSweep {
+  0% { transform: translateX(-75%) rotate(15deg); }
+  100% { transform: translateX(75%) rotate(15deg); }
+}
+
+@keyframes cuiNumberLightSweep {
+  0% { transform: translateX(-75%) rotate(15deg); }
+  100% { transform: translateX(75%) rotate(15deg); }
+}
+
+@keyframes cuiNumberArrowBounce {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-1px); }
+}
+
+@keyframes cuiNumberValueUp {
+  0% { transform: translateY(4px); filter: brightness(1.25); opacity: 0.72; }
+  100% { transform: translateY(0); filter: brightness(1); opacity: 1; }
+}
+
+@keyframes cuiNumberValueDown {
+  0% { transform: translateY(-4px); filter: brightness(1.25); opacity: 0.72; }
+  100% { transform: translateY(0); filter: brightness(1); opacity: 1; }
+}
+
 @keyframes playlistDownloadArrow {
   0% { transform: translateY(0); opacity: 1; }
-  35% { transform: translateY(7px); opacity: 0.75; }
-  65% { transform: translateY(-3px); opacity: 1; }
+  35% { transform: translateY(9px); opacity: 0.75; }
+  65% { transform: translateY(-4px); opacity: 1; }
   100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes playlistToolbarUploadArrow {
+  0% { transform: translateY(0); opacity: 1; }
+  35% { transform: translateY(-7px); opacity: 0.8; }
+  65% { transform: translateY(3px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes playlistToolbarSlash {
+  0% { transform: translateX(0) rotate(0deg); }
+  35% { transform: translateX(-1px) rotate(-4deg); }
+  70% { transform: translateX(1px) rotate(4deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+
+@keyframes playlistToolbarEyePulse {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes playlistToolbarPlayPulse {
+  0% { transform: scale(1); opacity: 1; }
+  45% { transform: scale(1.12); opacity: 0.86; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes playlistToolbarRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 @keyframes playlistArchiveArrow {
   0% { transform: translateY(-2px); opacity: 1; }
-  40% { transform: translateY(6px); opacity: 0.75; }
+  40% { transform: translateY(8px); opacity: 0.75; }
   70% { transform: translateY(1px); opacity: 1; }
   100% { transform: translateY(-2px); opacity: 1; }
 }
 
 @keyframes playlistRestoreArrow {
   0% { transform: translateY(2px); opacity: 1; }
-  40% { transform: translateY(-6px); opacity: 0.75; }
+  40% { transform: translateY(-8px); opacity: 0.75; }
   70% { transform: translateY(-1px); opacity: 1; }
   100% { transform: translateY(2px); opacity: 1; }
 }
 
 @keyframes playlistLinePulse {
   0% { transform: scaleX(1); opacity: 1; }
-  35% { transform: scaleX(1.24); opacity: 0.72; }
+  35% { transform: scaleX(1.32); opacity: 0.72; }
   70% { transform: scaleX(0.9); opacity: 1; }
   100% { transform: scaleX(1); opacity: 1; }
 }
 
 @keyframes playlistBoxPulse {
   0% { transform: scale(1); }
-  45% { transform: scale(1.05); }
+  45% { transform: scale(1.06); }
   100% { transform: scale(1); }
 }
 
@@ -2210,7 +3503,7 @@
 @keyframes playlistRingPulse {
   0% { transform: scale(0.55); opacity: 0; }
   35% { opacity: 0.45; }
-  100% { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
 
 @keyframes playlistLightSweep {
@@ -2229,12 +3522,27 @@
   45% { transform: translateY(-2px); }
 }
 
+@keyframes playlistNumberArrowBounce {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-2px); }
+}
+
 @keyframes playlistValueUp {
-  0% { transform: translateY(8px); filter: brightness(1.25); opacity: 0.72; }
+  0% { transform: translateY(8px); filter: brightness(1.25); opacity: 0.7; }
   100% { transform: translateY(0); filter: brightness(1); opacity: 1; }
 }
 
 @keyframes playlistValueDown {
+  0% { transform: translateY(-8px); filter: brightness(1.25); opacity: 0.7; }
+  100% { transform: translateY(0); filter: brightness(1); opacity: 1; }
+}
+
+@keyframes playlistNumberValueUp {
+  0% { transform: translateY(8px); filter: brightness(1.25); opacity: 0.72; }
+  100% { transform: translateY(0); filter: brightness(1); opacity: 1; }
+}
+
+@keyframes playlistNumberValueDown {
   0% { transform: translateY(-8px); filter: brightness(1.25); opacity: 0.72; }
   100% { transform: translateY(0); filter: brightness(1); opacity: 1; }
 }
@@ -6043,6 +7351,31 @@ details.collapsible:not([open]) .birthday-text-footer {
     min-height: 42px;
   }
 
+  .playlist-section .playlist-toolbar-button {
+    width: 100%;
+    min-height: 84px;
+    border-radius: 24px;
+  }
+
+  .playlist-section .playlist-toolbar-button::after {
+    inset: 6px;
+    border-radius: 18px;
+  }
+
+  .playlist-section .playlist-toolbar-button--inline {
+    min-width: 100%;
+    min-height: 70px;
+  }
+
+  .playlist-section .playlist-toolbar-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .playlist-section .playlist-toolbar-label {
+    font-size: 0.74rem;
+  }
+
   .playlist-section .media-list {
     gap: 0.75rem;
   }
@@ -6105,8 +7438,8 @@ details.collapsible:not([open]) .birthday-text-footer {
   }
 
   .playlist-section .playlist-action-icon {
-    width: 30px;
-    height: 30px;
+    width: 34px;
+    height: 34px;
   }
 
   .playlist-section .playlist-picker-panel {
@@ -6127,7 +7460,7 @@ details.collapsible:not([open]) .birthday-text-footer {
     align-items: stretch;
   }
 
-  .playlist-archived-header .secondary-button {
+  .playlist-archived-header .playlist-toolbar-button--inline {
     width: 100%;
     white-space: normal;
   }
@@ -7233,4 +8566,265 @@ details.collapsible:not([open]) .birthday-text-footer {
 .weather-bg-label {
   font-size: 0.8rem;
   color: rgba(148, 163, 184, 0.8);
+}
+
+/* Playlist isolated control overrides.
+   Keep this block at the end so the imported prototype styles win over the
+   older playlist and mobile rules that share the same DOM nodes. */
+.playlist-section .media-card-actions.cui-actions-50,
+.playlist-section .cui-actions-50 {
+  --cui-scale: 0.5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: calc(22px * var(--cui-scale));
+  width: auto;
+  max-width: none;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+.playlist-section .cui-action-button {
+  position: relative;
+  width: calc(92px * var(--cui-scale));
+  height: calc(92px * var(--cui-scale));
+  min-width: calc(92px * var(--cui-scale));
+  min-height: calc(92px * var(--cui-scale));
+  padding: 0;
+  border: 0;
+  border-radius: calc(28px * var(--cui-scale));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.playlist-section .cui-action-button::after {
+  inset: calc(8px * var(--cui-scale));
+  border-radius: calc(22px * var(--cui-scale));
+}
+
+.playlist-section .cui-action-button svg.cui-action-icon,
+.playlist-section svg.playlist-action-icon.cui-action-icon {
+  position: relative;
+  z-index: 3;
+  display: block;
+  width: calc(48px * var(--cui-scale));
+  height: calc(48px * var(--cui-scale));
+  min-width: calc(48px * var(--cui-scale));
+  min-height: calc(48px * var(--cui-scale));
+  margin: 0;
+  color: #fff;
+  transform: none;
+}
+
+.playlist-section .cui-glow-ring,
+.playlist-section .playlist-action-button .cui-glow-ring {
+  width: calc(58px * var(--cui-scale));
+  height: calc(58px * var(--cui-scale));
+  border-width: calc(2px * var(--cui-scale));
+}
+
+.playlist-section .cui-action-button:disabled,
+.playlist-section .cui-action-button.is-busy {
+  opacity: 0.48;
+  cursor: wait;
+  filter: grayscale(0.25);
+}
+
+.playlist-section .cui-number-wrapper-50 {
+  --cui-scale: 0.5;
+  position: relative;
+  width: calc(260px * var(--cui-scale));
+  max-width: calc(260px * var(--cui-scale));
+  min-width: calc(260px * var(--cui-scale));
+  flex: 0 0 calc(260px * var(--cui-scale));
+}
+
+.playlist-section .cui-number-field {
+  width: 100%;
+  height: calc(86px * var(--cui-scale));
+  min-height: calc(86px * var(--cui-scale));
+  padding: calc(8px * var(--cui-scale));
+  border-radius: calc(26px * var(--cui-scale));
+  gap: calc(10px * var(--cui-scale));
+}
+
+.playlist-section .cui-number-input {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(20px * var(--cui-scale));
+  font-size: calc(34px * var(--cui-scale));
+  line-height: 1;
+  letter-spacing: calc(1px * var(--cui-scale));
+}
+
+.playlist-section .cui-number-buttons {
+  width: calc(58px * var(--cui-scale));
+  min-width: calc(58px * var(--cui-scale));
+  height: 100%;
+  gap: calc(8px * var(--cui-scale));
+}
+
+.playlist-section .cui-number-step-button {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(18px * var(--cui-scale));
+}
+
+.playlist-section .cui-number-step-button svg {
+  width: calc(23px * var(--cui-scale));
+  height: calc(23px * var(--cui-scale));
+  min-width: calc(23px * var(--cui-scale));
+  min-height: calc(23px * var(--cui-scale));
+}
+
+.playlist-section .cui-date-picker-50 {
+  --cui-scale: 0.5;
+  position: relative;
+  width: calc(390px * var(--cui-scale));
+  max-width: calc(390px * var(--cui-scale));
+  min-width: calc(390px * var(--cui-scale));
+  flex: 0 0 calc(390px * var(--cui-scale));
+}
+
+.playlist-section .cui-date-field {
+  width: 100%;
+  height: calc(74px * var(--cui-scale));
+  min-height: calc(74px * var(--cui-scale));
+  padding: calc(8px * var(--cui-scale));
+  border-radius: calc(24px * var(--cui-scale));
+}
+
+.playlist-section .cui-date-input {
+  height: 100%;
+  min-height: 0;
+  padding: 0 calc(18px * var(--cui-scale));
+  font-size: calc(22px * var(--cui-scale));
+  line-height: 1;
+  letter-spacing: calc(0.2px * var(--cui-scale));
+}
+
+.playlist-section .cui-calendar-button {
+  width: calc(58px * var(--cui-scale));
+  height: calc(58px * var(--cui-scale));
+  min-width: calc(58px * var(--cui-scale));
+  min-height: calc(58px * var(--cui-scale));
+  padding: 0;
+  border: 0;
+  border-radius: calc(18px * var(--cui-scale));
+}
+
+.playlist-section .cui-calendar-button svg {
+  width: calc(31px * var(--cui-scale));
+  height: calc(31px * var(--cui-scale));
+  min-width: calc(31px * var(--cui-scale));
+  min-height: calc(31px * var(--cui-scale));
+}
+
+.playlist-section .cui-picker-panel {
+  width: calc(390px * var(--cui-scale));
+  max-width: calc(100vw - 48px);
+  padding: calc(18px * var(--cui-scale));
+  border-radius: calc(30px * var(--cui-scale));
+  z-index: 10000;
+}
+
+.playlist-section .cui-picker-header {
+  margin-bottom: calc(16px * var(--cui-scale));
+}
+
+.playlist-section .cui-month-title {
+  font-size: calc(22px * var(--cui-scale));
+  line-height: 1.1;
+}
+
+.playlist-section .cui-nav-button {
+  width: calc(42px * var(--cui-scale));
+  height: calc(42px * var(--cui-scale));
+  min-width: calc(42px * var(--cui-scale));
+  min-height: calc(42px * var(--cui-scale));
+  padding: 0;
+  border-radius: calc(15px * var(--cui-scale));
+  font-size: calc(22px * var(--cui-scale));
+}
+
+.playlist-section .cui-weekdays,
+.playlist-section .cui-calendar-grid {
+  gap: calc(7px * var(--cui-scale));
+}
+
+.playlist-section .cui-weekday {
+  font-size: calc(13px * var(--cui-scale));
+  line-height: 1.1;
+}
+
+.playlist-section .cui-day-button,
+.playlist-section .cui-empty-day {
+  height: calc(43px * var(--cui-scale));
+  min-height: calc(43px * var(--cui-scale));
+}
+
+.playlist-section .cui-day-button {
+  padding: 0;
+  border: 0;
+  border-radius: calc(15px * var(--cui-scale));
+  font-size: calc(16px * var(--cui-scale));
+  line-height: 1;
+}
+
+.playlist-section .cui-time-section {
+  margin-top: calc(18px * var(--cui-scale));
+  padding: calc(14px * var(--cui-scale));
+  border-radius: calc(24px * var(--cui-scale));
+  gap: calc(14px * var(--cui-scale));
+}
+
+.playlist-section .cui-time-label {
+  margin: 0 0 calc(8px * var(--cui-scale));
+  font-size: calc(13px * var(--cui-scale));
+  line-height: 1.1;
+}
+
+.playlist-section .cui-time-stepper {
+  padding: calc(10px * var(--cui-scale));
+  border-radius: calc(22px * var(--cui-scale));
+}
+
+.playlist-section .cui-step-button {
+  height: calc(34px * var(--cui-scale));
+  min-height: calc(34px * var(--cui-scale));
+  padding: 0;
+  border-radius: calc(14px * var(--cui-scale));
+}
+
+.playlist-section .cui-step-button svg {
+  width: calc(18px * var(--cui-scale));
+  height: calc(18px * var(--cui-scale));
+}
+
+.playlist-section .cui-time-display {
+  height: calc(40px * var(--cui-scale));
+  min-height: calc(40px * var(--cui-scale));
+  font-size: calc(26px * var(--cui-scale));
+  line-height: 1;
+}
+
+.playlist-section .cui-picker-actions {
+  margin-top: calc(16px * var(--cui-scale));
+  gap: calc(10px * var(--cui-scale));
+}
+
+.playlist-section .cui-picker-action {
+  height: calc(42px * var(--cui-scale));
+  min-height: calc(42px * var(--cui-scale));
+  padding: 0 calc(16px * var(--cui-scale));
+  border-radius: calc(16px * var(--cui-scale));
+  font-size: calc(14px * var(--cui-scale));
+  line-height: 1;
 }

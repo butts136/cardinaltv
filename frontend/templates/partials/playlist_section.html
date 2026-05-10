@@ -7,12 +7,72 @@
   </div>
 
   <div class="section-content">
-    <div class="playlist-actions">
-      <button id="playlist-upload-button" class="primary-button" type="button">T&eacute;l&eacute;verser une nouvelle slide</button>
-      <button id="hide-all-button" class="secondary-button">Masquer tout</button>
-      <button id="show-all-button" class="secondary-button">Afficher tout</button>
-      <button id="slideshow-button" class="primary-button">Lancer le diaporama</button>
-      <button id="refresh-button" class="secondary-button">Actualiser</button>
+    <div class="playlist-actions playlist-toolbar-actions">
+      <button id="playlist-upload-button" class="playlist-toolbar-button toolbar-upload-button" type="button" aria-label="Téléverser une nouvelle slide" title="Téléverser une nouvelle slide">
+        <span class="playlist-glow-ring"></span>
+        <span class="playlist-toolbar-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none">
+            <g class="icon-main">
+              <path d="M32 50V22" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+              <path d="M20 34L32 22L44 34" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+            </g>
+            <path class="icon-line" d="M17 54H47" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span class="playlist-toolbar-label">Téléverser</span>
+      </button>
+
+      <button id="hide-all-button" class="playlist-toolbar-button toolbar-hide-button" type="button" aria-label="Masquer tout" title="Masquer tout">
+        <span class="playlist-glow-ring"></span>
+        <span class="playlist-toolbar-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none">
+            <g class="icon-eye">
+              <path d="M10 32C14 24 22 18 32 18C42 18 50 24 54 32C50 40 42 46 32 46C22 46 14 40 10 32Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+              <circle cx="32" cy="32" r="7" stroke="currentColor" stroke-width="5" />
+            </g>
+            <path class="icon-slash" d="M16 48L48 16" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span class="playlist-toolbar-label">Masquer tout</span>
+      </button>
+
+      <button id="show-all-button" class="playlist-toolbar-button toolbar-show-button" type="button" aria-label="Afficher tout" title="Afficher tout">
+        <span class="playlist-glow-ring"></span>
+        <span class="playlist-toolbar-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none">
+            <g class="icon-eye">
+              <path d="M10 32C14 24 22 18 32 18C42 18 50 24 54 32C50 40 42 46 32 46C22 46 14 40 10 32Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+              <circle class="icon-pupil" cx="32" cy="32" r="7" stroke="currentColor" stroke-width="5" />
+            </g>
+          </svg>
+        </span>
+        <span class="playlist-toolbar-label">Afficher tout</span>
+      </button>
+
+      <button id="slideshow-button" class="playlist-toolbar-button toolbar-slideshow-button" type="button" aria-label="Lancer le diaporama" title="Lancer le diaporama">
+        <span class="playlist-glow-ring"></span>
+        <span class="playlist-toolbar-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none">
+            <path class="icon-screen" d="M14 16H50C53 16 55 18 55 21V43C55 46 53 48 50 48H14C11 48 9 46 9 43V21C9 18 11 16 14 16Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+            <path class="icon-play" d="M28 24L42 32L28 40V24Z" fill="currentColor" />
+            <path d="M24 55H40" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span class="playlist-toolbar-label">Diaporama</span>
+      </button>
+
+      <button id="refresh-button" class="playlist-toolbar-button toolbar-refresh-button" type="button" aria-label="Actualiser" title="Actualiser">
+        <span class="playlist-glow-ring"></span>
+        <span class="playlist-toolbar-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none">
+            <g class="icon-main">
+              <path d="M49 24C45 18 39 14 32 14C21 14 12 23 12 34C12 45 21 54 32 54C41 54 49 48 51 40" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+              <path d="M49 10V24H35" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+            </g>
+          </svg>
+        </span>
+        <span class="playlist-toolbar-label">Actualiser</span>
+      </button>
     </div>
     <div id="media-list" class="media-list" aria-live="polite"></div>
     <section class="playlist-archived-panel" aria-labelledby="archived-media-heading">
@@ -21,8 +81,22 @@
           <h3 id="archived-media-heading">Médias archivés</h3>
           <p class="playlist-subtitle small">Les médias archivés sont retirés de la playlist active jusqu'à leur restauration.</p>
         </div>
-        <button id="archived-toggle-button" class="secondary-button" type="button" aria-expanded="false">
-          Afficher les archives
+        <button id="archived-toggle-button" class="playlist-toolbar-button playlist-toolbar-button--inline toolbar-archive-button" type="button" aria-expanded="false" aria-label="Afficher les archives (0)" title="Afficher les archives (0)">
+          <span class="playlist-glow-ring"></span>
+          <span class="playlist-toolbar-icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64" fill="none">
+              <g class="icon-box">
+                <path d="M14 25H50V50C50 53 48 55 45 55H19C16 55 14 53 14 50V25Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+                <path d="M11 17H53V25H11V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+              </g>
+              <g class="icon-main">
+                <path d="M32 18V40" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" />
+                <path d="M22 31L32 41L42 31" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
+              </g>
+            </svg>
+          </span>
+          <span class="playlist-toolbar-label">Afficher les archives</span>
+          <span class="playlist-toolbar-badge">0</span>
         </button>
       </div>
       <div id="archived-media-list" class="media-list" hidden></div>

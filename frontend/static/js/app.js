@@ -938,9 +938,11 @@ const renderEmptyState = () => {
 const updateArchivedPanel = () => {
   if (!archivedToggleButton || !archivedMediaList) return;
   const count = archivedMediaItems.length;
-  archivedToggleButton.textContent = archivedMediaExpanded
-    ? `Masquer les archives (${count})`
-    : `Afficher les archives (${count})`;
+  setPlaylistToolbarButtonLabel(
+    archivedToggleButton,
+    archivedMediaExpanded ? "Masquer les archives" : "Afficher les archives",
+    count,
+  );
   archivedToggleButton.disabled = count === 0;
   archivedToggleButton.setAttribute("aria-expanded", archivedMediaExpanded ? "true" : "false");
   archivedMediaList.hidden = !archivedMediaExpanded;
@@ -1719,11 +1721,13 @@ const createFieldGroup = (labelText, control, className = "") => {
 const pulsePlaylistActionButton = (button) => {
   if (!button) return;
   button.classList.add("clicked");
+  button.classList.add("cui-clicked");
   if (button._playlistPulseTimer) {
     window.clearTimeout(button._playlistPulseTimer);
   }
   button._playlistPulseTimer = window.setTimeout(() => {
     button.classList.remove("clicked");
+    button.classList.remove("cui-clicked");
   }, 950);
 };
 
@@ -1732,10 +1736,35 @@ const formatPlaylistDateTimeDisplay = (value) => {
   return String(value).replace("T", " ");
 };
 
+const setPlaylistToolbarButtonLabel = (button, label, count = null) => {
+  if (!button) return;
+  const cleanLabel = String(label || "").trim();
+  const labelNode = button.querySelector(".playlist-toolbar-label");
+  if (labelNode) {
+    labelNode.textContent = cleanLabel;
+  } else {
+    button.textContent = cleanLabel;
+  }
+
+  const badgeNode = button.querySelector(".playlist-toolbar-badge");
+  if (badgeNode) {
+    const numericCount = Number.isFinite(count) ? count : 0;
+    badgeNode.textContent = String(numericCount);
+    badgeNode.hidden = numericCount <= 0;
+  }
+
+  const accessibleLabel = Number.isFinite(count)
+    ? `${cleanLabel} (${count})`
+    : cleanLabel;
+  button.setAttribute("aria-label", accessibleLabel);
+  button.title = accessibleLabel;
+};
+
 const createPlaylistActionButton = ({ kind, label }) => {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `playlist-action-button ${kind}-button`;
+  const visualKind = kind === "restore" ? "archive" : kind;
+  button.className = `playlist-action-button ${kind}-button cui-action-button cui-${visualKind}-button`;
   button.dataset.action = kind;
   button.setAttribute("aria-label", label);
   button.title = label;
@@ -1743,45 +1772,45 @@ const createPlaylistActionButton = ({ kind, label }) => {
   let iconMarkup = "";
   if (kind === "download") {
     iconMarkup = `
-      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <g class="icon-main">
+      <svg class="playlist-action-icon cui-action-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-main cui-icon-main">
           <path d="M32 10V39" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
           <path d="M20 28L32 40L44 28" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
         </g>
-        <path class="icon-line" d="M17 50H47" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+        <path class="icon-line cui-icon-line" d="M17 50H47" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
       </svg>`;
   } else if (kind === "archive") {
     iconMarkup = `
-      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <g class="icon-box">
+      <svg class="playlist-action-icon cui-action-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-box cui-icon-box">
           <path d="M14 25H50V50C50 53 48 55 45 55H19C16 55 14 53 14 50V25Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
           <path d="M11 17H53V25H11V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
         </g>
-        <g class="icon-main">
+        <g class="icon-main cui-icon-main">
           <path d="M32 18V40" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" />
           <path d="M22 31L32 41L42 31" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
         </g>
       </svg>`;
   } else if (kind === "restore") {
     iconMarkup = `
-      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <g class="icon-box">
+      <svg class="playlist-action-icon cui-action-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-box cui-icon-box">
           <path d="M14 25H50V50C50 53 48 55 45 55H19C16 55 14 53 14 50V25Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
           <path d="M11 17H53V25H11V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
         </g>
-        <g class="icon-main">
+        <g class="icon-main cui-icon-main">
           <path d="M32 42V20" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" />
           <path d="M22 29L32 19L42 29" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
         </g>
       </svg>`;
   } else {
     iconMarkup = `
-      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <g class="icon-lid">
+      <svg class="playlist-action-icon cui-action-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g class="icon-lid cui-icon-lid">
           <path d="M22 17H42" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
           <path d="M27 11H37" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
         </g>
-        <g class="icon-main">
+        <g class="icon-main cui-icon-main">
           <path d="M18 23H46" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
           <path d="M22 25L25 53H39L42 25" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
           <path d="M30 32V46" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
@@ -1790,9 +1819,13 @@ const createPlaylistActionButton = ({ kind, label }) => {
       </svg>`;
   }
 
-  button.innerHTML = `<span class="playlist-glow-ring"></span><span class="playlist-action-icon" aria-hidden="true">${iconMarkup}</span>`;
-  button.addEventListener("mouseleave", () => button.classList.remove("clicked"));
-  button.addEventListener("blur", () => button.classList.remove("clicked"));
+  button.innerHTML = `<span class="playlist-glow-ring cui-glow-ring"></span>${iconMarkup}`;
+  button.addEventListener("mouseleave", () => {
+    button.classList.remove("clicked", "cui-clicked");
+  });
+  button.addEventListener("blur", () => {
+    button.classList.remove("clicked", "cui-clicked");
+  });
   return button;
 };
 
@@ -1843,14 +1876,14 @@ const createPlaylistNumberField = ({
   onCommit,
 }) => {
   const wrapper = document.createElement("div");
-  wrapper.className = "playlist-number-wrapper";
+  wrapper.className = "playlist-number-wrapper cui-number-wrapper-50";
 
   const field = document.createElement("div");
-  field.className = "playlist-number-field";
+  field.className = "playlist-number-field cui-number-field";
 
   const input = document.createElement("input");
   input.type = "number";
-  input.className = "playlist-number-input";
+  input.className = "playlist-number-input cui-number-input";
   input.inputMode = "numeric";
   input.min = String(min);
   if (Number.isFinite(max)) {
@@ -1860,11 +1893,11 @@ const createPlaylistNumberField = ({
   input.setAttribute("aria-label", ariaLabel);
 
   const stepperButtons = document.createElement("div");
-  stepperButtons.className = "playlist-stepper-buttons";
+  stepperButtons.className = "playlist-stepper-buttons cui-number-buttons";
 
   const increaseButton = document.createElement("button");
   increaseButton.type = "button";
-  increaseButton.className = "playlist-step-button";
+  increaseButton.className = "playlist-step-button cui-number-step-button cui-number-up";
   increaseButton.setAttribute("aria-label", `Augmenter ${ariaLabel.toLowerCase()}`);
   increaseButton.innerHTML = `
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1873,7 +1906,7 @@ const createPlaylistNumberField = ({
 
   const decreaseButton = document.createElement("button");
   decreaseButton.type = "button";
-  decreaseButton.className = "playlist-step-button";
+  decreaseButton.className = "playlist-step-button cui-number-step-button cui-number-down";
   decreaseButton.setAttribute("aria-label", `Diminuer ${ariaLabel.toLowerCase()}`);
   decreaseButton.innerHTML = `
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1896,9 +1929,10 @@ const createPlaylistNumberField = ({
   };
 
   const pulseValue = (direction) => {
-    input.classList.remove("value-up", "value-down");
+    input.classList.remove("value-up", "value-down", "cui-value-up", "cui-value-down");
     void input.offsetWidth;
     input.classList.add(direction === "up" ? "value-up" : "value-down");
+    input.classList.add(direction === "up" ? "cui-value-up" : "cui-value-down");
   };
 
   const updateButtons = () => {
@@ -1957,25 +1991,25 @@ const createPlaylistNumberField = ({
 
 const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
   const wrapper = document.createElement("div");
-  wrapper.className = "playlist-date-time-wrapper";
+  wrapper.className = "playlist-date-time-wrapper cui-date-picker-50";
 
   const field = document.createElement("div");
-  field.className = "playlist-date-time-field";
+  field.className = "playlist-date-time-field cui-date-field";
 
   const input = document.createElement("input");
   input.type = "text";
-  input.className = "playlist-date-time-input";
+  input.className = "playlist-date-time-input cui-date-input";
   input.readOnly = true;
   input.placeholder = "Aucune date";
   input.setAttribute("aria-label", ariaLabel);
 
   const calendarButton = document.createElement("button");
   calendarButton.type = "button";
-  calendarButton.className = "playlist-calendar-button";
+  calendarButton.className = "playlist-calendar-button cui-calendar-button";
   calendarButton.setAttribute("aria-label", `Ouvrir le calendrier pour ${ariaLabel.toLowerCase()}`);
   calendarButton.innerHTML = `
     <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-      <g class="calendar-icon-body">
+      <g class="calendar-icon-body cui-calendar-icon-body">
         <path d="M17 13H47C51 13 54 16 54 20V49C54 53 51 56 47 56H17C13 56 10 53 10 49V20C10 16 13 13 17 13Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
         <path d="M10 25H54" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
         <path d="M21 8V17" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
@@ -1989,30 +2023,30 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
     </svg>`;
 
   const pickerPanel = document.createElement("div");
-  pickerPanel.className = "playlist-picker-panel below";
+  pickerPanel.className = "playlist-picker-panel cui-picker-panel below cui-below";
 
   const pickerHeader = document.createElement("div");
-  pickerHeader.className = "playlist-picker-header";
+  pickerHeader.className = "playlist-picker-header cui-picker-header";
 
   const prevMonth = document.createElement("button");
   prevMonth.type = "button";
-  prevMonth.className = "playlist-nav-button";
+  prevMonth.className = "playlist-nav-button cui-nav-button";
   prevMonth.textContent = "‹";
   prevMonth.setAttribute("aria-label", "Mois précédent");
 
   const monthTitle = document.createElement("div");
-  monthTitle.className = "playlist-month-title";
+  monthTitle.className = "playlist-month-title cui-month-title";
 
   const nextMonth = document.createElement("button");
   nextMonth.type = "button";
-  nextMonth.className = "playlist-nav-button";
+  nextMonth.className = "playlist-nav-button cui-nav-button";
   nextMonth.textContent = "›";
   nextMonth.setAttribute("aria-label", "Mois suivant");
 
   pickerHeader.append(prevMonth, monthTitle, nextMonth);
 
   const weekdays = document.createElement("div");
-  weekdays.className = "playlist-weekdays";
+  weekdays.className = "playlist-weekdays cui-weekdays";
   ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"].forEach((label) => {
     const day = document.createElement("div");
     day.className = "playlist-weekday";
@@ -2021,37 +2055,37 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
   });
 
   const calendarGrid = document.createElement("div");
-  calendarGrid.className = "playlist-calendar-grid";
+  calendarGrid.className = "playlist-calendar-grid cui-calendar-grid";
 
   const timeSection = document.createElement("div");
-  timeSection.className = "playlist-time-section";
+  timeSection.className = "playlist-time-section cui-time-section";
 
   const buildTimeColumn = (label) => {
     const column = document.createElement("div");
-    column.className = "playlist-time-column";
+    column.className = "playlist-time-column cui-time-column";
 
     const timeLabel = document.createElement("div");
-    timeLabel.className = "playlist-time-label";
+    timeLabel.className = "playlist-time-label cui-time-label";
     timeLabel.textContent = label;
 
     const stepper = document.createElement("div");
-    stepper.className = "playlist-time-stepper";
+    stepper.className = "playlist-time-stepper cui-time-stepper";
 
     const upButton = document.createElement("button");
     upButton.type = "button";
-    upButton.className = "playlist-step-button";
+    upButton.className = "playlist-step-button cui-step-button";
     upButton.innerHTML = `
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M6 15L12 9L18 15" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>`;
 
     const display = document.createElement("div");
-    display.className = "playlist-time-display";
+    display.className = "playlist-time-display cui-time-display";
     display.textContent = "00";
 
     const downButton = document.createElement("button");
     downButton.type = "button";
-    downButton.className = "playlist-step-button";
+    downButton.className = "playlist-step-button cui-step-button";
     downButton.innerHTML = `
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
@@ -2071,16 +2105,16 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
   timeSection.append(hourColumn.column, minuteColumn.column);
 
   const pickerActions = document.createElement("div");
-  pickerActions.className = "playlist-picker-actions";
+  pickerActions.className = "playlist-picker-actions cui-picker-actions";
 
   const nowButton = document.createElement("button");
   nowButton.type = "button";
-  nowButton.className = "playlist-picker-action playlist-now-button";
+  nowButton.className = "playlist-picker-action playlist-now-button cui-picker-action cui-now-button";
   nowButton.textContent = "Maintenant";
 
   const applyButton = document.createElement("button");
   applyButton.type = "button";
-  applyButton.className = "playlist-picker-action playlist-apply-button";
+  applyButton.className = "playlist-picker-action playlist-apply-button cui-picker-action cui-apply-button";
   applyButton.textContent = "Choisir";
 
   pickerActions.append(nowButton, applyButton);
@@ -2116,9 +2150,10 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
   let layoutListenersAttached = false;
 
   const pulseDisplay = (displayNode, direction) => {
-    displayNode.classList.remove("pulse-up", "pulse-down");
+    displayNode.classList.remove("pulse-up", "pulse-down", "cui-pulse-up", "cui-pulse-down");
     void displayNode.offsetWidth;
     displayNode.classList.add(direction === "up" ? "pulse-up" : "pulse-down");
+    displayNode.classList.add(direction === "up" ? "cui-pulse-up" : "cui-pulse-down");
   };
 
   const syncInput = () => {
@@ -2152,7 +2187,7 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
 
     for (let index = 0; index < firstWeekday; index += 1) {
       const empty = document.createElement("div");
-      empty.className = "playlist-empty-day";
+      empty.className = "playlist-empty-day cui-empty-day";
       calendarGrid.appendChild(empty);
     }
 
@@ -2160,13 +2195,15 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
       const button = document.createElement("button");
       const date = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
       button.type = "button";
-      button.className = "playlist-day-button";
+      button.className = "playlist-day-button cui-day-button";
       button.textContent = String(day);
       if (isSameDay(date, today)) {
         button.classList.add("today");
+        button.classList.add("cui-today");
       }
       if (isSameDay(date, activeDate)) {
         button.classList.add("selected");
+        button.classList.add("cui-selected");
       }
       button.addEventListener("click", () => {
         selectedDate = new Date(
@@ -2190,15 +2227,17 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
 
   const updatePickerPosition = () => {
     const wrapperRect = wrapper.getBoundingClientRect();
-    pickerPanel.classList.remove("above", "below");
+    pickerPanel.classList.remove("above", "below", "cui-above", "cui-below");
     const gap = 12;
     const panelHeight = pickerPanel.offsetHeight;
     const spaceAbove = wrapperRect.top;
     const spaceBelow = window.innerHeight - wrapperRect.bottom;
     if (spaceBelow >= panelHeight + gap || spaceBelow >= spaceAbove) {
       pickerPanel.classList.add("below");
+      pickerPanel.classList.add("cui-below");
     } else {
       pickerPanel.classList.add("above");
+      pickerPanel.classList.add("cui-above");
     }
   };
 
@@ -2239,18 +2278,20 @@ const createPlaylistDateTimeField = ({ value = "", ariaLabel, onCommit }) => {
   };
 
   function closePicker() {
-    pickerPanel.classList.remove("open");
+    pickerPanel.classList.remove("open", "cui-open", "above", "below", "cui-above", "cui-below");
     detachLayoutListeners();
   }
 
   const openPicker = () => {
     renderCalendar();
-    pickerPanel.classList.remove("open", "above", "below");
+    pickerPanel.classList.remove("open", "cui-open", "above", "below", "cui-above", "cui-below");
     pickerPanel.classList.add("below");
+    pickerPanel.classList.add("cui-below");
     attachLayoutListeners();
     requestAnimationFrame(() => {
       updatePickerPosition();
       pickerPanel.classList.add("open");
+      pickerPanel.classList.add("cui-open");
     });
   };
 
@@ -2454,8 +2495,14 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
 
   const renameButton = document.createElement("button");
   renameButton.type = "button";
-  renameButton.className = "secondary-button";
-  renameButton.textContent = "Renommer";
+  renameButton.className = "secondary-button icon-button playlist-rename-button";
+  renameButton.setAttribute("aria-label", "Renommer");
+  renameButton.title = "Renommer";
+  renameButton.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 16.5V20h3.5L18 9.5l-3.5-3.5L4 16.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M13 6l3.5 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>`;
   renameButton.addEventListener("click", () => renameMedia(item));
 
   titleContainer.append(title, meta, renameButton);
@@ -2588,7 +2635,7 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
   }
 
   const actions = document.createElement("div");
-  actions.className = "media-card-actions";
+  actions.className = "media-card-actions cui-actions-50";
 
   const archiveButton = createPlaylistActionButton({
     kind: archivedView ? "restore" : "archive",
@@ -8285,16 +8332,21 @@ dropZone.addEventListener("drop", (event) => {
 }
 
 refreshButton?.addEventListener("click", () => {
+  pulsePlaylistActionButton(refreshButton);
   void loadMedia();
 });
 
 archivedToggleButton?.addEventListener("click", () => {
   if (!archivedMediaItems.length) return;
+  pulsePlaylistActionButton(archivedToggleButton);
   archivedMediaExpanded = !archivedMediaExpanded;
   renderArchivedMedia();
 });
 
-playlistUploadButton?.addEventListener("click", openUploadModal);
+playlistUploadButton?.addEventListener("click", () => {
+  pulsePlaylistActionButton(playlistUploadButton);
+  openUploadModal();
+});
 uploadModalCloseButtons.forEach((button) => {
   button.addEventListener("click", closeUploadModal);
 });
@@ -8308,6 +8360,9 @@ hideAllButton?.addEventListener("click", async () => {
   if (!mediaItems.length) return;
   const confirmAction = window.confirm("Masquer tous les médias ?");
   if (!confirmAction) return;
+  pulsePlaylistActionButton(hideAllButton);
+  hideAllButton.disabled = true;
+  hideAllButton.classList.add("is-busy");
   try {
     for (const item of mediaItems) {
       // eslint-disable-next-line no-await-in-loop
@@ -8317,6 +8372,9 @@ hideAllButton?.addEventListener("click", async () => {
   } catch (error) {
     console.error(error);
     alert("Erreur lors du masquage global.");
+  } finally {
+    hideAllButton.disabled = false;
+    hideAllButton.classList.remove("is-busy");
   }
 });
 
@@ -8324,6 +8382,9 @@ showAllButton?.addEventListener("click", async () => {
   if (!mediaItems.length) return;
   const confirmAction = window.confirm("Démasquer tous les médias ?");
   if (!confirmAction) return;
+  pulsePlaylistActionButton(showAllButton);
+  showAllButton.disabled = true;
+  showAllButton.classList.add("is-busy");
   try {
     for (const item of mediaItems) {
       // eslint-disable-next-line no-await-in-loop
@@ -8333,10 +8394,14 @@ showAllButton?.addEventListener("click", async () => {
   } catch (error) {
     console.error(error);
     alert("Erreur lors du démasquage global.");
+  } finally {
+    showAllButton.disabled = false;
+    showAllButton.classList.remove("is-busy");
   }
 });
 
 slideshowButton?.addEventListener("click", () => {
+  pulsePlaylistActionButton(slideshowButton);
   try {
     sessionStorage.setItem("cardinal_auto_slideshow", "1");
   } catch (error) {
