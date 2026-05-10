@@ -2538,6 +2538,12 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
   const grid = document.createElement("div");
   grid.className = "media-card-grid";
 
+  const datesRow = document.createElement("div");
+  datesRow.className = "media-card-grid-row media-card-grid-row--dates";
+
+  const numbersRow = document.createElement("div");
+  numbersRow.className = "media-card-grid-row media-card-grid-row--numbers";
+
   let autoSaveController = null;
   let autoSaveStatusTimer = null;
   const autoSaveStatus = document.createElement("p");
@@ -2578,14 +2584,14 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
     ariaLabel: "Date de début",
     onCommit: requestAutoSave,
   });
-  grid.appendChild(createFieldGroup("Début", startField.root, "field-group--date"));
+  datesRow.appendChild(createFieldGroup("Début", startField.root, "field-group--date"));
 
   const endField = createPlaylistDateTimeField({
     value: formatDateForInput(item.end_at),
     ariaLabel: "Date de fin",
     onCommit: requestAutoSave,
   });
-  grid.appendChild(createFieldGroup("Fin", endField.root, "field-group--date"));
+  datesRow.appendChild(createFieldGroup("Fin", endField.root, "field-group--date"));
 
   let durationField = null;
   if (kind !== "video") {
@@ -2597,7 +2603,7 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
       ariaLabel: "Durée",
       onCommit: requestAutoSave,
     });
-    grid.appendChild(createFieldGroup("Durée (s)", durationField.root, "field-group--number"));
+    numbersRow.appendChild(createFieldGroup("Durée (s)", durationField.root, "field-group--number"));
   }
 
   const skipField = createPlaylistNumberField({
@@ -2608,7 +2614,12 @@ const createMediaCard = (item, globalIndex, displayNumber, totalCount, options =
     ariaLabel: "Sauts",
     onCommit: requestAutoSave,
   });
-  grid.appendChild(createFieldGroup("Sauts", skipField.root, "field-group--number"));
+  numbersRow.appendChild(createFieldGroup("Sauts", skipField.root, "field-group--number"));
+
+  grid.appendChild(datesRow);
+  if (numbersRow.childElementCount > 0) {
+    grid.appendChild(numbersRow);
+  }
 
   const buildPayload = () => {
     const payload = {
