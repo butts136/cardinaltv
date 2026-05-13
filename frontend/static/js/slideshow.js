@@ -6341,7 +6341,7 @@ const renderVacationsSlide = (item) => {
       const widthPercent = (segment.span / 7) * 100;
       bar.style.left = `calc(${leftPercent}% + 0.22vw)`;
       bar.style.width = `calc(${widthPercent}% - 0.44vw)`;
-      bar.style.top = `calc(2.65vh + ${segment.lane * 2.58}vh)`;
+      bar.style.setProperty("--bar-lane", String(segment.lane || 0));
       wrapper.appendChild(bar);
     });
     return wrapper;
@@ -6376,9 +6376,7 @@ const renderVacationsSlide = (item) => {
       row.className = "week-row";
       const segments = getSegments(week, labelDate);
       const laneCount = assignLanes(segments);
-      const rowHeightVh = laneCount > 0 ? 4.75 + laneCount * 2.72 : 4.75;
       row.style.setProperty("--lane-count", laneCount);
-      row.style.setProperty("--week-row-min-height", `${rowHeightVh}vh`);
 
       const dayGrid = document.createElement("div");
       dayGrid.className = "day-grid";
