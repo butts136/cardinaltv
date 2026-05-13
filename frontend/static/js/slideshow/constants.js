@@ -135,6 +135,8 @@
 
   const DEFAULT_VACATIONS_SLIDE = {
     enabled: false,
+    show_vacations: false,
+    show_calendar_events: false,
     order_index: 0,
     duration: 20,
     background_url: null,
