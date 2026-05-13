@@ -494,9 +494,16 @@
     const selectCalendarDate = (iso) => {
       if (!activeEdit || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
       const { start, end, hasStart, hasEnd } = getRangeBounds();
-      if (!hasStart || !hasEnd) {
+      if (!hasStart) {
         activeEdit.startDate = iso;
         activeEdit.endDate = iso;
+      } else if (!hasEnd) {
+        if (iso >= start) {
+          activeEdit.endDate = iso;
+        } else {
+          activeEdit.startDate = iso;
+          activeEdit.endDate = iso;
+        }
       } else if (start !== end) {
         activeEdit.startDate = iso;
         activeEdit.endDate = iso;

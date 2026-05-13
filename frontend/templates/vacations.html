@@ -286,7 +286,6 @@
     .vacations-modal-panel {
       width: min(520px, calc(100vw - (var(--vac-modal-gap) * 2)));
       max-height: calc(100vh - (var(--vac-modal-gap) * 2));
-      max-height: calc(100dvh - (var(--vac-modal-gap) * 2));
       border-radius: 28px;
       border: 1px solid var(--vac-border-soft);
       background: #ffffff;
@@ -595,7 +594,6 @@
       .vacations-modal-panel {
         width: min(100%, calc(100vw - (var(--vac-modal-gap) * 2)));
         max-height: calc(100vh - (var(--vac-modal-gap) * 2));
-        max-height: calc(100dvh - (var(--vac-modal-gap) * 2));
         border-radius: 22px;
       }
 
@@ -628,6 +626,12 @@
 
       .vacations-modal-footer {
         padding: 0 12px 14px;
+      }
+    }
+
+    @supports (height: 100dvh) {
+      .vacations-modal-panel {
+        max-height: calc(100dvh - (var(--vac-modal-gap) * 2));
       }
     }
   </style>
