@@ -2968,24 +2968,6 @@ const setSlideEntryEnabledState = async (type, enabled, slideId = null) => {
     return;
   }
 
-  if (type === "vacations") {
-    const patch = {
-      vacations_slide: {
-        show_vacations: nextEnabled,
-        show_calendar_events: nextEnabled,
-      },
-    };
-    const data = await fetchJSON("api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    vacationsSlideSettings = normalizeVacationsSlideSettings(
-      data.vacations_slide || patch.vacations_slide,
-    );
-    return;
-  }
-
   if (type === "news") {
     const data = await fetchJSON("api/news-slide", {
       method: "POST",
@@ -3298,7 +3280,17 @@ const createVacationsSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   title.textContent = "Diapositive « Calendrier »";
   const status = document.createElement("p");
   status.className = "field-hint";
-  status.textContent = vacationsSlideSettings?.enabled ? "Activée" : "Désactivée";
+  const showVac = Boolean(vacationsSlideSettings?.show_vacations);
+  const showCal = Boolean(vacationsSlideSettings?.show_calendar_events);
+  if (showVac && showCal) {
+    status.textContent = "Activée (Vacances + Fériés)";
+  } else if (showVac) {
+    status.textContent = "Activée (Vacances uniquement)";
+  } else if (showCal) {
+    status.textContent = "Activée (Fériés uniquement)";
+  } else {
+    status.textContent = "Désactivée";
+  }
   body.append(title, status);
   body.appendChild(createSkipRoundsControl("vacations", vacationsSlideSettings?.skip_rounds || 0));
 

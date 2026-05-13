@@ -5042,12 +5042,8 @@ const buildVacationsDisplayPayload = (
     ...DEFAULT_VACATIONS_SLIDE,
     ...(settings || {}),
   };
-  const showVacations = Boolean(
-    normalizedSettings.show_vacations ?? normalizedSettings.enabled,
-  );
-  const showCalendarEvents = Boolean(
-    normalizedSettings.show_calendar_events ?? normalizedSettings.enabled,
-  );
+  const showVacations = Boolean(normalizedSettings.show_vacations);
+  const showCalendarEvents = Boolean(normalizedSettings.show_calendar_events);
   const monthsToShow = Math.max(1, Math.min(24, Number(normalizedSettings.months_to_show) || DEFAULT_VACATIONS_SLIDE.months_to_show || 12));
   const rangeStart = startOfUtcMonth(new Date());
   const rangeEnd = addUtcDays(addUtcMonths(rangeStart, monthsToShow), -1);
