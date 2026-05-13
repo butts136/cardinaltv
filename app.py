@@ -1612,25 +1612,20 @@ def _normalize_vacations_config(
 ) -> Dict[str, Any]:
     result = copy.deepcopy(base or DEFAULT_SETTINGS["vacations_slide"])
     source = raw if isinstance(raw, dict) else {}
-    legacy_enabled = bool(source.get("enabled"))
+    legacy_enabled = bool(source["enabled"]) if "enabled" in source else None
 
-    if "show_vacations" not in result:
-        result["show_vacations"] = bool(result.get("enabled"))
-    if "show_calendar_events" not in result:
-        result["show_calendar_events"] = bool(result.get("enabled"))
-    if "show_vacations" not in source and "enabled" in source:
-        result["show_vacations"] = legacy_enabled
-    if "show_calendar_events" not in source and "enabled" in source:
-        result["show_calendar_events"] = legacy_enabled
+    def _resolve_section_enabled(key: str) -> bool:
+        if key in source:
+            return bool(source[key])
+        if legacy_enabled is not None:
+            return legacy_enabled
+        return bool(result.get(key, result.get("enabled")))
+
+    result["show_vacations"] = _resolve_section_enabled("show_vacations")
+    result["show_calendar_events"] = _resolve_section_enabled("show_calendar_events")
 
     for key, value in source.items():
-        if key == "enabled":
-            result["enabled"] = bool(value)
-        elif key == "show_vacations":
-            result["show_vacations"] = bool(value)
-        elif key == "show_calendar_events":
-            result["show_calendar_events"] = bool(value)
-        elif key == "order_index":
+        if key == "order_index":
             try:
                 index = int(value)
             except (TypeError, ValueError):
@@ -1725,7 +1720,8 @@ def _normalize_vacations_config(
     if len(result["lines"]) > 2:
         result["text3"] = result["lines"][2]["text"]
         result["text3_options"] = result["lines"][2]["options"]
-    result["enabled"] = bool(result.get("show_vacations") or result.get("show_calendar_events"))
+    has_enabled_section = bool(result.get("show_vacations") or result.get("show_calendar_events"))
+    result["enabled"] = has_enabled_section
     return result
 
 

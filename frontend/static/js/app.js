@@ -1094,19 +1094,14 @@ const normalizeVacationsSlideSettings = (raw) => {
     return base;
   }
   const result = { ...base };
-  if ("enabled" in raw) {
-    result.enabled = Boolean(raw.enabled);
-  }
-  if ("show_vacations" in raw) {
-    result.show_vacations = Boolean(raw.show_vacations);
-  } else if ("enabled" in raw) {
-    result.show_vacations = Boolean(raw.enabled);
-  }
-  if ("show_calendar_events" in raw) {
-    result.show_calendar_events = Boolean(raw.show_calendar_events);
-  } else if ("enabled" in raw) {
-    result.show_calendar_events = Boolean(raw.enabled);
-  }
+  const legacyEnabled = "enabled" in raw ? Boolean(raw.enabled) : null;
+  const resolveSectionEnabled = (key) => {
+    if (key in raw) return Boolean(raw[key]);
+    if (legacyEnabled !== null) return legacyEnabled;
+    return Boolean(base[key]);
+  };
+  result.show_vacations = resolveSectionEnabled("show_vacations");
+  result.show_calendar_events = resolveSectionEnabled("show_calendar_events");
   if ("order_index" in raw) {
     const idx = Number.parseInt(raw.order_index, 10);
     if (Number.isFinite(idx) && idx >= 0) {
@@ -1127,7 +1122,8 @@ const normalizeVacationsSlideSettings = (raw) => {
       }
     }
   });
-  result.enabled = Boolean(result.show_vacations || result.show_calendar_events);
+  const hasEnabledCalendarSection = result.show_vacations || result.show_calendar_events;
+  result.enabled = Boolean(hasEnabledCalendarSection);
   return result;
 };
 
