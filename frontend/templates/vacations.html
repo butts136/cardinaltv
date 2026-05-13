@@ -18,6 +18,7 @@
       --vac-danger: #f87171;
       --vac-danger-soft: rgba(248, 113, 113, 0.16);
       --vac-today: #f59e0b;
+      --vac-modal-gap: clamp(12px, 3vw, 24px);
     }
 
     .vacations-admin-page {
@@ -275,18 +276,23 @@
       z-index: 1000;
       display: grid;
       place-items: center;
-      padding: 18px;
+      padding: var(--vac-modal-gap);
       background: rgba(2, 6, 23, 0.62);
       backdrop-filter: blur(6px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .vacations-modal-panel {
-      width: min(520px, 100%);
+      width: min(520px, calc(100vw - (var(--vac-modal-gap) * 2)));
+      max-height: calc(100vh - (var(--vac-modal-gap) * 2));
+      max-height: calc(100dvh - (var(--vac-modal-gap) * 2));
       border-radius: 28px;
       border: 1px solid var(--vac-border-soft);
       background: #ffffff;
       box-shadow: 0 28px 70px rgba(2, 6, 23, 0.42);
-      overflow: hidden;
+      overflow-y: auto;
+      box-sizing: border-box;
       display: grid;
       gap: 0;
     }
@@ -582,6 +588,31 @@
         grid-template-columns: 1fr;
       }
 
+      .vacations-modal {
+        place-items: start center;
+      }
+
+      .vacations-modal-panel {
+        width: min(100%, calc(100vw - (var(--vac-modal-gap) * 2)));
+        max-height: calc(100vh - (var(--vac-modal-gap) * 2));
+        max-height: calc(100dvh - (var(--vac-modal-gap) * 2));
+        border-radius: 22px;
+      }
+
+      .vacations-modal-header {
+        gap: 12px;
+        padding: 18px 18px 16px;
+      }
+
+      .vacations-range-summary {
+        padding: 14px 16px 0;
+      }
+
+      .vacations-calendar {
+        gap: 8px;
+        padding: 10px 12px 14px;
+      }
+
       .vacations-calendar-day {
         height: 44px;
       }
@@ -593,6 +624,10 @@
 
       .vacations-calendar-tools {
         flex-direction: column;
+      }
+
+      .vacations-modal-footer {
+        padding: 0 12px 14px;
       }
     }
   </style>
@@ -662,7 +697,7 @@
         <div class="vacations-modal-header">
           <div>
             <h3 id="vacations-period-modal-title">Période de vacances</h3>
-            <p id="vacations-period-modal-instruction">Cliquez une date de début, puis une date de fin.</p>
+            <p id="vacations-period-modal-instruction">Cliquez une date. Vous pourrez l'enregistrer seule ou choisir une date de fin.</p>
           </div>
           <button type="button" class="icon-button vacations-mini-button vacations-modal-close" id="vacations-period-modal-close" aria-label="Fermer">
             ×
@@ -697,5 +732,5 @@
 
 {% block scripts %}
   {{ super() }}
-  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-12"></script>
+  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260513-01"></script>
 {% endblock %}

@@ -304,7 +304,7 @@
         return "Période de vacances";
       }
       if (start === end) {
-        return `Du ${start}`;
+        return `Le ${start}`;
       }
       return `Du ${start} au ${end}`;
     };
@@ -397,14 +397,17 @@
     const updateRangeSummary = () => {
       if (!modalRangeSummary) return;
       const { start, end, hasStart, hasEnd } = getRangeBounds();
+      const isSingleDay = hasStart && hasEnd && start === end;
       if (modalStartValue) modalStartValue.textContent = hasStart ? formatDate(start) : "—";
       if (modalEndValue) modalEndValue.textContent = hasEnd ? formatDate(end) : "—";
       if (modalSave) modalSave.disabled = !(hasStart && hasEnd);
       if (modalInstruction) {
         if (!hasStart) {
-          modalInstruction.textContent = "Cliquez une date de début, puis une date de fin.";
+          modalInstruction.textContent = "Cliquez une date. Vous pourrez l'enregistrer seule ou choisir une date de fin.";
         } else if (!hasEnd) {
           modalInstruction.textContent = "Cliquez maintenant la date de fin.";
+        } else if (isSingleDay) {
+          modalInstruction.textContent = "Journée seule sélectionnée. Cliquez une autre date pour étendre la période, ou enregistrez.";
         } else {
           modalInstruction.textContent = "Sélection complète. Enregistrez la période.";
         }
@@ -413,6 +416,8 @@
         modalRangeSummary.textContent = "Sélectionnez une date de début.";
       } else if (!hasEnd) {
         modalRangeSummary.textContent = `Début: ${formatDate(start)}. Sélectionnez une date de fin.`;
+      } else if (isSingleDay) {
+        modalRangeSummary.textContent = `Journée sélectionnée : ${formatDate(start)}`;
       } else {
         modalRangeSummary.textContent = `Du ${formatDate(start)} au ${formatDate(end)}`;
       }
@@ -489,9 +494,10 @@
     const selectCalendarDate = (iso) => {
       if (!activeEdit || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
       const { start, end, hasStart, hasEnd } = getRangeBounds();
-      if (!hasStart || hasEnd || iso < start) {
+      const isSingleDaySelection = hasStart && hasEnd && start === end;
+      if (!hasStart || !hasEnd || !isSingleDaySelection || iso <= start) {
         activeEdit.startDate = iso;
-        activeEdit.endDate = "";
+        activeEdit.endDate = iso;
       } else {
         activeEdit.endDate = iso;
       }
@@ -510,7 +516,7 @@
       activeEdit = null;
       setStatus(modalStatus, "");
       if (modalTitle) modalTitle.textContent = "Période de vacances";
-      if (modalInstruction) modalInstruction.textContent = "Cliquez une date de début, puis une date de fin.";
+      if (modalInstruction) modalInstruction.textContent = "Cliquez une date. Vous pourrez l'enregistrer seule ou choisir une date de fin.";
       if (modalCalendar) modalCalendar.replaceChildren();
       if (modalRangeSummary) modalRangeSummary.textContent = "Sélectionnez une date de début.";
       applyModalState();
@@ -585,7 +591,9 @@
           main.appendChild(range);
 
           const details = document.createElement("span");
-          details.textContent = `${formatShortDate(period.start_date)} au ${formatShortDate(period.end_date)}`;
+          details.textContent = period.start_date === period.end_date
+            ? formatShortDate(period.start_date)
+            : `${formatShortDate(period.start_date)} au ${formatShortDate(period.end_date)}`;
           main.appendChild(details);
 
           const actions = document.createElement("div");
