@@ -221,9 +221,7 @@
       if (!enabledToggle) return;
       try {
         const data = await fetchJSON("api/settings");
-        enabledToggle.checked = Boolean(
-          data?.vacations_slide?.show_calendar_events ?? data?.vacations_slide?.enabled,
-        );
+        enabledToggle.checked = Boolean(data?.vacations_slide?.show_calendar_events);
         setStatus(previewStatus, "", "info");
       } catch (error) {
         setStatus(previewStatus, extractErrorMessage(error), "error");
@@ -240,9 +238,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ vacations_slide: { show_calendar_events: enabled } }),
         });
-        enabledToggle.checked = Boolean(
-          data?.vacations_slide?.show_calendar_events ?? data?.vacations_slide?.enabled,
-        );
+        enabledToggle.checked = Boolean(data?.vacations_slide?.show_calendar_events);
         setStatus(previewStatus, "Statut enregistré.", "success");
         refreshPreview({ immediate: true });
       } catch (error) {
