@@ -1619,7 +1619,9 @@ def _normalize_vacations_config(
             return bool(source[key])
         if legacy_enabled is not None:
             return legacy_enabled
-        return bool(result.get(key, result.get("enabled")))
+        if key in result:
+            return bool(result[key])
+        return bool(result.get("enabled", False))
 
     result["show_vacations"] = _resolve_section_enabled("show_vacations")
     result["show_calendar_events"] = _resolve_section_enabled("show_calendar_events")

@@ -1098,7 +1098,7 @@ const normalizeVacationsSlideSettings = (raw) => {
   const resolveSectionEnabled = (key) => {
     if (key in raw) return Boolean(raw[key]);
     if (legacyEnabled !== null) return legacyEnabled;
-    return Boolean(base[key]);
+    return Boolean(base[key] ?? false);
   };
   result.show_vacations = resolveSectionEnabled("show_vacations");
   result.show_calendar_events = resolveSectionEnabled("show_calendar_events");
