@@ -505,6 +505,8 @@ const DEFAULT_WEATHER_SLIDE_SETTINGS = {
 
 const DEFAULT_VACATIONS_SLIDE_SETTINGS = {
   enabled: false,
+  show_vacations: false,
+  show_calendar_events: false,
   order_index: 0,
   duration: 20,
   initial_full_weeks: 8,
@@ -1095,6 +1097,16 @@ const normalizeVacationsSlideSettings = (raw) => {
   if ("enabled" in raw) {
     result.enabled = Boolean(raw.enabled);
   }
+  if ("show_vacations" in raw) {
+    result.show_vacations = Boolean(raw.show_vacations);
+  } else if ("enabled" in raw) {
+    result.show_vacations = Boolean(raw.enabled);
+  }
+  if ("show_calendar_events" in raw) {
+    result.show_calendar_events = Boolean(raw.show_calendar_events);
+  } else if ("enabled" in raw) {
+    result.show_calendar_events = Boolean(raw.enabled);
+  }
   if ("order_index" in raw) {
     const idx = Number.parseInt(raw.order_index, 10);
     if (Number.isFinite(idx) && idx >= 0) {
@@ -1115,6 +1127,7 @@ const normalizeVacationsSlideSettings = (raw) => {
       }
     }
   });
+  result.enabled = Boolean(result.show_vacations || result.show_calendar_events);
   return result;
 };
 
@@ -2960,7 +2973,12 @@ const setSlideEntryEnabledState = async (type, enabled, slideId = null) => {
   }
 
   if (type === "vacations") {
-    const patch = { vacations_slide: { enabled: nextEnabled } };
+    const patch = {
+      vacations_slide: {
+        show_vacations: nextEnabled,
+        show_calendar_events: nextEnabled,
+      },
+    };
     const data = await fetchJSON("api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

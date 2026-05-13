@@ -347,6 +347,8 @@ DEFAULT_SETTINGS = {
     },
     "vacations_slide": {
         "enabled": False,
+        "show_vacations": False,
+        "show_calendar_events": False,
         "order_index": 0,
         "skip_rounds": 0,
         "duration": 20.0,
@@ -1610,10 +1612,24 @@ def _normalize_vacations_config(
 ) -> Dict[str, Any]:
     result = copy.deepcopy(base or DEFAULT_SETTINGS["vacations_slide"])
     source = raw if isinstance(raw, dict) else {}
+    legacy_enabled = bool(source.get("enabled"))
+
+    if "show_vacations" not in result:
+        result["show_vacations"] = bool(result.get("enabled"))
+    if "show_calendar_events" not in result:
+        result["show_calendar_events"] = bool(result.get("enabled"))
+    if "show_vacations" not in source and "enabled" in source:
+        result["show_vacations"] = legacy_enabled
+    if "show_calendar_events" not in source and "enabled" in source:
+        result["show_calendar_events"] = legacy_enabled
 
     for key, value in source.items():
         if key == "enabled":
             result["enabled"] = bool(value)
+        elif key == "show_vacations":
+            result["show_vacations"] = bool(value)
+        elif key == "show_calendar_events":
+            result["show_calendar_events"] = bool(value)
         elif key == "order_index":
             try:
                 index = int(value)
@@ -1709,6 +1725,7 @@ def _normalize_vacations_config(
     if len(result["lines"]) > 2:
         result["text3"] = result["lines"][2]["text"]
         result["text3_options"] = result["lines"][2]["options"]
+    result["enabled"] = bool(result.get("show_vacations") or result.get("show_calendar_events"))
     return result
 
 
@@ -5558,13 +5575,23 @@ def _inject_custom_slides_nav() -> Dict[str, Any]:
             "endpoint": "main.vacations",
             "label": "Vacances",
             "url": url_for("main.vacations"),
-            "enabled": bool((settings.get("vacations_slide") or {}).get("enabled")),
+            "enabled": bool(
+                (settings.get("vacations_slide") or {}).get(
+                    "show_vacations",
+                    bool((settings.get("vacations_slide") or {}).get("enabled")),
+                )
+            ),
         },
         {
             "endpoint": "main.calendar_events",
             "label": "Fériés et modifications d'horaires",
             "url": url_for("main.calendar_events"),
-            "enabled": bool((settings.get("vacations_slide") or {}).get("enabled")),
+            "enabled": bool(
+                (settings.get("vacations_slide") or {}).get(
+                    "show_calendar_events",
+                    bool((settings.get("vacations_slide") or {}).get("enabled")),
+                )
+            ),
         },
     ]
 
