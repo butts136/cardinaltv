@@ -304,9 +304,17 @@
         return "Période de vacances";
       }
       if (start === end) {
-        return `Du ${start}`;
+        return `Le ${start}`;
       }
       return `Du ${start} au ${end}`;
+    };
+
+    const formatPeriodDetails = (period) => {
+      const start = formatShortDate(period.start_date);
+      const end = formatShortDate(period.end_date);
+      if (!start && !end) return "";
+      if (start === end) return start;
+      return `${start} au ${end}`;
     };
 
     const normalizePeriod = (period = {}) => {
@@ -398,13 +406,13 @@
       if (!modalRangeSummary) return;
       const { start, end, hasStart, hasEnd } = getRangeBounds();
       if (modalStartValue) modalStartValue.textContent = hasStart ? formatDate(start) : "—";
-      if (modalEndValue) modalEndValue.textContent = hasEnd ? formatDate(end) : "—";
-      if (modalSave) modalSave.disabled = !(hasStart && hasEnd);
+      if (modalEndValue) modalEndValue.textContent = hasStart ? formatDate(hasEnd ? end : start) : "—";
+      if (modalSave) modalSave.disabled = !hasStart;
       if (modalInstruction) {
         if (!hasStart) {
-          modalInstruction.textContent = "Cliquez une date de début, puis une date de fin.";
+          modalInstruction.textContent = "Cliquez une date pour une journée, ou une deuxième date pour une période.";
         } else if (!hasEnd) {
-          modalInstruction.textContent = "Cliquez maintenant la date de fin.";
+          modalInstruction.textContent = "Une journée sélectionnée. Enregistrez ou cliquez une autre date pour créer une période.";
         } else {
           modalInstruction.textContent = "Sélection complète. Enregistrez la période.";
         }
@@ -412,7 +420,9 @@
       if (!hasStart) {
         modalRangeSummary.textContent = "Sélectionnez une date de début.";
       } else if (!hasEnd) {
-        modalRangeSummary.textContent = `Début: ${formatDate(start)}. Sélectionnez une date de fin.`;
+        modalRangeSummary.textContent = `Une journée: ${formatDate(start)}`;
+      } else if (start === end) {
+        modalRangeSummary.textContent = `Une journée: ${formatDate(start)}`;
       } else {
         modalRangeSummary.textContent = `Du ${formatDate(start)} au ${formatDate(end)}`;
       }
@@ -489,8 +499,13 @@
     const selectCalendarDate = (iso) => {
       if (!activeEdit || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
       const { start, end, hasStart, hasEnd } = getRangeBounds();
-      if (!hasStart || hasEnd || iso < start) {
+      if (!hasStart || hasEnd) {
         activeEdit.startDate = iso;
+        activeEdit.endDate = "";
+      } else if (iso < start) {
+        activeEdit.startDate = iso;
+        activeEdit.endDate = start;
+      } else if (iso === start) {
         activeEdit.endDate = "";
       } else {
         activeEdit.endDate = iso;
@@ -510,7 +525,7 @@
       activeEdit = null;
       setStatus(modalStatus, "");
       if (modalTitle) modalTitle.textContent = "Période de vacances";
-      if (modalInstruction) modalInstruction.textContent = "Cliquez une date de début, puis une date de fin.";
+      if (modalInstruction) modalInstruction.textContent = "Cliquez une date pour une journée, ou une deuxième date pour une période.";
       if (modalCalendar) modalCalendar.replaceChildren();
       if (modalRangeSummary) modalRangeSummary.textContent = "Sélectionnez une date de début.";
       applyModalState();
@@ -585,7 +600,7 @@
           main.appendChild(range);
 
           const details = document.createElement("span");
-          details.textContent = `${formatShortDate(period.start_date)} au ${formatShortDate(period.end_date)}`;
+          details.textContent = formatPeriodDetails(period);
           main.appendChild(details);
 
           const actions = document.createElement("div");
@@ -653,9 +668,9 @@
       if (!employee) return;
 
       const startDate = String(activeEdit.startDate || "").trim();
-      const endDate = String(activeEdit.endDate || "").trim();
-      if (!startDate || !endDate) {
-        setStatus(modalStatus, "Choisissez deux dates.", "error");
+      const endDate = String(activeEdit.endDate || activeEdit.startDate || "").trim();
+      if (!startDate) {
+        setStatus(modalStatus, "Choisissez une date.", "error");
         return;
       }
       if (endDate < startDate) {

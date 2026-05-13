@@ -275,26 +275,32 @@
       z-index: 1000;
       display: grid;
       place-items: center;
-      padding: 18px;
+      padding: clamp(8px, 2vh, 18px);
       background: rgba(2, 6, 23, 0.62);
       backdrop-filter: blur(6px);
     }
 
     .vacations-modal-panel {
-      width: min(520px, 100%);
+      width: min(460px, 100%);
+      max-height: calc(100svh - 16px);
       border-radius: 28px;
       border: 1px solid var(--vac-border-soft);
       background: #ffffff;
       box-shadow: 0 28px 70px rgba(2, 6, 23, 0.42);
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
       display: grid;
       gap: 0;
     }
 
+    .vacations-modal-panel * {
+      min-width: 0;
+    }
+
     .vacations-modal-header {
       display: grid;
-      gap: 14px;
-      padding: 22px 22px 18px;
+      gap: 10px;
+      padding: 16px 18px 14px;
       background: linear-gradient(135deg, #1d4ed8, #0f766e);
       color: #ffffff;
       position: relative;
@@ -302,15 +308,16 @@
 
     .vacations-modal-header h3 {
       margin: 0;
-      font-size: 1.35rem;
+      padding-right: 42px;
+      font-size: 1.18rem;
       letter-spacing: -0.03em;
     }
 
     .vacations-modal-header p {
-      margin: 6px 0 0;
+      margin: 4px 0 0;
       color: rgba(255, 255, 255, 0.84);
-      font-size: 0.92rem;
-      line-height: 1.4;
+      font-size: 0.84rem;
+      line-height: 1.28;
     }
 
     .vacations-modal-close {
@@ -329,12 +336,12 @@
     .vacations-range-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
+      gap: 8px;
     }
 
     .vacations-range-box {
-      min-height: 66px;
-      padding: 12px;
+      min-height: 52px;
+      padding: 9px 10px;
       border: 1px solid rgba(255, 255, 255, 0.22);
       border-radius: 16px;
       background: rgba(255, 255, 255, 0.14);
@@ -343,7 +350,7 @@
 
     .vacations-range-label {
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       font-size: 0.68rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
@@ -352,24 +359,25 @@
     }
 
     .vacations-range-value {
-      font-size: 0.96rem;
+      font-size: 0.86rem;
       font-weight: 800;
-      line-height: 1.25;
+      line-height: 1.18;
     }
 
     .vacations-range-summary {
-      min-height: 40px;
+      min-height: 30px;
       display: flex;
       align-items: center;
-      padding: 16px 20px 0;
+      padding: 10px 18px 0;
       color: #475569;
       font-weight: 700;
+      font-size: 0.88rem;
     }
 
     .vacations-calendar {
       display: grid;
-      gap: 10px;
-      padding: 12px 18px 18px;
+      gap: 7px;
+      padding: 8px 16px 12px;
     }
 
     .vacations-calendar-header {
@@ -382,17 +390,17 @@
 
     .vacations-calendar-title {
       margin: 0;
-      font-size: 1.05rem;
+      font-size: 0.98rem;
       font-weight: 800;
       text-transform: capitalize;
       color: #0f172a;
     }
 
     .vacations-calendar-nav {
-      width: 40px;
-      height: 40px;
-      min-width: 40px;
-      border-radius: 14px;
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      border-radius: 12px;
       background: #f1f5f9;
       color: #0f172a;
       border: 1px solid #e2e8f0;
@@ -406,7 +414,7 @@
     .vacations-calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 4px 0;
+      gap: 2px 0;
     }
 
     .vacations-calendar-weekdays span {
@@ -419,7 +427,7 @@
 
     .vacations-calendar-day {
       position: relative;
-      height: 48px;
+      height: 38px;
       border: 0;
       background: transparent;
       color: #0f172a;
@@ -431,8 +439,8 @@
     .vacations-calendar-day::before {
       content: "";
       position: absolute;
-      top: 7px;
-      bottom: 7px;
+      top: 5px;
+      bottom: 5px;
       left: 0;
       right: 0;
       z-index: -2;
@@ -442,10 +450,10 @@
     .vacations-calendar-day::after {
       content: "";
       position: absolute;
-      top: 6px;
+      top: 4px;
       left: 50%;
-      width: 36px;
-      height: 36px;
+      width: 30px;
+      height: 30px;
       transform: translateX(-50%);
       z-index: -1;
       border-radius: 999px;
@@ -521,8 +529,8 @@
 
     .vacations-modal-footer {
       display: grid;
-      gap: 12px;
-      padding: 0 18px 20px;
+      gap: 8px;
+      padding: 0 16px 14px;
     }
 
     .vacations-calendar-tools {
@@ -533,8 +541,9 @@
     .vacations-calendar-tools .secondary-button,
     .vacations-calendar-tools .primary-button {
       flex: 1;
-      min-height: 44px;
-      border-radius: 14px;
+      min-height: 38px;
+      border-radius: 12px;
+      padding-block: 8px;
     }
 
     .vacations-modal-actions {
@@ -543,8 +552,8 @@
 
     .vacations-modal-actions .primary-button {
       width: 100%;
-      min-height: 48px;
-      border-radius: 16px;
+      min-height: 42px;
+      border-radius: 14px;
       background: linear-gradient(135deg, #16a34a, #15803d);
       border-color: transparent;
       font-weight: 900;
@@ -579,20 +588,65 @@
       }
 
       .vacations-range-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .vacations-modal {
+        align-items: start;
+        padding: 10px;
+      }
+
+      .vacations-modal-panel {
+        width: 100%;
+        max-height: calc(100svh - 20px);
+        border-radius: 20px;
+      }
+
+      .vacations-modal-header {
+        gap: 8px;
+        padding: 12px 14px 10px;
+      }
+
+      .vacations-modal-header h3 {
+        font-size: 1.02rem;
+      }
+
+      .vacations-modal-header p,
+      .vacations-range-value {
+        font-size: 0.8rem;
+      }
+
+      .vacations-range-box {
+        min-height: 44px;
+        padding: 7px 9px;
+      }
+
+      .vacations-range-summary {
+        padding: 8px 16px 0;
+      }
+
+      .vacations-calendar {
+        padding: 6px 14px 10px;
       }
 
       .vacations-calendar-day {
-        height: 44px;
+        height: 32px;
       }
 
       .vacations-calendar-day::after {
-        width: 33px;
-        height: 33px;
+        top: 3px;
+        width: 28px;
+        height: 28px;
       }
 
       .vacations-calendar-tools {
         flex-direction: column;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .vacations-range-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -662,7 +716,7 @@
         <div class="vacations-modal-header">
           <div>
             <h3 id="vacations-period-modal-title">Période de vacances</h3>
-            <p id="vacations-period-modal-instruction">Cliquez une date de début, puis une date de fin.</p>
+            <p id="vacations-period-modal-instruction">Cliquez une date pour une journée, ou une deuxième date pour une période.</p>
           </div>
           <button type="button" class="icon-button vacations-mini-button vacations-modal-close" id="vacations-period-modal-close" aria-label="Fermer">
             ×
@@ -697,5 +751,5 @@
 
 {% block scripts %}
   {{ super() }}
-  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260509-12"></script>
+  <script defer src="{{ url_for('static', filename='js/vacations_editor.js') }}?v=20260513-1"></script>
 {% endblock %}
