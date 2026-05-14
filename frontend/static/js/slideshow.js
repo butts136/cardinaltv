@@ -5042,12 +5042,14 @@ const buildVacationsDisplayPayload = (
     ...DEFAULT_VACATIONS_SLIDE,
     ...(settings || {}),
   };
+  const showVacations = Boolean(normalizedSettings.show_vacations);
+  const showCalendarEvents = Boolean(normalizedSettings.show_calendar_events);
   const monthsToShow = Math.max(1, Math.min(24, Number(normalizedSettings.months_to_show) || DEFAULT_VACATIONS_SLIDE.months_to_show || 12));
   const rangeStart = startOfUtcMonth(new Date());
   const rangeEnd = addUtcDays(addUtcMonths(rangeStart, monthsToShow), -1);
 
   const entries = [];
-  sourceEmployees.forEach((employee, employeeIndex) => {
+  (showVacations ? sourceEmployees : []).forEach((employee, employeeIndex) => {
     const periods = Array.isArray(employee?.vacations) ? employee.vacations : [];
     periods.forEach((vacation, periodIndex) => {
       const rawStart = parseIsoUtcDate(vacation?.start_date || vacation?.start);
@@ -5090,7 +5092,7 @@ const buildVacationsDisplayPayload = (
     return left.startIso.localeCompare(right.startIso);
   });
 
-  const calendarEvents = (Array.isArray(calendarEventsList) ? calendarEventsList : [])
+  const calendarEvents = (showCalendarEvents ? (Array.isArray(calendarEventsList) ? calendarEventsList : []) : [])
     .map((entry, index) => {
       const eventDate = parseIsoUtcDate(entry?.date || entry?.event_date || entry?.start_date || entry?.start);
       if (!eventDate || eventDate < rangeStart || eventDate > rangeEnd) return null;
@@ -6335,7 +6337,7 @@ const renderVacationsSlide = (item) => {
       const widthPercent = (segment.span / 7) * 100;
       bar.style.left = `calc(${leftPercent}% + 0.22vw)`;
       bar.style.width = `calc(${widthPercent}% - 0.44vw)`;
-      bar.style.top = `calc(2.65vh + ${segment.lane * 2.58}vh)`;
+      bar.style.setProperty("--bar-lane", String(segment.lane || 0));
       wrapper.appendChild(bar);
     });
     return wrapper;
@@ -6370,9 +6372,7 @@ const renderVacationsSlide = (item) => {
       row.className = "week-row";
       const segments = getSegments(week, labelDate);
       const laneCount = assignLanes(segments);
-      const rowHeightVh = laneCount > 0 ? 4.75 + laneCount * 2.72 : 4.75;
       row.style.setProperty("--lane-count", laneCount);
-      row.style.setProperty("--week-row-min-height", `${rowHeightVh}vh`);
 
       const dayGrid = document.createElement("div");
       dayGrid.className = "day-grid";
@@ -6407,10 +6407,10 @@ const renderVacationsSlide = (item) => {
   const legend = document.createElement("section");
   legend.className = "legend vacations-legend";
   [
-    { className: "vacation", label: "Vacances" },
-    { className: "holiday", label: "Fériés" },
-    { className: "closed", label: "Fermé" },
-  ].forEach((entry) => {
+    entries.length ? { className: "vacation", label: "Vacances" } : null,
+    calendarEvents.some((entry) => entry.type === "holiday") ? { className: "holiday", label: "Fériés" } : null,
+    calendarEvents.some((entry) => entry.type === "closed") ? { className: "closed", label: "Fermé" } : null,
+  ].filter(Boolean).forEach((entry) => {
     const legendItem = document.createElement("div");
     legendItem.className = "legend-item";
     const badge = document.createElement("span");

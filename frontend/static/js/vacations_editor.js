@@ -92,7 +92,7 @@
       if (!enabledToggle) return;
       try {
         const data = await fetchJSON("api/settings");
-        enabledToggle.checked = Boolean(data?.vacations_slide?.enabled);
+        enabledToggle.checked = Boolean(data?.vacations_slide?.show_vacations);
         setStatus(previewStatus, "");
       } catch (error) {
         setStatus(previewStatus, extractErrorMessage(error), "error");
@@ -107,9 +107,9 @@
         const data = await fetchJSON("api/settings", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vacations_slide: { enabled } }),
+          body: JSON.stringify({ vacations_slide: { show_vacations: enabled } }),
         });
-        enabledToggle.checked = Boolean(data?.vacations_slide?.enabled);
+        enabledToggle.checked = Boolean(data?.vacations_slide?.show_vacations);
         setStatus(previewStatus, "Statut enregistré.", "success");
         refreshPreview({ immediate: true });
       } catch (error) {

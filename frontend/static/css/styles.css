@@ -1867,7 +1867,13 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .week-row {
   position: relative;
-  min-height: var(--week-row-min-height, calc(4.25vh + (var(--lane-count, 0) * 2.65vh)));
+  --week-row-base-height: 4.9vh;
+  --week-bar-top-offset: 2.7vh;
+  --week-bar-height: 2.25vh;
+  --week-bar-gap: 0.42vh;
+  min-height: calc(
+    var(--week-row-base-height) + (var(--lane-count, 0) * (var(--week-bar-height) + var(--week-bar-gap)))
+  );
   border-bottom: 1px solid rgba(255, 255, 255, 0.085);
   overflow: hidden;
 }
@@ -1948,7 +1954,10 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .vacation-bar {
   position: absolute;
-  height: 2.35vh;
+  top: calc(
+    var(--week-bar-top-offset) + (var(--bar-lane, 0) * (var(--week-bar-height) + var(--week-bar-gap)))
+  );
+  height: var(--week-bar-height);
   min-height: 29px;
   display: flex;
   align-items: center;
@@ -2064,12 +2073,11 @@ input[type="datetime-local"]:focus {
     height: 84vh;
   }
 
-  .vacations-slide-frame .months-grid {
-    grid-template-columns: 1fr;
-  }
-
   .vacations-slide-frame .week-row {
-    min-height: calc(68px + (var(--lane-count, 0) * 34px));
+    --week-row-base-height: 68px;
+    --week-bar-top-offset: 38px;
+    --week-bar-height: 30px;
+    --week-bar-gap: 6px;
   }
 
   .vacations-slide-frame .weekday {

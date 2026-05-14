@@ -505,6 +505,8 @@ const DEFAULT_WEATHER_SLIDE_SETTINGS = {
 
 const DEFAULT_VACATIONS_SLIDE_SETTINGS = {
   enabled: false,
+  show_vacations: false,
+  show_calendar_events: false,
   order_index: 0,
   duration: 20,
   initial_full_weeks: 8,
@@ -1092,9 +1094,14 @@ const normalizeVacationsSlideSettings = (raw) => {
     return base;
   }
   const result = { ...base };
-  if ("enabled" in raw) {
-    result.enabled = Boolean(raw.enabled);
-  }
+  const legacyEnabled = "enabled" in raw ? Boolean(raw.enabled) : null;
+  const resolveSectionEnabled = (key) => {
+    if (key in raw) return Boolean(raw[key]);
+    if (legacyEnabled !== null) return legacyEnabled;
+    return Boolean(base[key] ?? false);
+  };
+  result.show_vacations = resolveSectionEnabled("show_vacations");
+  result.show_calendar_events = resolveSectionEnabled("show_calendar_events");
   if ("order_index" in raw) {
     const idx = Number.parseInt(raw.order_index, 10);
     if (Number.isFinite(idx) && idx >= 0) {
@@ -1115,6 +1122,8 @@ const normalizeVacationsSlideSettings = (raw) => {
       }
     }
   });
+  const hasEnabledCalendarSection = result.show_vacations || result.show_calendar_events;
+  result.enabled = Boolean(hasEnabledCalendarSection);
   return result;
 };
 
@@ -2959,19 +2968,6 @@ const setSlideEntryEnabledState = async (type, enabled, slideId = null) => {
     return;
   }
 
-  if (type === "vacations") {
-    const patch = { vacations_slide: { enabled: nextEnabled } };
-    const data = await fetchJSON("api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    vacationsSlideSettings = normalizeVacationsSlideSettings(
-      data.vacations_slide || patch.vacations_slide,
-    );
-    return;
-  }
-
   if (type === "news") {
     const data = await fetchJSON("api/news-slide", {
       method: "POST",
@@ -3284,7 +3280,17 @@ const createVacationsSlideCard = (globalIndex, displayNumber, autoCount, totalAu
   title.textContent = "Diapositive « Calendrier »";
   const status = document.createElement("p");
   status.className = "field-hint";
-  status.textContent = vacationsSlideSettings?.enabled ? "Activée" : "Désactivée";
+  const showVac = Boolean(vacationsSlideSettings?.show_vacations);
+  const showCal = Boolean(vacationsSlideSettings?.show_calendar_events);
+  if (showVac && showCal) {
+    status.textContent = "Activée (Vacances + Fériés)";
+  } else if (showVac) {
+    status.textContent = "Activée (Vacances uniquement)";
+  } else if (showCal) {
+    status.textContent = "Activée (Fériés uniquement)";
+  } else {
+    status.textContent = "Désactivée";
+  }
   body.append(title, status);
   body.appendChild(createSkipRoundsControl("vacations", vacationsSlideSettings?.skip_rounds || 0));
 

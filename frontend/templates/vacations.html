@@ -18,6 +18,7 @@
       --vac-danger: #f87171;
       --vac-danger-soft: rgba(248, 113, 113, 0.16);
       --vac-today: #f59e0b;
+      --vac-modal-gap: clamp(12px, 3vw, 24px);
     }
 
     .vacations-admin-page {
@@ -278,6 +279,8 @@
       padding: clamp(8px, 2vh, 18px);
       background: rgba(2, 6, 23, 0.62);
       backdrop-filter: blur(6px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .vacations-modal-panel {
@@ -593,44 +596,38 @@
 
       .vacations-modal {
         align-items: start;
-        padding: 10px;
+        padding: 8px;
       }
 
       .vacations-modal-panel {
         width: 100%;
-        max-height: calc(100svh - 20px);
+        max-height: calc(100svh - 16px);
         border-radius: 20px;
       }
 
       .vacations-modal-header {
-        gap: 8px;
-        padding: 12px 14px 10px;
+        padding: 14px 14px 12px;
       }
 
       .vacations-modal-header h3 {
         font-size: 1.02rem;
       }
 
-      .vacations-modal-header p,
-      .vacations-range-value {
-        font-size: 0.8rem;
-      }
-
       .vacations-range-box {
-        min-height: 44px;
-        padding: 7px 9px;
+        min-height: 46px;
+        padding: 8px 10px;
       }
 
       .vacations-range-summary {
-        padding: 8px 16px 0;
+        padding: 10px 18px 0;
       }
 
       .vacations-calendar {
-        padding: 6px 14px 10px;
+        padding: 8px 16px 12px;
       }
 
       .vacations-calendar-day {
-        height: 32px;
+        height: 34px;
       }
 
       .vacations-calendar-day::after {
@@ -642,11 +639,9 @@
       .vacations-calendar-tools {
         flex-direction: column;
       }
-    }
 
-    @media (max-width: 360px) {
-      .vacations-range-grid {
-        grid-template-columns: 1fr;
+      .vacations-modal-footer {
+        padding: 0 16px 14px;
       }
     }
   </style>
@@ -672,7 +667,7 @@
           <label class="visibility-toggle">
             <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
             <div class="visibility-toggle-switch">
-              <input id="vacations-editor-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Activer la diapo Calendrier" />
+              <input id="vacations-editor-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Afficher les vacances dans le Calendrier" />
               <span class="visibility-toggle-slider"></span>
             </div>
             <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
