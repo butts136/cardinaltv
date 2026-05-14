@@ -360,6 +360,12 @@ DEFAULT_SETTINGS = {
         "scroll_speed_px_per_second": 18.0,
         "pause_at_bottom_ms": 5000,
         "pause_at_top_ms": 5000,
+        "title_font_size": 62.0,
+        "month_font_size": 36.0,
+        "weekday_font_size": 20.0,
+        "day_font_size": 24.0,
+        "badge_font_size": 22.0,
+        "legend_font_size": 22.0,
         "text1": "Calendrier",
         "text2": "",
         "text3": "",
@@ -1695,6 +1701,19 @@ def _normalize_vacations_config(
             except (TypeError, ValueError):
                 continue
             result["pause_at_top_ms"] = max(0, min(60000, delay))
+        elif key in {
+            "title_font_size",
+            "month_font_size",
+            "weekday_font_size",
+            "day_font_size",
+            "badge_font_size",
+            "legend_font_size",
+        }:
+            try:
+                font_size = float(value)
+            except (TypeError, ValueError):
+                continue
+            result[key] = max(8.0, min(120.0, font_size))
         elif key == "text1":
             if isinstance(value, str):
                 result["text1"] = value
@@ -4926,6 +4945,11 @@ def calendar_events_page() -> Any:
     return render_template("calendar_events.html")
 
 
+@bp.route("/diaporama/calendrier/parametres", endpoint="calendar_settings")
+def calendar_settings_page() -> Any:
+    return render_template("calendar_settings.html")
+
+
 @bp.route("/diaporama/noel")
 def christmas() -> Any:
     return render_template("christmas.html")
@@ -5590,6 +5614,13 @@ def _inject_custom_slides_nav() -> Dict[str, Any]:
                     bool((settings.get("vacations_slide") or {}).get("enabled")),
                 )
             ),
+        },
+        {
+            "endpoint": "main.calendar_settings",
+            "label": "Paramètres Calendrier",
+            "url": url_for("main.calendar_settings"),
+            "enabled": False,
+            "show_status": False,
         },
     ]
 

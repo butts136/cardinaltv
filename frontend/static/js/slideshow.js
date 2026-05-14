@@ -6142,6 +6142,19 @@ const renderVacationsSlide = (item) => {
 
   const frame = document.createElement("div");
   frame.className = "vacations-slide-frame";
+  [
+    ["title_font_size", "--vacations-title-font-size"],
+    ["month_font_size", "--vacations-month-font-size"],
+    ["weekday_font_size", "--vacations-weekday-font-size"],
+    ["day_font_size", "--vacations-day-font-size"],
+    ["badge_font_size", "--vacations-badge-font-size"],
+    ["legend_font_size", "--vacations-legend-font-size"],
+  ].forEach(([settingKey, cssVar]) => {
+    const value = Number(settings[settingKey]);
+    if (Number.isFinite(value) && value > 0) {
+      frame.style.setProperty(cssVar, `${Math.max(8, Math.min(120, value))}px`);
+    }
+  });
 
   const shell = document.createElement("div");
   shell.className = "screen vacations-slide-shell";

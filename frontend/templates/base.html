@@ -7,7 +7,7 @@
     <meta name="description" content="Cardinal TV - Système de diaporama et affichage dynamique" />
     <title>{% block title %}Cardinal TV{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png" />
-    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260509-13' %}
+    {% set core_css_url = url_for('static', filename='css/styles.css') ~ '?v=20260514-01' %}
     {% if defer_admin_css|default(false) %}
       <link rel="preload" href="{{ core_css_url }}" as="style" onload="this.onload=null;this.rel='stylesheet'" />
       <noscript><link rel="stylesheet" href="{{ core_css_url }}" /></noscript>
@@ -38,6 +38,7 @@
   'main.vacations',
         'main.test',
           'main.calendar_events',
+          'main.calendar_settings',
         'main.time_change',
         'main.christmas',
         'main.news',
@@ -82,7 +83,9 @@
               {% for slide in calendar_nav|default([]) %}
                 <a class="nav-sublink nav-sublink--nested {% if endpoint == slide.endpoint %}is-active{% endif %}" href="{{ slide.url }}">
                   <span class="nav-sublink-label">{{ slide.label }}</span>
-                  <span class="nav-status-orb {% if slide.enabled %}is-enabled{% else %}is-disabled{% endif %}" aria-hidden="true"></span>
+                  {% if slide.show_status|default(true) %}
+                    <span class="nav-status-orb {% if slide.enabled %}is-enabled{% else %}is-disabled{% endif %}" aria-hidden="true"></span>
+                  {% endif %}
                 </a>
               {% endfor %}
             </div>

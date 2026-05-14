@@ -1,0 +1,246 @@
+{% extends "diaporama_base.html" %}
+
+{% block title %}Paramètres Calendrier · Cardinal TV{% endblock %}
+
+{% block page_title %}Paramètres Calendrier{% endblock %}
+{% block page_subtitle %}
+  <p>Réglages du rendu, du défilement et de la densité visuelle de la diapositive Calendrier.</p>
+{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .calendar-settings-page {
+      display: grid;
+      gap: 18px;
+    }
+
+    .calendar-settings-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .calendar-settings-field {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .calendar-settings-field label {
+      color: rgba(226, 232, 240, 0.82);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .calendar-settings-field input {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.58);
+      color: #f8fafc;
+      padding: 0 14px;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .calendar-settings-field input:focus {
+      outline: 2px solid rgba(56, 189, 248, 0.22);
+      border-color: rgba(56, 189, 248, 0.62);
+    }
+
+    .calendar-settings-help {
+      color: rgba(226, 232, 240, 0.62);
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
+    .calendar-settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .calendar-settings-status {
+      min-height: 1.25rem;
+      color: rgba(226, 232, 240, 0.72);
+      font-size: 0.92rem;
+    }
+
+    .calendar-settings-status[data-state="success"] {
+      color: #86efac;
+    }
+
+    .calendar-settings-status[data-state="error"] {
+      color: #fecaca;
+    }
+
+    .calendar-settings-preview-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #000000;
+      box-shadow: 0 18px 42px rgba(2, 6, 23, 0.24);
+    }
+
+    .calendar-settings-preview-viewport {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1920px;
+      height: 1080px;
+      transform: scale(var(--calendar-settings-preview-scale, 1));
+      transform-origin: top left;
+    }
+
+    .calendar-settings-preview-viewport iframe {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      border: 0;
+      display: block;
+      background: #000000;
+    }
+
+    @media (max-width: 980px) {
+      .calendar-settings-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .calendar-settings-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .calendar-settings-actions {
+        justify-content: stretch;
+      }
+
+      .calendar-settings-actions button {
+        flex: 1 1 auto;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div
+    class="calendar-settings-page"
+    id="calendar-settings-page"
+    data-settings-url="{{ url_for('main.get_settings') }}"
+    data-preview-url="{{ url_for('main.slideshow') }}?preview=1&slide=vacations&hide_bands=1"
+  >
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h2>Affichage du Calendrier</h2>
+          <p class="playlist-subtitle">Ces valeurs sont utilisées par la diapositive réelle dans le diaporama et dans les aperçus.</p>
+        </div>
+      </div>
+      <div class="section-content">
+        <div class="calendar-settings-grid">
+          <div class="calendar-settings-field">
+            <label for="calendar-months-to-show">Mois affichés</label>
+            <input id="calendar-months-to-show" name="months_to_show" type="number" min="1" max="24" step="1" inputmode="numeric" />
+            <span class="calendar-settings-help">Nombre total de mois générés dans la diapositive.</span>
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-title-font-size">Titre (px)</label>
+            <input id="calendar-title-font-size" name="title_font_size" type="number" min="24" max="120" step="1" inputmode="decimal" />
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-month-font-size">Mois (px)</label>
+            <input id="calendar-month-font-size" name="month_font_size" type="number" min="14" max="80" step="1" inputmode="decimal" />
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-weekday-font-size">Jours semaine (px)</label>
+            <input id="calendar-weekday-font-size" name="weekday_font_size" type="number" min="10" max="54" step="1" inputmode="decimal" />
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-day-font-size">Dates (px)</label>
+            <input id="calendar-day-font-size" name="day_font_size" type="number" min="10" max="64" step="1" inputmode="decimal" />
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-badge-font-size">Badges calendrier (px)</label>
+            <input id="calendar-badge-font-size" name="badge_font_size" type="number" min="10" max="64" step="1" inputmode="decimal" />
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-legend-font-size">Badges sous calendrier (px)</label>
+            <input id="calendar-legend-font-size" name="legend_font_size" type="number" min="10" max="64" step="1" inputmode="decimal" />
+            <span class="calendar-settings-help">Affecte aussi les badges fériés affichés sous chaque mois.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h2>Défilement automatique</h2>
+          <p class="playlist-subtitle">Le défilement démarre après l’attente initiale, descend jusqu’à la fin, puis attend avant de changer de diapositive.</p>
+        </div>
+      </div>
+      <div class="section-content">
+        <div class="calendar-settings-grid">
+          <div class="calendar-settings-field">
+            <label for="calendar-scroll-start-delay">Attente initiale (s)</label>
+            <input id="calendar-scroll-start-delay" name="scroll_start_delay_seconds" type="number" min="0" max="60" step="0.5" inputmode="decimal" />
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-pause-bottom">Attente finale (s)</label>
+            <input id="calendar-pause-bottom" name="pause_at_bottom_seconds" type="number" min="0" max="60" step="0.5" inputmode="decimal" />
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-scroll-speed">Vitesse (px/s)</label>
+            <input id="calendar-scroll-speed" name="scroll_speed_px_per_second" type="number" min="1" max="300" step="1" inputmode="decimal" />
+          </div>
+          <div class="calendar-settings-field">
+            <label for="calendar-duration">Durée minimale (s)</label>
+            <input id="calendar-duration" name="duration" type="number" min="1" max="600" step="1" inputmode="decimal" />
+            <span class="calendar-settings-help">Utilisée surtout quand le calendrier n’a pas besoin de défiler.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-content">
+        <div class="calendar-settings-actions">
+          <button type="button" class="secondary-button" id="calendar-settings-reload">Annuler et recharger</button>
+          <button type="button" class="primary-button" id="calendar-settings-save">Enregistrer</button>
+        </div>
+        <div id="calendar-settings-status" class="calendar-settings-status" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h2>Aperçu Calendrier</h2>
+          <p class="playlist-subtitle">Diapositive réelle affichée dans un frame 16:9, sans bandes informatives.</p>
+        </div>
+      </div>
+      <div class="section-content">
+        <div class="calendar-settings-preview-frame" id="calendar-settings-preview-frame">
+          <div class="calendar-settings-preview-viewport" id="calendar-settings-preview-viewport">
+            <iframe id="calendar-settings-preview" title="Aperçu diapositive Calendrier" loading="eager"></iframe>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script defer src="{{ url_for('static', filename='js/calendar_settings.js') }}?v=20260514-01"></script>
+{% endblock %}
