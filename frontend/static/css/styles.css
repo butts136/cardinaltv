@@ -1821,14 +1821,14 @@ input[type="datetime-local"]:focus {
 }
 
 .vacations-slide-frame .month-header {
-  min-height: 3.7vh;
+  min-height: 3.95vh;
   padding: 0.35vh 0.75vw;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   text-transform: capitalize;
-  font-size: clamp(24px, 1.75vw, 38px);
+  font-size: clamp(26px, 1.9vw, 40px);
   font-weight: 1000;
   letter-spacing: -0.035em;
   color: rgba(255, 255, 255, 0.96);
@@ -1847,9 +1847,9 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .weekday {
   text-align: center;
-  padding: 0.38vh 0.12vw;
+  padding: 0.44vh 0.12vw;
   color: rgba(255, 255, 255, 0.84);
-  font-size: clamp(15px, 0.98vw, 22px);
+  font-size: clamp(16px, 1.06vw, 23px);
   font-weight: 1000;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1867,10 +1867,10 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .week-row {
   position: relative;
-  --week-row-base-height: 4.9vh;
-  --week-bar-top-offset: 2.7vh;
-  --week-bar-height: 2.25vh;
-  --week-bar-gap: 0.42vh;
+  --week-row-base-height: 58px;
+  --week-bar-top-offset: 34px;
+  --week-bar-height: 32px;
+  --week-bar-gap: 7px;
   min-height: calc(
     var(--week-row-base-height) + (var(--lane-count, 0) * (var(--week-bar-height) + var(--week-bar-gap)))
   );
@@ -1892,7 +1892,7 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .day {
   position: relative;
-  padding: 0.42vh 0.34vw;
+  padding: 0.5vh 0.38vw;
   border-right: 1px solid rgba(255, 255, 255, 0.075);
   background: rgba(255, 255, 255, 0.035);
   overflow: hidden;
@@ -1921,7 +1921,7 @@ input[type="datetime-local"]:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: clamp(17px, 1.08vw, 26px);
+  font-size: clamp(19px, 1.18vw, 28px);
   font-weight: 1000;
   line-height: 1;
   z-index: 2;
@@ -1958,14 +1958,14 @@ input[type="datetime-local"]:focus {
     var(--week-bar-top-offset) + (var(--bar-lane, 0) * (var(--week-bar-height) + var(--week-bar-gap)))
   );
   height: var(--week-bar-height);
-  min-height: 29px;
+  min-height: 0;
   display: flex;
   align-items: center;
   gap: 0.38vw;
   padding: 0 0.68vw;
   border-radius: 999px;
   color: #ffffff;
-  font-size: clamp(16px, 1.05vw, 25px);
+  font-size: clamp(17px, 1.12vw, 26px);
   font-weight: 1000;
   box-shadow: 0 5px 13px rgba(0, 0, 0, 0.24);
   white-space: nowrap;
@@ -2064,33 +2064,33 @@ input[type="datetime-local"]:focus {
 
 @media (max-width: 900px) {
   .vacations-slide-shell {
-    height: auto;
-    min-height: 100vh;
+    height: 100%;
+    min-height: 0;
     padding: 14px;
   }
 
   .vacations-calendar-window {
-    height: 84vh;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .vacations-slide-frame .week-row {
-    --week-row-base-height: 68px;
-    --week-bar-top-offset: 38px;
-    --week-bar-height: 30px;
-    --week-bar-gap: 6px;
+    --week-row-base-height: 74px;
+    --week-bar-top-offset: 43px;
+    --week-bar-height: 34px;
+    --week-bar-gap: 8px;
   }
 
   .vacations-slide-frame .weekday {
-    font-size: 16px;
+    font-size: 17px;
   }
 
   .vacations-slide-frame .day-number {
-    font-size: 19px;
+    font-size: 21px;
   }
 
   .vacations-slide-frame .vacation-bar {
-    min-height: 30px;
-    font-size: 17px;
+    font-size: 18px;
     padding: 0 10px;
   }
 

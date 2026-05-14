@@ -6427,29 +6427,27 @@ const renderVacationsSlide = (item) => {
 
   const startScrollAnimation = () => {
     if (!scroller.isConnected) return;
-    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-    if (maxScroll <= 6) {
-      scroller.scrollTop = 0;
-      return;
-    }
+    const getMaxScroll = () => Math.max(0, scroller.scrollHeight - scroller.clientHeight);
 
     const speed = Math.max(
       1,
       Number(settings.scroll_speed_px_per_second) || DEFAULT_VACATIONS_SLIDE.scroll_speed_px_per_second || 18,
     );
     const startDelay = Math.max(
-      0,
+      5000,
       Number(settings.scroll_start_delay_ms) || DEFAULT_VACATIONS_SLIDE.scroll_start_delay_ms || 4500,
     );
     const pauseBottom = Math.max(
-      0,
+      5000,
       Number(settings.pause_at_bottom_ms) || DEFAULT_VACATIONS_SLIDE.pause_at_bottom_ms || 5000,
     );
-    const pauseTop = Math.max(
-      0,
-      Number(settings.pause_at_top_ms) || DEFAULT_VACATIONS_SLIDE.pause_at_top_ms || 3000,
-    );
     const slideId = item.id || null;
+
+    if (getMaxScroll() <= 6) {
+      scroller.scrollTop = 0;
+      scheduleSlideAdvance(Math.max(durationSeconds, (startDelay + pauseBottom) / 1000), null, slideId);
+      return;
+    }
 
     let phase = "delay";
     let phaseStartedAt = performance.now();
@@ -6466,16 +6464,16 @@ const renderVacationsSlide = (item) => {
         }
       } else if (phase === "pause-bottom") {
         if (timestamp - phaseStartedAt >= pauseBottom) {
-          scroller.scrollTop = 0;
-          phase = "pause-top";
-          phaseStartedAt = timestamp;
-        }
-      } else if (phase === "pause-top") {
-        if (timestamp - phaseStartedAt >= pauseTop) {
-          phase = "scroll";
-          lastTick = timestamp;
+          scheduleSlideAdvance(0, null, slideId);
+          return;
         }
       } else {
+        const maxScroll = getMaxScroll();
+        if (maxScroll <= 6) {
+          scroller.scrollTop = 0;
+          scheduleSlideAdvance(Math.max(durationSeconds, pauseBottom / 1000), null, slideId);
+          return;
+        }
         const deltaSeconds = Math.max(0, timestamp - lastTick) / 1000;
         lastTick = timestamp;
         scroller.scrollTop += speed * deltaSeconds;
@@ -6502,7 +6500,6 @@ const renderVacationsSlide = (item) => {
     markSlideVisible(item);
     requestAnimationFrame(startScrollAnimation);
   }
-  scheduleSlideAdvance(durationSeconds, swapPromise, item.id);
 };
 
 const renderTimeChangeSlide = (item) => {
