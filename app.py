@@ -1775,7 +1775,7 @@ def _write_time_change_config_file(config: Dict[str, Any]) -> Dict[str, Any]:
 # Calendar events configuration (Quebec holidays and company closures)
 # ───────────────────────────────────────────────────────────────────────────────
 
-CALENDAR_EVENT_TYPES = {"holiday", "closed"}
+CALENDAR_EVENT_TYPES = {"holiday", "closed", "celebration"}
 CALENDAR_MANDATORY_HOLIDAYS: Tuple[Dict[str, str], ...] = (
     {"key": "jour-de-l-an", "label": "Jour de l'An"},
     {"key": "vendredi-saint", "label": "Vendredi saint"},
@@ -1788,6 +1788,17 @@ CALENDAR_MANDATORY_HOLIDAYS: Tuple[Dict[str, str], ...] = (
 )
 CALENDAR_MANDATORY_HOLIDAY_KEYS = {entry["key"] for entry in CALENDAR_MANDATORY_HOLIDAYS}
 CALENDAR_MANDATORY_HOLIDAY_LABELS = {entry["key"]: entry["label"] for entry in CALENDAR_MANDATORY_HOLIDAYS}
+CALENDAR_DEFAULT_CELEBRATIONS: Tuple[Dict[str, str], ...] = (
+    {"key": "saint-valentin", "label": "Saint-Valentin"},
+    {"key": "paques", "label": "Pâques"},
+    {"key": "fete-des-meres", "label": "Fête des mères"},
+    {"key": "fete-des-peres", "label": "Fête des pères"},
+    {"key": "halloween", "label": "Halloween"},
+    {"key": "veille-de-noel", "label": "Veille de Noël"},
+    {"key": "saint-sylvestre", "label": "Saint-Sylvestre"},
+)
+CALENDAR_DEFAULT_CELEBRATION_KEYS = {entry["key"] for entry in CALENDAR_DEFAULT_CELEBRATIONS}
+CALENDAR_DEFAULT_CELEBRATION_LABELS = {entry["key"]: entry["label"] for entry in CALENDAR_DEFAULT_CELEBRATIONS}
 
 
 def _calendar_event_sort_key(event: Dict[str, Any]) -> Tuple[str, str, str]:
@@ -1855,6 +1866,24 @@ def _calendar_resolve_mandatory_holiday_date(holiday_key: str, year: int) -> dat
     raise ValueError(f"Clé de férié inconnue: {holiday_key}")
 
 
+def _calendar_resolve_default_celebration_date(celebration_key: str, year: int) -> date:
+    if celebration_key == "saint-valentin":
+        return date(year, 2, 14)
+    if celebration_key == "paques":
+        return _calendar_easter_sunday(year)
+    if celebration_key == "fete-des-meres":
+        return _first_weekday_of_month(year, 5, 6, 2)
+    if celebration_key == "fete-des-peres":
+        return _first_weekday_of_month(year, 6, 6, 3)
+    if celebration_key == "halloween":
+        return date(year, 10, 31)
+    if celebration_key == "veille-de-noel":
+        return date(year, 12, 24)
+    if celebration_key == "saint-sylvestre":
+        return date(year, 12, 31)
+    raise ValueError(f"Clé de fête inconnue: {celebration_key}")
+
+
 def _calendar_add_year_preserving_month_day(value: date) -> date:
     target_year = value.year + 1
     last_day = calendar.monthrange(target_year, value.month)[1]
@@ -1875,6 +1904,24 @@ def _calendar_mandatory_holiday_key(raw: Any) -> Optional[str]:
 
     label_key = _calendar_event_slug(raw.get("label") or "")
     if label_key in CALENDAR_MANDATORY_HOLIDAY_KEYS:
+        return label_key
+    return None
+
+
+def _calendar_default_celebration_key(raw: Any) -> Optional[str]:
+    if not isinstance(raw, dict):
+        return None
+    celebration_key = _calendar_event_slug(raw.get("celebration_key") or raw.get("event_key") or "")
+    if celebration_key in CALENDAR_DEFAULT_CELEBRATION_KEYS:
+        return celebration_key
+
+    raw_id = str(raw.get("id") or "").strip().lower()
+    for candidate in CALENDAR_DEFAULT_CELEBRATION_KEYS:
+        if raw_id == f"celebration_{candidate}" or raw_id.endswith(f"_{candidate}") or raw_id.endswith(f"-{candidate}"):
+            return candidate
+
+    label_key = _calendar_event_slug(raw.get("label") or "")
+    if label_key in CALENDAR_DEFAULT_CELEBRATION_KEYS:
         return label_key
     return None
 
@@ -1931,14 +1978,54 @@ def _normalize_mandatory_calendar_event(raw: Any, holiday_key: str, today: date)
     }
 
 
+def _normalize_default_celebration_event(raw: Any, celebration_key: str, today: date) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        raw = {}
+    default_label = CALENDAR_DEFAULT_CELEBRATION_LABELS[celebration_key]
+    label = str(raw.get("label") or "").strip() or default_label
+    notes = str(raw.get("notes") or "").strip()
+    raw_date = _calendar_parse_event_date(raw.get("date"))
+    is_customized = bool(raw.get("is_customized"))
+
+    if raw_date and not is_customized:
+        expected_date = _calendar_resolve_default_celebration_date(celebration_key, raw_date.year)
+        is_customized = raw_date != expected_date or label != default_label or bool(notes)
+
+    if raw_date and is_customized:
+        next_date = raw_date
+        while next_date < today:
+            next_date = _calendar_add_year_preserving_month_day(next_date)
+    else:
+        target_year = max(raw_date.year if raw_date else today.year, today.year)
+        next_date = _calendar_resolve_default_celebration_date(celebration_key, target_year)
+        while next_date < today:
+            target_year += 1
+            next_date = _calendar_resolve_default_celebration_date(celebration_key, target_year)
+
+    return {
+        "id": f"celebration_{celebration_key}",
+        "celebration_key": celebration_key,
+        "type": "celebration",
+        "date": next_date.isoformat(),
+        "label": label,
+        "notes": notes,
+        "is_mandatory": True,
+        "is_customized": is_customized,
+    }
+
+
 def _default_calendar_events_config() -> Dict[str, Any]:
     today = datetime.now(QUEBEC_TZ).date()
     events = [
         _normalize_mandatory_calendar_event({}, definition["key"], today)
         for definition in CALENDAR_MANDATORY_HOLIDAYS
     ]
+    events.extend(
+        _normalize_default_celebration_event({}, definition["key"], today)
+        for definition in CALENDAR_DEFAULT_CELEBRATIONS
+    )
     events.sort(key=_calendar_event_sort_key)
-    return {"events": events}
+    return {"events": events, "disabled_auto_events": []}
 
 
 def _normalize_calendar_event(raw: Any) -> Optional[Dict[str, Any]]:
@@ -1951,10 +2038,15 @@ def _normalize_calendar_event(raw: Any) -> Optional[Dict[str, Any]]:
     event_date = _calendar_parse_event_date(raw.get("date"))
     if not event_date:
         return None
-    default_label = "Férié" if event_type == "holiday" else "Fermé"
+    if event_type == "closed":
+        default_label = "Fermé"
+    elif event_type == "celebration":
+        default_label = "Fête"
+    else:
+        default_label = "Férié"
     label = str(raw.get("label") or "").strip() or default_label
     notes = str(raw.get("notes") or "").strip()
-    is_mandatory = bool(raw.get("is_mandatory")) and event_type == "holiday"
+    is_mandatory = bool(raw.get("is_mandatory")) and event_type in {"holiday", "celebration"}
     normalized = {
         "id": event_id,
         "type": event_type,
@@ -1967,13 +2059,24 @@ def _normalize_calendar_event(raw: Any) -> Optional[Dict[str, Any]]:
     if holiday_key and event_type == "holiday":
         normalized["holiday_key"] = holiday_key
         normalized["is_customized"] = bool(raw.get("is_customized"))
+    celebration_key = _calendar_default_celebration_key(raw)
+    if celebration_key and event_type == "celebration":
+        normalized["celebration_key"] = celebration_key
+        normalized["is_customized"] = bool(raw.get("is_customized"))
     return normalized
 
 
 def _normalize_calendar_events_config(raw: Any) -> Dict[str, Any]:
     source_events = raw.get("events") if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+    disabled_raw = (raw.get("disabled_auto_events") if isinstance(raw, dict) else []) or []
+    disabled_auto_events = {
+        str(value or "").strip()
+        for value in disabled_raw
+        if isinstance(value, str) and str(value or "").strip()
+    }
     today = datetime.now(QUEBEC_TZ).date()
     mandatory_candidates: Dict[str, Dict[str, Any]] = {}
+    celebration_candidates: Dict[str, Dict[str, Any]] = {}
     remaining_events: List[Dict[str, Any]] = []
     if isinstance(source_events, list):
         for entry in source_events:
@@ -1987,16 +2090,35 @@ def _normalize_calendar_events_config(raw: Any) -> Dict[str, Any]:
                 if current is None or _calendar_mandatory_candidate_priority(candidate, today) < _calendar_mandatory_candidate_priority(current, today):
                     mandatory_candidates[holiday_key] = candidate
                 continue
+            celebration_key = _calendar_default_celebration_key(entry)
+            if normalized.get("type") == "celebration" and celebration_key:
+                candidate = {**normalized, "celebration_key": celebration_key}
+                current = celebration_candidates.get(celebration_key)
+                if current is None or _calendar_mandatory_candidate_priority(candidate, today) < _calendar_mandatory_candidate_priority(current, today):
+                    celebration_candidates[celebration_key] = candidate
+                continue
             remaining_events.append(normalized)
 
-    merged: List[Dict[str, Any]] = [
-        _normalize_mandatory_calendar_event(mandatory_candidates.get(definition["key"], {}), definition["key"], today)
-        for definition in CALENDAR_MANDATORY_HOLIDAYS
-    ]
+    merged: List[Dict[str, Any]] = []
+    for definition in CALENDAR_MANDATORY_HOLIDAYS:
+        disabled_key = f"holiday:{definition['key']}"
+        if disabled_key in disabled_auto_events:
+            continue
+        merged.append(
+            _normalize_mandatory_calendar_event(mandatory_candidates.get(definition["key"], {}), definition["key"], today)
+        )
+
+    for definition in CALENDAR_DEFAULT_CELEBRATIONS:
+        disabled_key = f"celebration:{definition['key']}"
+        if disabled_key in disabled_auto_events:
+            continue
+        merged.append(
+            _normalize_default_celebration_event(celebration_candidates.get(definition["key"], {}), definition["key"], today)
+        )
 
     merged.extend(remaining_events)
     merged.sort(key=_calendar_event_sort_key)
-    return {"events": merged}
+    return {"events": merged, "disabled_auto_events": sorted(disabled_auto_events)}
 
 
 def _load_calendar_events_config() -> Dict[str, Any]:

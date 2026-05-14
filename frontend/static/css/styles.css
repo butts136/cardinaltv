@@ -1695,6 +1695,7 @@ input[type="datetime-local"]:focus {
   --card-border: rgba(255, 255, 255, 0.16);
   --vacation-color: linear-gradient(135deg, #fb923c, #ea580c);
   --holiday-color: linear-gradient(135deg, #38bdf8, #2563eb);
+  --celebration-color: linear-gradient(135deg, #f0abfc, #9333ea);
   --closed-color: linear-gradient(135deg, #fb7185, #be123c);
   position: relative;
   width: 100%;
@@ -1814,6 +1815,10 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .month-event-chip--holiday {
   background: var(--holiday-color);
+}
+
+.vacations-slide-frame .month-event-chip--celebration {
+  background: var(--celebration-color);
 }
 
 .vacations-slide-frame .month-event-chip--closed {
@@ -2031,6 +2036,10 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .legend-badge.holiday {
   background: var(--holiday-color);
+}
+
+.vacations-slide-frame .legend-badge.celebration {
+  background: var(--celebration-color);
 }
 
 .vacations-slide-frame .legend-badge.closed {

@@ -1,6 +1,6 @@
 {% extends "diaporama_base.html" %}
 
-{% block title %}Fériés et modifications d'horaires · Cardinal TV{% endblock %}
+{% block title %}Fériés, fêtes et modifications d'horaires · Cardinal TV{% endblock %}
 
 {% block head_extra %}
   {{ super() }}
@@ -11,6 +11,8 @@
       --calendar-events-text-muted: rgba(226, 232, 240, 0.72);
       --calendar-events-holiday: #2563eb;
       --calendar-events-holiday-soft: rgba(37, 99, 235, 0.14);
+      --calendar-events-celebration: #9333ea;
+      --calendar-events-celebration-soft: rgba(147, 51, 234, 0.16);
       --calendar-events-closed: #be123c;
       --calendar-events-closed-soft: rgba(190, 18, 60, 0.14);
       --calendar-events-success: #15803d;
@@ -120,6 +122,11 @@
       box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
     }
 
+    .calendar-event-pill.is-celebration {
+      background: linear-gradient(135deg, #f0abfc, var(--calendar-events-celebration));
+      box-shadow: 0 12px 28px rgba(147, 51, 234, 0.26);
+    }
+
     .calendar-event-pill.is-closed {
       background: linear-gradient(135deg, #fb7185, var(--calendar-events-closed));
       box-shadow: 0 12px 28px rgba(190, 18, 60, 0.24);
@@ -184,6 +191,12 @@
       border-color: rgba(37, 99, 235, 0.22);
     }
 
+    .calendar-event-chip.is-celebration {
+      color: #f5d0fe;
+      background: var(--calendar-events-celebration-soft);
+      border-color: rgba(147, 51, 234, 0.26);
+    }
+
     .calendar-event-chip.is-closed {
       color: #fecdd3;
       background: var(--calendar-events-closed-soft);
@@ -206,6 +219,24 @@
 
     .calendar-event-delete:hover {
       background: rgba(248, 113, 113, 0.24);
+    }
+
+    .calendar-event-transfer {
+      min-height: 34px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #e2e8f0;
+      padding: 0 12px;
+      font-size: 0.76rem;
+      font-weight: 900;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .calendar-event-transfer:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(226, 232, 240, 0.28);
     }
 
     .calendar-event-delete svg {
@@ -263,9 +294,9 @@
   </style>
 {% endblock %}
 
-{% block page_title %}Fériés et modifications d'horaires{% endblock %}
+{% block page_title %}Fériés, fêtes et modifications d'horaires{% endblock %}
 {% block page_subtitle %}
-  <p class="page-subtitle">Cette page modifie la même diapositive Calendrier que les vacances, avec les badges Férié et Fermé dans l'aperçu réel.</p>
+  <p class="page-subtitle">Cette page modifie la même diapositive Calendrier que les vacances, avec les badges Férié, Fête et Fermé dans l'aperçu réel.</p>
 {% endblock %}
 {% block header_actions %}
   <a href="{{ url_for('main.vacations') }}" class="secondary-button">Calendrier</a>
@@ -284,7 +315,7 @@
           <label class="visibility-toggle">
             <span class="visibility-toggle-label visibility-toggle-label-on">Activée</span>
             <div class="visibility-toggle-switch">
-              <input id="calendar-events-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Afficher les fériés et fermetures dans le Calendrier" />
+              <input id="calendar-events-live-enabled" class="visibility-toggle-checkbox" type="checkbox" aria-label="Afficher les fériés, fêtes et fermetures dans le Calendrier" />
               <span class="visibility-toggle-slider"></span>
             </div>
             <span class="visibility-toggle-label visibility-toggle-label-off">Désactivée</span>
@@ -310,12 +341,31 @@
       <div class="section-header">
         <div>
           <h2>Fériés obligatoires au Québec</h2>
-          <p class="playlist-subtitle">Ces journées apparaissent avec le badge Férié dans le Calendrier. Elles restent présentes dans la liste, mais leur date et leur libellé peuvent être ajustés.</p>
+          <p class="playlist-subtitle">Ces journées apparaissent avec le badge Férié dans le Calendrier. Elles ne sont pas automatiquement considérées comme des jours fermés.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="primary-button" id="calendar-holidays-add">Ajouter un férié</button>
         </div>
       </div>
       <div class="section-content">
         <p class="calendar-events-inline-hint">Les entrées officielles sont chargées automatiquement pour les années à venir afin que le Calendrier conserve toujours sa couverture annuelle.</p>
         <div id="calendar-holidays-list" class="calendar-events-list"></div>
+      </div>
+    </section>
+
+    <section class="card" id="calendar-celebrations-card">
+      <div class="section-header">
+        <div>
+          <h2>Fêtes affichées au Calendrier</h2>
+          <p class="playlist-subtitle">Ces dates apparaissent avec le badge Fête, dans une couleur différente des fériés et des fermetures.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="primary-button" id="calendar-celebrations-add">Ajouter une fête</button>
+        </div>
+      </div>
+      <div class="section-content">
+        <p class="calendar-events-inline-hint">La liste reste volontairement sobre : Saint-Valentin, Pâques, Fête des mères, Fête des pères, Halloween, veille de Noël et Saint-Sylvestre.</p>
+        <div id="calendar-celebrations-list" class="calendar-events-list"></div>
       </div>
     </section>
 
@@ -348,5 +398,5 @@
 
 {% block scripts %}
   {{ super() }}
-  <script defer src="{{ url_for('static', filename='js/calendar_events_editor.js') }}?v=20260509-01"></script>
+  <script defer src="{{ url_for('static', filename='js/calendar_events_editor.js') }}?v=20260514-01"></script>
 {% endblock %}

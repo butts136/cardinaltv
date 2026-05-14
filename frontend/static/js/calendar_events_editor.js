@@ -18,7 +18,10 @@
     const previewStatus = document.getElementById("calendar-events-preview-status");
     const enabledToggle = document.getElementById("calendar-events-live-enabled");
     const holidaysList = document.getElementById("calendar-holidays-list");
+    const celebrationsList = document.getElementById("calendar-celebrations-list");
     const closuresList = document.getElementById("calendar-closures-list");
+    const addHolidayButton = document.getElementById("calendar-holidays-add");
+    const addCelebrationButton = document.getElementById("calendar-celebrations-add");
     const addClosureButton = document.getElementById("calendar-closures-add");
     const reloadButton = document.getElementById("calendar-events-reload");
     const saveButton = document.getElementById("calendar-events-save");
@@ -38,6 +41,7 @@
     let previewDispatchTimers = [];
     let isSaving = false;
     let hasUnsavedChanges = false;
+    let disabledAutoEvents = new Set();
 
     const stripHtml = (value) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -74,15 +78,23 @@
     const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
 
     const normalizeEvent = (raw = {}, index = 0) => {
-      const type = String(raw?.type || "").trim().toLowerCase() === "closed" ? "closed" : "holiday";
-      const fallbackLabel = type === "closed" ? "Entreprise fermée" : `Férié ${index + 1}`;
+      const rawType = String(raw?.type || "").trim().toLowerCase();
+      const type = rawType === "closed" || rawType === "celebration" ? rawType : "holiday";
+      const fallbackLabel = type === "closed"
+        ? "Entreprise fermée"
+        : type === "celebration"
+          ? `Fête ${index + 1}`
+          : `Férié ${index + 1}`;
       return {
         id: String(raw?.id || makeId()),
         type,
         date: String(raw?.date || "").trim(),
         label: String(raw?.label || fallbackLabel).trim() || fallbackLabel,
         notes: String(raw?.notes || "").trim(),
-        is_mandatory: Boolean(raw?.is_mandatory) && type === "holiday",
+        is_mandatory: Boolean(raw?.is_mandatory) && (type === "holiday" || type === "celebration"),
+        holiday_key: String(raw?.holiday_key || "").trim(),
+        celebration_key: String(raw?.celebration_key || "").trim(),
+        is_customized: Boolean(raw?.is_customized),
       };
     };
 
@@ -102,10 +114,29 @@
       }
     };
 
+    const getAutoEventKey = (event) => {
+      if (event?.type === "holiday" && event.holiday_key) return `holiday:${event.holiday_key}`;
+      if (event?.type === "celebration" && event.celebration_key) return `celebration:${event.celebration_key}`;
+      return "";
+    };
+
+    const markAutoEventDisabled = (event) => {
+      const key = getAutoEventKey(event);
+      if (key) disabledAutoEvents.add(key);
+    };
+
+    const markUnsaved = (message = "Modifications non enregistrées.") => {
+      hasUnsavedChanges = true;
+      renderAll();
+      setStatus(globalStatus, message, "info");
+    };
+
     const setBusyState = (busy) => {
       isSaving = busy;
       if (saveButton) saveButton.disabled = busy;
       if (reloadButton) reloadButton.disabled = busy;
+      if (addHolidayButton) addHolidayButton.disabled = busy;
+      if (addCelebrationButton) addCelebrationButton.disabled = busy;
       if (addClosureButton) addClosureButton.disabled = busy;
       if (enabledToggle) enabledToggle.disabled = busy;
     };
@@ -258,11 +289,11 @@
       return field;
     };
 
-    const makeDeleteButton = (eventId) => {
+    const makeDeleteButton = (eventId, ariaLabel = "Supprimer cet événement") => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "calendar-event-delete";
-      button.setAttribute("aria-label", "Supprimer la fermeture");
+      button.setAttribute("aria-label", ariaLabel);
       const svg = document.createElementNS(SVG_NS, "svg");
       svg.setAttribute("viewBox", "0 0 24 24");
       svg.setAttribute("aria-hidden", "true");
@@ -271,12 +302,61 @@
       svg.appendChild(path);
       button.appendChild(svg);
       button.addEventListener("click", () => {
+        const event = events.find((entry) => entry.id === eventId);
+        markAutoEventDisabled(event);
         events = events.filter((entry) => entry.id !== eventId);
-        hasUnsavedChanges = true;
-        renderAll();
-        setStatus(globalStatus, "Modifications non enregistrées.", "info");
+        markUnsaved();
       });
       return button;
+    };
+
+    const makeTransferButton = (event) => {
+      const targetType = event.type === "holiday" ? "celebration" : "holiday";
+      const targetLabel = targetType === "holiday" ? "Férié" : "Fête";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "calendar-event-transfer";
+      button.textContent = `Vers ${targetLabel}`;
+      button.setAttribute("aria-label", `Transférer vers ${targetLabel}`);
+      button.addEventListener("click", () => {
+        markAutoEventDisabled(event);
+        events = sortEvents(events.map((entry) => {
+          if (entry.id !== event.id) return entry;
+          return normalizeEvent(
+            {
+              ...entry,
+              id: getAutoEventKey(entry) ? makeId() : entry.id,
+              type: targetType,
+              is_mandatory: false,
+              is_customized: false,
+              holiday_key: "",
+              celebration_key: "",
+            },
+            events.length,
+          );
+        }));
+        markUnsaved(`« ${event.label} » a été transféré vers ${targetLabel}.`);
+      });
+      return button;
+    };
+
+    const addEvent = (type) => {
+      const label = type === "holiday" ? "Nouveau férié" : type === "celebration" ? "Nouvelle fête" : "Entreprise fermée";
+      events = sortEvents([
+        ...events,
+        normalizeEvent(
+          {
+            id: makeId(),
+            type,
+            date: todayIso(),
+            label,
+            notes: "",
+            is_mandatory: false,
+          },
+          events.length,
+        ),
+      ]);
+      markUnsaved();
     };
 
     const buildEventRow = (event, { allowDelete = false } = {}) => {
@@ -286,12 +366,16 @@
 
       const pill = document.createElement("div");
       pill.className = `calendar-event-pill is-${event.type}`;
-      pill.textContent = event.type === "closed" ? "Fermé" : "Férié";
+      pill.textContent = event.type === "closed" ? "Fermé" : event.type === "celebration" ? "Fête" : "Férié";
 
       const labelInput = document.createElement("input");
       labelInput.type = "text";
       labelInput.value = event.label;
-      labelInput.placeholder = event.type === "closed" ? "Entreprise fermée" : "Nom du férié";
+      labelInput.placeholder = event.type === "closed"
+        ? "Entreprise fermée"
+        : event.type === "celebration"
+          ? "Nom de la fête"
+          : "Nom du férié";
       labelInput.addEventListener("input", () => updateEvent(event.id, { label: labelInput.value }));
 
       const dateInput = document.createElement("input");
@@ -320,6 +404,9 @@
       yearChip.textContent = event.date ? event.date.slice(0, 4) : "Sans date";
 
       side.append(typeChip, yearChip);
+      if (event.type === "holiday" || event.type === "celebration") {
+        side.appendChild(makeTransferButton(event));
+      }
       if (allowDelete) {
         side.appendChild(makeDeleteButton(event.id));
       }
@@ -347,7 +434,23 @@
         return;
       }
       holidayEvents.forEach((event) => {
-        holidaysList.appendChild(buildEventRow(event, { allowDelete: false }));
+        holidaysList.appendChild(buildEventRow(event, { allowDelete: true }));
+      });
+    };
+
+    const renderCelebrationList = () => {
+      if (!celebrationsList) return;
+      celebrationsList.innerHTML = "";
+      const celebrationEvents = sortEvents(events.filter((entry) => entry.type === "celebration"));
+      if (!celebrationEvents.length) {
+        const empty = document.createElement("p");
+        empty.className = "calendar-events-empty";
+        empty.textContent = "Aucune fête n'est disponible pour le moment.";
+        celebrationsList.appendChild(empty);
+        return;
+      }
+      celebrationEvents.forEach((event) => {
+        celebrationsList.appendChild(buildEventRow(event, { allowDelete: true }));
       });
     };
 
@@ -369,6 +472,7 @@
 
     const renderAll = () => {
       renderHolidayList();
+      renderCelebrationList();
       renderClosureList();
     };
 
@@ -378,6 +482,11 @@
       try {
         const data = await fetchJSON("api/calendar-events");
         const nextEvents = Array.isArray(data?.events) ? data.events : [];
+        disabledAutoEvents = new Set(
+          Array.isArray(data?.disabled_auto_events)
+            ? data.disabled_auto_events.map((value) => String(value || "").trim()).filter(Boolean)
+            : [],
+        );
         events = sortEvents(nextEvents.map((entry, index) => normalizeEvent(entry, index)));
         hasUnsavedChanges = false;
         renderAll();
@@ -438,7 +547,11 @@
             label: event.label.trim(),
             notes: event.notes.trim(),
             is_mandatory: Boolean(event.is_mandatory),
+            holiday_key: event.holiday_key || undefined,
+            celebration_key: event.celebration_key || undefined,
+            is_customized: Boolean(event.is_customized),
           })),
+          disabled_auto_events: Array.from(disabledAutoEvents).sort(),
         };
         const data = await fetchJSON("api/calendar-events", {
           method: "PUT",
@@ -446,6 +559,11 @@
           body: JSON.stringify(payload),
         });
         const savedEvents = Array.isArray(data?.events) ? data.events : [];
+        disabledAutoEvents = new Set(
+          Array.isArray(data?.disabled_auto_events)
+            ? data.disabled_auto_events.map((value) => String(value || "").trim()).filter(Boolean)
+            : [],
+        );
         events = sortEvents(savedEvents.map((entry, index) => normalizeEvent(entry, index)));
         hasUnsavedChanges = false;
         renderAll();
@@ -466,24 +584,16 @@
 
     if (addClosureButton) {
       addClosureButton.addEventListener("click", () => {
-        events = sortEvents([
-          ...events,
-          normalizeEvent(
-            {
-              id: makeId(),
-              type: "closed",
-              date: todayIso(),
-              label: "Entreprise fermée",
-              notes: "",
-              is_mandatory: false,
-            },
-            events.length,
-          ),
-        ]);
-        hasUnsavedChanges = true;
-        renderAll();
-        setStatus(globalStatus, "Modifications non enregistrées.", "info");
+        addEvent("closed");
       });
+    }
+
+    if (addHolidayButton) {
+      addHolidayButton.addEventListener("click", () => addEvent("holiday"));
+    }
+
+    if (addCelebrationButton) {
+      addCelebrationButton.addEventListener("click", () => addEvent("celebration"));
     }
 
     if (reloadButton) {

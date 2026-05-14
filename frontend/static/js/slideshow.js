@@ -429,6 +429,7 @@ const hashString = (value) => {
 };
 const VACATIONS_BAR_COLOR = "linear-gradient(135deg, #f59e0b, #f97316)";
 const VACATIONS_HOLIDAY_BAR_COLOR = "linear-gradient(135deg, #38bdf8, #2563eb)";
+const VACATIONS_CELEBRATION_BAR_COLOR = "linear-gradient(135deg, #f0abfc, #9333ea)";
 const VACATIONS_CLOSED_BAR_COLOR = "linear-gradient(135deg, #fb7185, #be123c)";
 const colorForVacationEntry = () => VACATIONS_BAR_COLOR;
 let overlayFontReadyPromise = null;
@@ -5096,18 +5097,23 @@ const buildVacationsDisplayPayload = (
     .map((entry, index) => {
       const eventDate = parseIsoUtcDate(entry?.date || entry?.event_date || entry?.start_date || entry?.start);
       if (!eventDate || eventDate < rangeStart || eventDate > rangeEnd) return null;
-      const eventType = String(entry?.type || "").trim().toLowerCase() === "closed" ? "closed" : "holiday";
-      const badgeLabel = eventType === "closed" ? "Fermé" : "Férié";
+      const rawType = String(entry?.type || "").trim().toLowerCase();
+      const eventType = rawType === "closed" || rawType === "celebration" ? rawType : "holiday";
+      const badgeLabel = eventType === "closed" ? "Fermé" : eventType === "celebration" ? "Fête" : "Férié";
       return {
         id: String(entry?.id || `calendar_event_${index}`),
         type: eventType,
         label: String(entry?.label || badgeLabel).trim() || badgeLabel,
         notes: String(entry?.notes || "").trim(),
-        isMandatory: Boolean(entry?.is_mandatory) && eventType === "holiday",
+        isMandatory: Boolean(entry?.is_mandatory) && eventType !== "closed",
         eventDate,
         eventIso: toIsoUtcDate(eventDate),
         badgeLabel,
-        color: eventType === "closed" ? VACATIONS_CLOSED_BAR_COLOR : VACATIONS_HOLIDAY_BAR_COLOR,
+        color: eventType === "closed"
+          ? VACATIONS_CLOSED_BAR_COLOR
+          : eventType === "celebration"
+            ? VACATIONS_CELEBRATION_BAR_COLOR
+            : VACATIONS_HOLIDAY_BAR_COLOR,
       };
     })
     .filter(Boolean)
@@ -6209,14 +6215,21 @@ const renderVacationsSlide = (item) => {
         ? startOfUtcDay(entry.eventDate)
         : parseIsoUtcDate(entry?.eventIso || entry?.date || entry?.start);
       if (!eventDate) return null;
-      const eventType = String(entry?.type || "").trim().toLowerCase() === "closed" ? "closed" : "holiday";
-      const fallbackLabel = eventType === "closed" ? "Fermé" : "Férié";
+      const rawType = String(entry?.type || "").trim().toLowerCase();
+      const eventType = rawType === "closed" || rawType === "celebration" ? rawType : "holiday";
+      const fallbackLabel = eventType === "closed" ? "Fermé" : eventType === "celebration" ? "Fête" : "Férié";
       return {
         ...entry,
         type: eventType,
         label: String(entry?.label || fallbackLabel).trim() || fallbackLabel,
         badgeLabel: String(entry?.badgeLabel || fallbackLabel).trim() || fallbackLabel,
-        color: entry?.color || (eventType === "closed" ? VACATIONS_CLOSED_BAR_COLOR : VACATIONS_HOLIDAY_BAR_COLOR),
+        color: entry?.color || (
+          eventType === "closed"
+            ? VACATIONS_CLOSED_BAR_COLOR
+            : eventType === "celebration"
+              ? VACATIONS_CELEBRATION_BAR_COLOR
+              : VACATIONS_HOLIDAY_BAR_COLOR
+        ),
         eventDate,
       };
     })
@@ -6422,6 +6435,7 @@ const renderVacationsSlide = (item) => {
   [
     entries.length ? { className: "vacation", label: "Vacances" } : null,
     calendarEvents.some((entry) => entry.type === "holiday") ? { className: "holiday", label: "Fériés" } : null,
+    calendarEvents.some((entry) => entry.type === "celebration") ? { className: "celebration", label: "Fêtes" } : null,
     calendarEvents.some((entry) => entry.type === "closed") ? { className: "closed", label: "Fermé" } : null,
   ].filter(Boolean).forEach((entry) => {
     const legendItem = document.createElement("div");
