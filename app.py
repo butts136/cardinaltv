@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import gzip
 import calendar
 import concurrent.futures
@@ -3264,6 +3265,8 @@ def _employee_service_label(employee: Dict[str, Any]) -> str:
 
 
 def _employee_summary_view(employee: Dict[str, Any]) -> Dict[str, Any]:
+    employee_id = str(employee.get("id") or "")
+    avatar_base64 = employee.get("avatar_base64") or ""
     meta_parts = []
     role = str(employee.get("role") or "").strip()
     if role:
@@ -3278,12 +3281,40 @@ def _employee_summary_view(employee: Dict[str, Any]) -> Dict[str, Any]:
     if hire_label:
         meta_parts.append(f"Embauche: {hire_label}")
     return {
-        "id": str(employee.get("id") or ""),
+        "id": employee_id,
         "name": str(employee.get("name") or "Employé"),
-        "avatar_base64": employee.get("avatar_base64") or "",
+        "birthday": str(employee.get("birthday") or ""),
+        "hire_date": str(employee.get("hire_date") or ""),
+        "role": role,
+        "description": str(employee.get("description") or ""),
+        "has_avatar": bool(avatar_base64),
+        "avatar_url": url_for(
+            "main.api_get_employee_avatar",
+            employee_id=employee_id,
+            v=str(employee.get("updated_at") or ""),
+        ) if avatar_base64 and employee_id else "",
         "initials": _employee_initials(str(employee.get("name") or "")),
         "meta": " • ".join(meta_parts),
+        "sort_order": _safe_int(employee.get("sort_order"), 0),
+        "created_at": str(employee.get("created_at") or ""),
+        "updated_at": str(employee.get("updated_at") or ""),
+        "years_of_service_years": employee.get("years_of_service_years"),
+        "years_of_service_months": employee.get("years_of_service_months"),
     }
+
+
+def _guess_employee_avatar_mimetype(data: bytes) -> str:
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"GIF87a") or data.startswith(b"GIF89a"):
+        return "image/gif"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "image/webp"
+    if len(data) > 12 and data[4:8] == b"ftyp" and data[8:12] in {b"avif", b"avis"}:
+        return "image/avif"
+    return "application/octet-stream"
 
 
 class MediaStore:
@@ -4384,6 +4415,14 @@ class EmployeeStore:
             )
             return copy.deepcopy(ordered)
 
+    def get_employee(self, employee_id: str) -> Dict[str, Any]:
+        with self._lock:
+            self._maybe_reload_from_disk()
+            for emp in self._employees:
+                if emp["id"] == employee_id:
+                    return copy.deepcopy(emp)
+        raise KeyError(employee_id)
+
     def etag_token(self) -> str:
         with self._lock:
             self._maybe_reload_from_disk()
@@ -5028,11 +5067,11 @@ def playlist() -> Any:
 
 @bp.route("/diaporama/employes")
 def employees() -> Any:
-    initial_employees = employee_store.list_employees()
+    initial_employees = [_employee_summary_view(emp) for emp in employee_store.list_employees()]
     return render_template(
         "employees.html",
         initial_employees=initial_employees,
-        initial_employees_etag=employee_store.etag_token(),
+        initial_employees_etag=f"{employee_store.etag_token()}-summary",
         defer_admin_css=True,
     )
 
@@ -6804,13 +6843,17 @@ def log_key_event() -> Any:
 
 @bp.get("/api/employees")
 def api_list_employees() -> Any:
+    summary = str(request.args.get("summary") or "").lower() in {"1", "true", "yes", "cards"}
     etag = employee_store.etag_token()
-    if request.if_none_match.contains(etag):
+    response_etag = f"{etag}-summary" if summary else etag
+    if request.if_none_match.contains(response_etag):
         response = make_response("", 304)
-        response.set_etag(etag)
+        response.set_etag(response_etag)
         response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
         return response
     employees = employee_store.list_employees()
+    if summary:
+        employees = [_employee_summary_view(emp) for emp in employees]
     body = json.dumps(
         {"employees": employees},
         ensure_ascii=False,
@@ -6819,7 +6862,7 @@ def api_list_employees() -> Any:
         default=str,
     )
     response = app.response_class(f"{body}\n", mimetype="application/json")
-    response.set_etag(etag)
+    response.set_etag(response_etag)
     response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
     return response
 
@@ -6862,6 +6905,35 @@ def api_delete_employee(employee_id: str) -> Any:
     except KeyError:
         abort(404, description="Employé introuvable.")
     return jsonify({"status": "ok"})
+
+
+@bp.get("/api/employees/<employee_id>/avatar")
+def api_get_employee_avatar(employee_id: str) -> Any:
+    try:
+        employee = employee_store.get_employee(employee_id)
+    except KeyError:
+        abort(404, description="Employé introuvable.")
+    avatar_base64 = employee.get("avatar_base64") or ""
+    if not avatar_base64:
+        abort(404, description="Avatar introuvable.")
+    try:
+        avatar_data = base64.b64decode(avatar_base64, validate=True)
+    except (ValueError, binascii.Error):
+        abort(404, description="Avatar invalide.")
+    avatar_hash = hashlib.sha256(avatar_data).hexdigest()
+    etag = f"employee-avatar-{employee_id}-{avatar_hash[:16]}"
+    if request.if_none_match.contains(etag):
+        response = make_response("", 304)
+        response.set_etag(etag)
+        response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+        return response
+    response = app.response_class(
+        avatar_data,
+        mimetype=_guess_employee_avatar_mimetype(avatar_data),
+    )
+    response.set_etag(etag)
+    response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+    return response
 
 
 @bp.post("/api/employees/<employee_id>/avatar")

@@ -953,6 +953,8 @@ const selectBirthdayBackground = (variantCfg, item, settings) => {
 
 const cachedMediaObjectUrls = new Map();
 const cachedBackgroundVideoRequests = new Set();
+const prewarmedBackgroundVideos = new Map();
+const PREWARMED_BACKGROUND_VIDEO_LIMIT = performanceProfile.lowPower || isTvDevice ? 1 : 2;
 
 const getCachedMediaObjectUrl = async (url) => {
   if (!url || !("caches" in window)) return null;
@@ -984,6 +986,76 @@ const ensureBackgroundVideoCached = async (url, { timeoutMs = 12000 } = {}) => {
   } catch (error) {
     return false;
   }
+};
+
+const removePrewarmedBackgroundVideo = (url) => {
+  const video = prewarmedBackgroundVideos.get(url);
+  if (!video) return;
+  try {
+    video.pause?.();
+    video.removeAttribute("src");
+    video.load?.();
+  } catch (error) {
+    // ignore cleanup failures on constrained TV browsers.
+  }
+  video.remove();
+  prewarmedBackgroundVideos.delete(url);
+};
+
+const trimPrewarmedBackgroundVideos = (keepUrl = "") => {
+  while (prewarmedBackgroundVideos.size > PREWARMED_BACKGROUND_VIDEO_LIMIT) {
+    const oldest = Array.from(prewarmedBackgroundVideos.keys()).find((url) => url !== keepUrl);
+    if (!oldest) return;
+    removePrewarmedBackgroundVideo(oldest);
+  }
+};
+
+const warmBackgroundVideo = (url) => {
+  if (!PRELOAD_ENABLED || !url) return null;
+  const resolvedUrl = resolveAssetUrl(url);
+  if (!resolvedUrl) return null;
+  const existing = prewarmedBackgroundVideos.get(resolvedUrl);
+  if (existing) {
+    prewarmedBackgroundVideos.delete(resolvedUrl);
+    prewarmedBackgroundVideos.set(resolvedUrl, existing);
+    const replay = existing.play?.();
+    if (replay && typeof replay.catch === "function") {
+      replay.catch(() => {});
+    }
+    return existing;
+  }
+
+  const video = document.createElement("video");
+  video.className = "slideshow-prewarm-video";
+  video.src = resolvedUrl;
+  video.preload = "auto";
+  video.setAttribute("preload", "auto");
+  video.autoplay = true;
+  video.loop = true;
+  video.muted = true;
+  video.defaultMuted = true;
+  video.volume = 0;
+  video.playsInline = true;
+  video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "");
+  video.setAttribute("aria-hidden", "true");
+  video.tabIndex = -1;
+  video.style.cssText =
+    "position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none;z-index:-1;";
+  const parent = document.body || document.documentElement;
+  parent?.appendChild(video);
+  prewarmedBackgroundVideos.set(resolvedUrl, video);
+  trimPrewarmedBackgroundVideos(resolvedUrl);
+  try {
+    video.load?.();
+  } catch (error) {
+    // ignore
+  }
+  const playPromise = video.play?.();
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise.catch(() => {});
+  }
+  return video;
 };
 
 const shouldUseCachedObjectUrlForVideo = () => !isTvDevice;
@@ -3042,6 +3114,7 @@ const preloadNextBackground = () => {
       const timeoutMs = performanceProfile.lowPower ? 9000 : 12000;
       void ensureBackgroundVideoCached(resolvedUrl, { timeoutMs });
     }
+    warmBackgroundVideo(resolvedUrl);
     clearPreloadLinkHref();
     lastPreloadedBackground = "";
     return;
@@ -7706,6 +7779,7 @@ window.addEventListener("beforeunload", () => {
   stopKeepAwakePlayback();
   cachedMediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
   cachedMediaObjectUrls.clear();
+  Array.from(prewarmedBackgroundVideos.keys()).forEach((url) => removePrewarmedBackgroundVideo(url));
   if (playlistRefreshTimer) {
     clearInterval(playlistRefreshTimer);
     playlistRefreshTimer = null;

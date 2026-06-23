@@ -7,9 +7,12 @@
     *{box-sizing:border-box}
     body.app-shell{margin:0;background:#050912;color:#f8fafc;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
     .app-surface{padding:16px;min-width:0}
-    .app-sidebar{display:none}
+    .app-sidebar{position:fixed;inset:0 auto 0 0;width:260px;display:block;min-height:100vh;padding:20px;background:rgba(5,9,18,.98);border-right:1px solid rgba(255,255,255,.08);transform:translateX(-100%);transition:transform .25s ease,box-shadow .25s ease;z-index:1200;overflow-y:auto}
+    body.app-shell.sidebar-open .app-sidebar{transform:translateX(0);box-shadow:16px 0 50px rgba(0,0,0,.4)}
+    body.app-shell.sidebar-open .app-surface::after{content:"";position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100}
     .page-header{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
     .page-title{display:flex;gap:10px}
+    .sidebar-toggle{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font-size:1.2rem;cursor:pointer}
     .page-title h1,.card h2,.employees-list-header h3{margin:0}
     .page-subtitle,.playlist-subtitle,.employees-row .meta{color:rgba(226,232,240,.72)}
     .card{background:rgba(16,26,44,.94);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}
@@ -23,7 +26,7 @@
     .employees-row .meta{display:block;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .primary-button,.secondary-button{min-height:38px;border-radius:8px;border:1px solid rgba(255,255,255,.16);padding:8px 12px;color:#f8fafc;background:rgba(255,255,255,.08);font:inherit;font-weight:600}
     .primary-button{background:#f06595;border-color:transparent}.icon-button,.employee-action-button{width:38px;height:38px;min-height:38px;padding:0;display:inline-flex;align-items:center;justify-content:center}.employee-edit-panel{overflow:hidden;max-height:0}
-    @media (min-width:1081px){body.app-shell{display:grid;grid-template-columns:280px 1fr}.app-sidebar{display:block;min-height:100vh;padding:20px;background:rgba(5,9,18,.96);border-right:1px solid rgba(255,255,255,.08)}.app-surface{padding:32px}}
+    @media (min-width:1081px){body.app-shell{display:grid;grid-template-columns:280px 1fr}.app-sidebar{position:sticky;top:0;transform:none;width:auto;box-shadow:none}.sidebar-toggle{display:none}.app-surface{padding:32px}body.app-shell.sidebar-open .app-surface::after{display:none}}
     @media (max-width:760px){.employees-list-header{align-items:stretch;flex-direction:column}.employee-top{align-items:center}.employees-item-actions{display:flex;justify-content:flex-end}.employees-row .meta{white-space:nowrap;overflow:hidden}}
   </style>
   {{ super() }}
@@ -48,9 +51,42 @@
 {% block scripts %}
   <script>
     (function () {
+      const toggle = document.getElementById("sidebar-toggle");
+      const shell = document.querySelector(".app-shell");
+      const sidebar = document.querySelector(".app-sidebar");
+      if (!toggle || !shell || !sidebar) return;
+      const setOpen = (open) => {
+        shell.classList.toggle("sidebar-open", open);
+        toggle.setAttribute("aria-label", open ? "Fermer la navigation" : "Ouvrir la navigation");
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      };
+      toggle.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setOpen(!shell.classList.contains("sidebar-open"));
+      }, true);
+      document.addEventListener("click", (event) => {
+        if (!shell.classList.contains("sidebar-open")) return;
+        const target = event.target;
+        if (sidebar.contains(target) || toggle.contains(target)) return;
+        setOpen(false);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          setOpen(false);
+        }
+      });
+    })();
+
+    (function () {
       const list = document.getElementById("employees-list");
       const dataEl = document.getElementById("employees-bootstrap-data");
       if (!list || !dataEl) return;
+      const normalizeBaseUrl = (value) => {
+        if (!value) return "/";
+        return value.endsWith("/") ? value : `${value}/`;
+      };
+      const apiUrl = (path) => `${normalizeBaseUrl(document.body?.dataset?.baseUrl || "/")}${path}`;
       const formatDate = (value) => {
         if (!value) return "";
         const parts = String(value).split("-").filter(Boolean);
@@ -99,9 +135,14 @@
           row.dataset.id = employee.id;
           const safeName = escapeHTML(employee.name || "Employé");
           const safeMeta = escapeHTML(metaFor(employee));
-          const avatar = employee.avatar_base64
-            ? `<img src="data:image/*;base64,${escapeHTML(employee.avatar_base64)}" alt="Avatar de ${safeName}" loading="lazy" decoding="async" />`
-            : escapeHTML(initials(employee.name));
+          const avatarSrc = employee.avatar_url
+            ? employee.avatar_url
+            : employee.avatar_base64
+              ? `data:image/*;base64,${employee.avatar_base64}`
+              : "";
+          const avatar = avatarSrc
+            ? `<img src="${escapeHTML(avatarSrc)}" alt="Avatar de ${safeName}" loading="lazy" decoding="async" />`
+            : escapeHTML(employee.initials || initials(employee.name));
           row.innerHTML = `
             <div class="employee-top">
               <div class="employee-main">
@@ -144,7 +185,7 @@
         next.splice(target, 0, item);
         employees = next;
         render(employees);
-        fetch("api/employees/reorder", {
+        fetch(apiUrl("api/employees/order"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ order: employees.map((employee) => employee.id) }),

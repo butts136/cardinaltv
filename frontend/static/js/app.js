@@ -7044,6 +7044,17 @@ const formatServiceLabel = (employee) => {
   return `${parts.join(" et ")} de service`;
 };
 
+const getEmployeeAvatarSrc = (employee) => {
+  if (!employee || typeof employee !== "object") return "";
+  if (employee.avatar_url) {
+    return buildApiUrl(employee.avatar_url);
+  }
+  if (employee.avatar_base64) {
+    return `data:image/*;base64,${employee.avatar_base64}`;
+  }
+  return "";
+};
+
 const renderTeamPreviewCard = (employee) => {
   const card = document.createElement("article");
   card.className = "team-slide-card";
@@ -7053,10 +7064,13 @@ const renderTeamPreviewCard = (employee) => {
 
   const avatar = document.createElement("div");
   avatar.className = "team-slide-card-avatar";
-  if (employee.avatar_base64) {
+  const avatarSrc = getEmployeeAvatarSrc(employee);
+  if (avatarSrc) {
     const img = document.createElement("img");
-    img.src = `data:image/*;base64,${employee.avatar_base64}`;
+    img.src = avatarSrc;
     img.alt = `Avatar de ${employee.name || "Employé"}`;
+    img.loading = "lazy";
+    img.decoding = "async";
     avatar.appendChild(img);
   } else {
     avatar.textContent = initialsFromName(employee.name || "");
@@ -7593,12 +7607,13 @@ const openEmployeeModal = (employee = null) => {
     employeeDescriptionInput && (employeeDescriptionInput.value = employee.description || "");
     parseBirthdayIntoFields(employee.birthday || "");
     parseHireDateIntoFields(employee.hire_date || "");
-    if (employee.avatar_base64 && employeeAvatarPreview) {
-      employeeAvatarPreview.src = `data:image/*;base64,${employee.avatar_base64}`;
+    const avatarSrc = getEmployeeAvatarSrc(employee);
+    if (avatarSrc && employeeAvatarPreview) {
+      employeeAvatarPreview.src = avatarSrc;
       employeeAvatarPreview.classList.remove("hidden");
     }
     if (employeeAvatarRemoveButton) {
-      employeeAvatarRemoveButton.disabled = !employee.avatar_base64;
+      employeeAvatarRemoveButton.disabled = !avatarSrc;
     }
   } else {
     employeeModalTitle && (employeeModalTitle.textContent = "Nouvel employé");
@@ -7767,9 +7782,10 @@ const renderEmployeesList = () => {
 
     const avatar = document.createElement("div");
     avatar.className = "employee-avatar";
-    if (emp.avatar_base64) {
+    const avatarSrc = getEmployeeAvatarSrc(emp);
+    if (avatarSrc) {
       const img = document.createElement("img");
-      img.src = `data:image/*;base64,${emp.avatar_base64}`;
+      img.src = avatarSrc;
       img.alt = `Avatar de ${emp.name || "Employé"}`;
       img.loading = "lazy";
       img.decoding = "async";
@@ -8047,7 +8063,8 @@ const loadEmployees = async ({ useBootstrap = false, forceRefresh = false, backg
           ? employeesETag
           : `"${employeesETag}"`;
     }
-    const response = await fetch(buildApiUrl("api/employees"), { headers });
+    const employeesPath = employeesList || teamPreviewStage ? "api/employees?summary=1" : "api/employees";
+    const response = await fetch(buildApiUrl(employeesPath), { headers });
     if (response.status === 304) {
       return;
     }
