@@ -302,6 +302,9 @@ let teamRotationTimer = null;
 let teamScrollAnimation = null;
 let teamTitleAnimation = null;
 let lastTeamEmployeesFetch = 0;
+let vacationEmployeesData = [];
+let vacationEmployeesPromise = null;
+let lastVacationEmployeesFetch = 0;
 let autoStartRequested = false;
 let keepAwakeVideo = null;
 let keepAwakeCanvas = null;
@@ -4281,6 +4284,35 @@ const ensureTeamEmployeesData = async (force = false) => {
   return teamEmployeesPromise;
 };
 
+const ensureVacationEmployeesData = async (force = false) => {
+  const now = Date.now();
+  const shouldRefresh =
+    force || !vacationEmployeesData.length || now - lastVacationEmployeesFetch > TEAM_EMPLOYEES_REFRESH_MS;
+
+  if (!shouldRefresh && !vacationEmployeesPromise) {
+    return vacationEmployeesData;
+  }
+
+  if (!vacationEmployeesPromise) {
+    // Calendar needs periods only; this endpoint still excludes the costly
+    // base64 avatars that are irrelevant to its layout.
+    vacationEmployeesPromise = fetchJSON("api/employees?summary=1&include=vacations")
+      .then((data) => {
+        vacationEmployeesData = Array.isArray(data?.employees) ? data.employees : [];
+        lastVacationEmployeesFetch = Date.now();
+        return vacationEmployeesData;
+      })
+      .catch((error) => {
+        console.warn("Impossible de charger les vacances des employés:", error);
+        return vacationEmployeesData;
+      })
+      .finally(() => {
+        vacationEmployeesPromise = null;
+      });
+  }
+  return vacationEmployeesPromise;
+};
+
 const ensureCalendarEventsData = async (force = false) => {
   const now = Date.now();
   const shouldRefresh =
@@ -5320,7 +5352,7 @@ const buildVacationsDisplayPayload = (
 
 const getVacationsDisplayPayload = async ({ previewFallback = false, forceEmployees = false, forceEvents = false } = {}) => {
   const [employees, calendarEvents] = await Promise.all([
-    ensureTeamEmployeesData(forceEmployees),
+    ensureVacationEmployeesData(forceEmployees),
     ensureCalendarEventsData(forceEvents),
   ]);
   return buildVacationsDisplayPayload(employees, vacationsSlideSettings || DEFAULT_VACATIONS_SLIDE, {
