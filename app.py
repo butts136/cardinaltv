@@ -357,6 +357,8 @@ DEFAULT_SETTINGS = {
         "background_mimetype": None,
         "initial_full_weeks": 8,
         "months_to_show": 12,
+        # two_columns | one_column | continuous
+        "layout_mode": "two_columns",
         "scroll_start_delay_ms": 5000,
         "scroll_speed_px_per_second": 18.0,
         "pause_at_bottom_ms": 5000,
@@ -1678,6 +1680,10 @@ def _normalize_vacations_config(
             except (TypeError, ValueError):
                 continue
             result["months_to_show"] = max(1, min(24, months))
+        elif key == "layout_mode":
+            mode = str(value or "").strip().lower()
+            if mode in {"two_columns", "one_column", "continuous"}:
+                result["layout_mode"] = mode
         elif key == "scroll_start_delay_ms":
             try:
                 delay = int(value)
@@ -5848,7 +5854,7 @@ def _inject_custom_slides_nav() -> Dict[str, Any]:
         },
         {
             "endpoint": "main.calendar_settings",
-            "label": "Paramètres Calendrier",
+            "label": "Diapositive Calendrier",
             "url": url_for("main.calendar_settings"),
             "enabled": False,
             "show_status": False,

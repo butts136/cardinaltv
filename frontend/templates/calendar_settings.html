@@ -35,7 +35,8 @@
       text-transform: uppercase;
     }
 
-    .calendar-settings-field input {
+    .calendar-settings-field input,
+    .calendar-settings-field select {
       width: 100%;
       min-height: 48px;
       border: 1px solid rgba(148, 163, 184, 0.28);
@@ -47,7 +48,8 @@
       font-weight: 800;
     }
 
-    .calendar-settings-field input:focus {
+    .calendar-settings-field input:focus,
+    .calendar-settings-field select:focus {
       outline: 2px solid rgba(56, 189, 248, 0.22);
       border-color: rgba(56, 189, 248, 0.62);
     }
@@ -149,6 +151,15 @@
       <div class="section-content">
         <div class="calendar-settings-grid">
           <div class="calendar-settings-field">
+            <label for="calendar-layout-mode">Mode d’affichage</label>
+            <select id="calendar-layout-mode" name="layout_mode">
+              <option value="two_columns">2 colonnes · mois en cartes</option>
+              <option value="one_column">1 colonne · mois en cartes</option>
+              <option value="continuous">1 colonne continue · bande latérale des mois</option>
+            </select>
+            <span class="calendar-settings-help">Le mode continu supprime les cartes séparées : chaque mois est repéré par une bande colorée verticale, avec son nom pivoté vers la gauche.</span>
+          </div>
+          <div class="calendar-settings-field">
             <label for="calendar-months-to-show">Mois affichés</label>
             <input id="calendar-months-to-show" name="months_to_show" type="number" min="1" max="24" step="1" inputmode="numeric" />
             <span class="calendar-settings-help">Nombre total de mois générés dans la diapositive.</span>
@@ -242,5 +253,5 @@
 
 {% block scripts %}
   {{ super() }}
-  <script defer src="{{ url_for('static', filename='js/calendar_settings.js') }}?v=20260514-01"></script>
+  <script defer src="{{ url_for('static', filename='js/calendar_settings.js') }}?v=20260710-02"></script>
 {% endblock %}

@@ -1775,6 +1775,16 @@ input[type="datetime-local"]:focus {
   gap: 0.85vh 0.75vw;
 }
 
+.vacations-slide-frame .months-grid--one_column {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.vacations-slide-frame .months-grid--continuous {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding-left: clamp(56px, 5vw, 96px);
+}
+
 .vacations-slide-frame .month-card {
   overflow: hidden;
   border-radius: 18px;
@@ -1784,6 +1794,49 @@ input[type="datetime-local"]:focus {
     var(--card-bg);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
   min-height: 0;
+}
+
+.vacations-slide-frame .month-card--continuous {
+  position: relative;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.vacations-slide-frame .month-card--continuous:last-child {
+  border-bottom: 0;
+}
+
+.vacations-slide-frame .month-continuous-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: clamp(56px, 5vw, 96px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0.5vh 0.25vw;
+  color: #ffffff;
+  background: var(--month-band-color, #2563eb);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: inset -1px 0 rgba(255, 255, 255, 0.24);
+  font-size: var(--vacations-month-font-size, clamp(26px, 1.9vw, 40px));
+  font-weight: 1000;
+  line-height: 1;
+  text-align: center;
+  text-transform: capitalize;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.vacations-slide-frame .month-card--continuous .weekday-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .vacations-slide-frame .month-events {

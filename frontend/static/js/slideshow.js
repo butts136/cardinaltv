@@ -6350,6 +6350,10 @@ const renderVacationsSlide = (item) => {
     1,
     Math.min(24, Number(settings.months_to_show) || DEFAULT_VACATIONS_SLIDE.months_to_show || 12),
   );
+  const layoutMode = ["two_columns", "one_column", "continuous"].includes(settings.layout_mode)
+    ? settings.layout_mode
+    : "two_columns";
+  const continuousMonthColors = ["#2563eb", "#0f766e", "#9333ea", "#c2410c", "#be123c", "#4f46e5"];
   const entries = (Array.isArray(payload?.entries) ? payload.entries : [])
     .map((entry, index) => {
       const startDate = parseIsoUtcDate(entry.startIso || entry.start_date || entry.start);
@@ -6528,12 +6532,20 @@ const renderVacationsSlide = (item) => {
   };
 
   const monthsGrid = document.createElement("div");
-  monthsGrid.className = "months-grid";
+  monthsGrid.className = `months-grid months-grid--${layoutMode}`;
 
   for (let index = 0; index < monthsToShow; index += 1) {
     const labelDate = addUtcMonths(monthStart, index);
     const card = document.createElement("section");
     card.className = "month-card";
+    if (layoutMode === "continuous") {
+      card.classList.add("month-card--continuous");
+      card.style.setProperty("--month-band-color", continuousMonthColors[index % continuousMonthColors.length]);
+      const band = document.createElement("div");
+      band.className = "month-continuous-band";
+      band.textContent = capitalizeFrench(vacationsMonthFormatter.format(labelDate));
+      card.appendChild(band);
+    }
     const monthEvents = calendarEvents
       .filter((entry) => sameUtcMonth(entry.eventDate, labelDate))
       .sort((left, right) => {
@@ -6543,10 +6555,12 @@ const renderVacationsSlide = (item) => {
         return left.label.localeCompare(right.label, "fr", { sensitivity: "base" });
       });
 
-    const header = document.createElement("div");
-    header.className = "month-header";
-    header.textContent = capitalizeFrench(vacationsMonthFormatter.format(labelDate));
-    card.appendChild(header);
+    if (layoutMode !== "continuous") {
+      const header = document.createElement("div");
+      header.className = "month-header";
+      header.textContent = capitalizeFrench(vacationsMonthFormatter.format(labelDate));
+      card.appendChild(header);
+    }
     card.appendChild(makeWeekdayRow());
 
     const weeksWrap = document.createElement("div");

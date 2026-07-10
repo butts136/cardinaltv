@@ -23,6 +23,7 @@
     const PREVIEW_HEIGHT = 1080;
     const DEFAULTS = {
       months_to_show: 12,
+      layout_mode: "two_columns",
       title_font_size: 62,
       month_font_size: 36,
       weekday_font_size: 20,
@@ -36,6 +37,7 @@
     };
 
     const fields = {
+      layout_mode: document.getElementById("calendar-layout-mode"),
       months_to_show: document.getElementById("calendar-months-to-show"),
       title_font_size: document.getElementById("calendar-title-font-size"),
       month_font_size: document.getElementById("calendar-month-font-size"),
@@ -96,6 +98,10 @@
     };
 
     const populate = (settings = {}) => {
+      const layoutMode = ["two_columns", "one_column", "continuous"].includes(settings.layout_mode)
+        ? settings.layout_mode
+        : DEFAULTS.layout_mode;
+      setFieldValue("layout_mode", layoutMode);
       setFieldValue("months_to_show", toNumber(settings.months_to_show, DEFAULTS.months_to_show, {
         min: 1,
         max: 24,
@@ -119,6 +125,9 @@
     };
 
     const collect = () => ({
+      layout_mode: ["two_columns", "one_column", "continuous"].includes(fields.layout_mode?.value)
+        ? fields.layout_mode.value
+        : DEFAULTS.layout_mode,
       months_to_show: toNumber(fields.months_to_show?.value, DEFAULTS.months_to_show, {
         min: 1,
         max: 24,
