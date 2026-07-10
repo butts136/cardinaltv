@@ -923,6 +923,20 @@
   display: block;
 }
 
+/* The editor cards are an interaction layer only once the slideshow iframe is
+ * ready. The actual pixels always come from slideshow.js, the same renderer
+ * used by a TV. Selection outlines and resize handles intentionally remain. */
+.preview-frame[data-preview-mode="slideshow"].slideshow-preview-ready .preview-text-card {
+  color: transparent;
+  background: transparent;
+  text-shadow: none;
+  opacity: 1;
+}
+
+.preview-frame[data-preview-mode="slideshow"].slideshow-preview-ready .preview-text-content {
+  color: transparent;
+}
+
 .resize-handle--top-middle {
   top: 0%;
   left: 50%;

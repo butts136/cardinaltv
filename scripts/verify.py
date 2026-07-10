@@ -155,7 +155,7 @@ def check_navigation_submenu():
     
     checks = [
         ("nav-submenu class", "nav-submenu" in content),
-        ("Diapo auto-généré label", "Diapo auto-généré" in content),
+        ("Diapositive Dynamique label", "Diapositive Dynamique" in content),
         ("fetes_endpoints", "fetes_endpoints" in content),
         ("nav-submenu-toggle", "nav-submenu-toggle" in content),
     ]

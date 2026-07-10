@@ -255,6 +255,9 @@ let isStarting = false;
 let initialCacheWarmupDone = false;
 let initialCacheWarmupPromise = null;
 let playlistWarmupToken = 0;
+let playlistOfflineCacheTimer = null;
+let playlistOfflineCacheSignature = "";
+let playlistOfflineCachedSignature = "";
 let upcomingPreloadTimer = null;
 let upcomingPreloadSignature = "";
 let clockTimer = null;
@@ -1012,6 +1015,9 @@ const trimPrewarmedBackgroundVideos = (keepUrl = "") => {
 
 const warmBackgroundVideo = (url) => {
   if (!PRELOAD_ENABLED || !url) return null;
+  // A hidden playing video can reserve a second hardware decoder. Cache
+  // Storage is the safe prefetch path for Fire TV and constrained devices.
+  if (performanceProfile.lowPower || isTvDevice) return null;
   const resolvedUrl = resolveAssetUrl(url);
   if (!resolvedUrl) return null;
   const existing = prewarmedBackgroundVideos.get(resolvedUrl);
@@ -1028,10 +1034,8 @@ const warmBackgroundVideo = (url) => {
   const video = document.createElement("video");
   video.className = "slideshow-prewarm-video";
   video.src = resolvedUrl;
-  video.preload = "auto";
-  video.setAttribute("preload", "auto");
-  video.autoplay = true;
-  video.loop = true;
+  video.preload = "metadata";
+  video.setAttribute("preload", "metadata");
   video.muted = true;
   video.defaultMuted = true;
   video.volume = 0;
@@ -1050,10 +1054,6 @@ const warmBackgroundVideo = (url) => {
     video.load?.();
   } catch (error) {
     // ignore
-  }
-  const playPromise = video.play?.();
-  if (playPromise && typeof playPromise.catch === "function") {
-    playPromise.catch(() => {});
   }
   return video;
 };
@@ -2028,10 +2028,12 @@ const fetchTimeChangeInfo = async (force = false) => {
     return timeChangeInfo;
   }
   try {
-    const query =
-      timeChangeSlideSettings && Number.isFinite(Number(timeChangeSlideSettings.days_before))
-        ? `?days_before=${timeChangeSlideSettings.days_before}`
-        : "";
+    const params = new URLSearchParams();
+    if (timeChangeSlideSettings && Number.isFinite(Number(timeChangeSlideSettings.days_before))) {
+      params.set("days_before", String(timeChangeSlideSettings.days_before));
+    }
+    if (force && isEditorPreview) params.set("sw-bypass", "1");
+    const query = params.size ? `?${params.toString()}` : "";
     const data = await fetchJSON(`api/time-change-slide/next${query}`);
     timeChangeInfo = data && data.change ? data.change : null;
     lastTimeChangeFetch = Date.now();
@@ -2129,9 +2131,9 @@ const formatBirthdayMeta = (birthdayDate) => {
   return { weekday, fullDate: dateText };
 };
 
-const refreshOverlaySettings = async () => {
+const refreshOverlaySettings = async ({ force = false } = {}) => {
   try {
-    const data = await fetchJSON("api/settings");
+    const data = await fetchJSON(force ? "api/settings?sw-bypass=1" : "api/settings");
     const signature = JSON.stringify(data || {});
     const settingsChanged = signature !== overlaySignature;
     if (settingsChanged) {
@@ -2217,8 +2219,12 @@ const warmupPlaylistCache = async (items, extraUrls = []) => {
   }
   const token = ++playlistWarmupToken;
   const ordered = buildOrderedPlaylist(items, 0);
+  // Start playback first. A bounded warmup is much more reliable than several
+  // large video downloads competing with the first visible slide.
+  const warmupLimit = performanceProfile.lowPower || isTvDevice ? 2 : 4;
+  const warmupItems = ordered.slice(0, warmupLimit);
   const urlSet = new Set();
-  ordered.forEach((entry) => {
+  warmupItems.forEach((entry) => {
     collectItemMediaUrls(entry).forEach((url) => urlSet.add(url));
   });
   if (Array.isArray(extraUrls)) {
@@ -2248,6 +2254,42 @@ const warmupPlaylistCache = async (items, extraUrls = []) => {
 };
 
 const shouldShowPreloadStatus = () => PRELOAD_ENABLED && Boolean(slideshowCache?.isEnabled?.());
+
+const schedulePlaylistOfflineCache = () => {
+  if (!PRELOAD_ENABLED || !slideshowCache?.updateCacheForPlaylist || !playlist.length) return;
+  const signature = `${playlistSignature}|${weatherBackgroundUrls.slice().sort().join("|")}`;
+  if (signature === playlistOfflineCachedSignature) return;
+  if (signature === playlistOfflineCacheSignature && playlistOfflineCacheTimer) return;
+  playlistOfflineCacheSignature = signature;
+  if (playlistOfflineCacheTimer) {
+    clearTimeout(playlistOfflineCacheTimer);
+    playlistOfflineCacheTimer = null;
+  }
+
+  const cacheEverything = () => {
+    playlistOfflineCacheTimer = null;
+    // This is deliberately the complete playlist: once synchronized, playback
+    // is served by Cache Storage even if the TV loses network access.  It runs
+    // after the current slide is visible; the short warmup above remains the
+    // first-paint path and never has to compete with every video download.
+    void slideshowCache.updateCacheForPlaylist(playlist, weatherBackgroundUrls)
+      .then(() => {
+        if (playlistOfflineCacheSignature === signature) {
+          playlistOfflineCachedSignature = signature;
+        }
+      })
+      .catch(() => {});
+  };
+
+  const schedule = () => {
+    playlistOfflineCacheTimer = setTimeout(cacheEverything, 2500);
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(schedule, { timeout: 4000 });
+  } else {
+    schedule();
+  }
+};
 
 const runInitialCacheWarmup = async (items, extraUrls = [], startIndex = 0) => {
   if (!PRELOAD_ENABLED || !slideshowCache?.precacheUrls) return;
@@ -3234,7 +3276,7 @@ const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
   if (type === "birthday") {
     const forcedVariant = previewBirthdayVariant || "before";
     if (isEditorPreview) {
-      const previewConfig = await loadBirthdayVariantConfig(forcedVariant);
+      const previewConfig = await loadBirthdayVariantConfig(forcedVariant, { force: true });
       const previewDays = getBirthdayDaysBefore();
       const previewDate = new Date();
       previewDate.setUTCDate(previewDate.getUTCDate() + Math.max(0, previewDays));
@@ -3260,7 +3302,7 @@ const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
       }
       return buildBirthdaySlideItem(entries[0]);
     }
-    const previewConfig = await loadBirthdayVariantConfig(forcedVariant);
+    const previewConfig = await loadBirthdayVariantConfig(forcedVariant, { force: isEditorPreview });
     const previewDays = getBirthdayDaysBefore();
     const previewDate = new Date();
     previewDate.setUTCDate(previewDate.getUTCDate() + Math.max(0, previewDays));
@@ -3278,7 +3320,7 @@ const buildSingleSlideItem = async (type, { slideId = "" } = {}) => {
   if (type === "custom") {
     let target = null;
     if (slideId) {
-      target = await fetchCustomSlideById(slideId);
+      target = await fetchCustomSlideById(slideId, { force: isEditorPreview });
     }
     if (!target) {
       const list = await fetchCustomSlidesList(true);
@@ -4209,10 +4251,23 @@ const ensureTeamEmployeesData = async (force = false) => {
   }
 
   if (!teamEmployeesPromise) {
-    teamEmployeesPromise = fetchJSON("api/employees")
+    // Summary mode deliberately excludes base64 avatars. Each avatar remains a
+    // normal cacheable image resource, which is lighter and works offline.
+    teamEmployeesPromise = fetchJSON("api/employees?summary=1")
       .then((data) => {
         teamEmployeesData = Array.isArray(data.employees) ? data.employees : [];
         lastTeamEmployeesFetch = Date.now();
+        // Avatars are separate cacheable resources, so the lightweight employee
+        // payload and the complete offline team slide are both preserved.
+        const avatarUrls = teamEmployeesData
+          .map((employee) => employee?.avatar_url)
+          .filter((url) => typeof url === "string" && url);
+        if (avatarUrls.length && PRELOAD_ENABLED && slideshowCache?.precacheUrls) {
+          void slideshowCache.precacheUrls(avatarUrls, {
+            timeoutMs: performanceProfile.lowPower ? 12000 : 20000,
+            concurrency: performanceProfile.lowPower ? 1 : 2,
+          });
+        }
         return teamEmployeesData;
       })
       .catch((error) => {
@@ -4911,7 +4966,7 @@ const renderBirthdaySlide = (item, variantConfig = null) => {
   }
   frameEl.appendChild(backdrop);
 
-  if (!isEditorPreview) {
+  {
     const overlay = document.createElement("div");
     overlay.className = "birthday-slide-overlay";
     const linesWrapper = document.createElement("div");
@@ -5316,10 +5371,12 @@ const fetchChristmasInfo = async (force = false) => {
     return christmasInfo;
   }
   try {
-    const query =
-      christmasSlideSettings && Number.isFinite(Number(christmasSlideSettings.days_before))
-        ? `?days_before=${christmasSlideSettings.days_before}`
-        : "";
+    const params = new URLSearchParams();
+    if (christmasSlideSettings && Number.isFinite(Number(christmasSlideSettings.days_before))) {
+      params.set("days_before", String(christmasSlideSettings.days_before));
+    }
+    if (force && isEditorPreview) params.set("sw-bypass", "1");
+    const query = params.size ? `?${params.toString()}` : "";
     const data = await fetchJSON(`api/christmas-slide/next${query}`);
     christmasInfo = data && data.christmas ? data.christmas : null;
     lastChristmasFetch = Date.now();
@@ -5394,7 +5451,7 @@ const renderChristmasSlide = (item) => {
   }
 
   frame.appendChild(backdrop);
-  if (!isEditorPreview) {
+  {
     const overlay = document.createElement("div");
     overlay.className = "christmas-slide-overlay";
 
@@ -5523,10 +5580,6 @@ const renderCustomSlide = (item) => {
   }
 
   const layoutTexts = () => {
-    if (isEditorPreview) {
-      overlay.replaceChildren();
-      return;
-    }
     overlay.innerHTML = "";
     const overlayWidth = BASE_CANVAS_WIDTH;
     const overlayHeight = BASE_CANVAS_HEIGHT;
@@ -6651,7 +6704,7 @@ const renderTimeChangeSlide = (item) => {
   }
 
   frame.appendChild(backdrop);
-  if (!isEditorPreview) {
+  {
     const overlay = document.createElement("div");
     overlay.className = "time-change-slide-overlay";
 
@@ -6860,7 +6913,7 @@ const fetchTestSlide = async (force = false) => {
     return testSlidePayload;
   }
   try {
-    const data = await fetchJSON("api/test/slide");
+    const data = await fetchJSON(force && isEditorPreview ? "api/test/slide?sw-bypass=1" : "api/test/slide");
     testSlidePayload = data || null;
     lastTestSlideFetch = now;
     return testSlidePayload;
@@ -6914,7 +6967,7 @@ const fetchCustomSlidesList = async (force = false) => {
     return customSlidesPayload;
   }
   try {
-    const data = await fetchJSON("api/custom-slides");
+    const data = await fetchJSON(force && isEditorPreview ? "api/custom-slides?sw-bypass=1" : "api/custom-slides");
     const items = Array.isArray(data?.items) ? data.items : [];
     customSlidesPayload = items;
     lastCustomSlidesFetch = now;
@@ -6925,11 +6978,12 @@ const fetchCustomSlidesList = async (force = false) => {
   }
 };
 
-const fetchCustomSlideById = async (slideId) => {
+const fetchCustomSlideById = async (slideId, { force = false } = {}) => {
   const id = String(slideId || "").trim();
   if (!id) return null;
   try {
-    const item = await fetchJSON(`api/custom-slides/${encodeURIComponent(id)}`);
+    const suffix = force && isEditorPreview ? "?sw-bypass=1" : "";
+    const item = await fetchJSON(`api/custom-slides/${encodeURIComponent(id)}${suffix}`);
     return item || null;
   } catch (error) {
     return null;
@@ -7180,9 +7234,7 @@ const refreshPlaylist = async () => {
   playlistSignature = signature;
   playlist = enhanced;
 
-  if (PRELOAD_ENABLED && slideshowCache?.updateCacheForPlaylist) {
-    void slideshowCache.updateCacheForPlaylist(playlist, weatherBackgroundUrls);
-  }
+  schedulePlaylistOfflineCache();
 
   const idSet = new Set(playlist.map((item) => item.id));
   for (const key of Array.from(skipState.keys())) {
@@ -7345,7 +7397,7 @@ const showMedia = async (item, { maintainSkip = false } = {}) => {
 
 const handleSlideRefresh = async () => {
   try {
-    await refreshOverlaySettings();
+    await refreshOverlaySettings({ force: isEditorPreview });
     if (isEditorPreview) {
       applyOverlaySettings({ enabled: false, logo_path: "", ticker_text: "" });
     }

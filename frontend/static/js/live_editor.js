@@ -2593,6 +2593,7 @@
       currentTestMeta = { ...DEFAULT_TEST_META, ...(response || {}) };
       applyMetaToInputs();
       setTestMetaFeedback("Informations enregistrées.", "success");
+      scheduleSlideshowPreviewRefresh();
     } catch (error) {
       console.error("Erreur lors de l'enregistrement des métadonnées Test:", error);
       setTestMetaFeedback("Erreur lors de l'enregistrement.", "error");
@@ -2843,7 +2844,10 @@
       return employeesCache.items || [];
     }
     if (!employeesCache.promise) {
-      employeesCache.promise = fetchJSON("api/employees")
+      const employeesEndpoint = editorKind === "vacations"
+        ? "api/employees?summary=1&include=vacations"
+        : "api/employees?summary=1";
+      employeesCache.promise = fetchJSON(employeesEndpoint)
         .then((data) => {
           employeesCache.items = Array.isArray(data?.employees) ? data.employees : [];
           employeesCache.fetchedAt = Date.now();
@@ -3270,6 +3274,7 @@
     }));
     currentTestTexts = normalized;
     updateTestPreviewTexts(normalized);
+    scheduleSlideshowPreviewRefresh();
     if (currentSelectedTextName) {
       updateSelectedTextPanel(currentSelectedTextName);
       reselectCurrentText();
@@ -3474,6 +3479,9 @@
       updateSelectedTextPanel(name);
       reselectCurrentText();
     }
+    // Keep the iframe as the source of truth: it refreshes only after the API
+    // has persisted the exact data that the slideshow will read.
+    scheduleSlideshowPreviewRefresh();
   };
 
   const updateTestTextPosition = async (name, position) => {
@@ -3598,6 +3606,7 @@
       setTestTextFeedback(`Texte ${name} supprimé.`, "success");
       currentTestTexts = currentTestTexts.filter((entry) => entry.name !== name);
       updateTestPreviewTexts(currentTestTexts);
+      scheduleSlideshowPreviewRefresh();
       if (currentSelectedTextName === name) {
         hideSelectedTextPanel();
         currentSelectedTextName = null;

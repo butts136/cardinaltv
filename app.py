@@ -2473,10 +2473,32 @@ def _read_test_config() -> Dict[str, Any]:
     return {}
 
 
+def _atomic_write_json(path: Path, data: Any, *, indent: int = 2) -> None:
+    """Persist JSON without exposing a partially written configuration file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            delete=False,
+        ) as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=indent)
+            handle.flush()
+            os.fsync(handle.fileno())
+            tmp_path = Path(handle.name)
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
+
 def _write_test_config(config: Dict[str, Any]) -> None:
-    _ensure_test_config_file()
-    with TEST_CONFIG_FILE.open("w", encoding="utf-8") as handle:
-        json.dump(config, handle, ensure_ascii=False, indent=2)
+    _atomic_write_json(TEST_CONFIG_FILE, config)
 
 
 def _clamp_percent(value: float, fallback: float) -> float:
@@ -3264,7 +3286,7 @@ def _employee_service_label(employee: Dict[str, Any]) -> str:
     return f"{' et '.join(parts)} de service" if parts else ""
 
 
-def _employee_summary_view(employee: Dict[str, Any]) -> Dict[str, Any]:
+def _employee_summary_view(employee: Dict[str, Any], *, include_vacations: bool = False) -> Dict[str, Any]:
     employee_id = str(employee.get("id") or "")
     avatar_base64 = employee.get("avatar_base64") or ""
     meta_parts = []
@@ -3280,7 +3302,7 @@ def _employee_summary_view(employee: Dict[str, Any]) -> Dict[str, Any]:
     hire_label = _format_employee_date_label(employee.get("hire_date"))
     if hire_label:
         meta_parts.append(f"Embauche: {hire_label}")
-    return {
+    summary = {
         "id": employee_id,
         "name": str(employee.get("name") or "Employé"),
         "birthday": str(employee.get("birthday") or ""),
@@ -3301,6 +3323,10 @@ def _employee_summary_view(employee: Dict[str, Any]) -> Dict[str, Any]:
         "years_of_service_years": employee.get("years_of_service_years"),
         "years_of_service_months": employee.get("years_of_service_months"),
     }
+    if include_vacations:
+        # Vacation rendering needs the dates, but never the base64 avatar data.
+        summary["vacations"] = _normalize_employee_vacations(employee.get("vacations"))
+    return summary
 
 
 def _guess_employee_avatar_mimetype(data: bytes) -> str:
@@ -4858,12 +4884,56 @@ app.logger.handlers = app_logger.handlers[:]
 app.logger.setLevel(app_logger.level)
 app.logger.propagate = False
 app.config["APPLICATION_ROOT"] = "/cardinaltv"
+# A hard request limit prevents a malformed or hostile upload from exhausting
+# the server disk/RAM.  It remains configurable because video backgrounds are
+# a supported workflow.
+try:
+    _max_upload_mb = int(os.environ.get("CARDINALTV_MAX_UPLOAD_MB", "768"))
+except (TypeError, ValueError):
+    _max_upload_mb = 768
+app.config["MAX_CONTENT_LENGTH"] = max(16, min(_max_upload_mb, 4096)) * 1024 * 1024
+app.config["MAX_FORM_MEMORY_SIZE"] = 16 * 1024 * 1024
 STATIC_ROUTE_PREFIX = (app.static_url_path or "/static").lstrip("/")
 store = MediaStore(STATE_FILE)
 powerpoint_store = PowerpointStore(POWERPOINT_STATE_FILE)
 employee_store = EmployeeStore(EMPLOYEE_DB_PATH)
 temporary_slides = TemporarySlideStore(TEMP_SLIDE_STATE_FILE, TEMP_SLIDE_ASSETS_DIR)
 bp = Blueprint("main", __name__, url_prefix="/cardinaltv")
+
+
+@app.before_request
+def _reject_cross_origin_writes() -> None:
+    """Block browser cross-site mutations while preserving local/API clients."""
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return
+    origin = (request.headers.get("Origin") or "").rstrip("/")
+    if not origin:
+        return
+    allowed = {request.host_url.rstrip("/")}
+    configured = os.environ.get("CARDINALTV_TRUSTED_ORIGINS", "")
+    allowed.update(value.strip().rstrip("/") for value in configured.split(",") if value.strip())
+    if origin not in allowed:
+        abort(403, description="Origine non autorisée.")
+
+
+@app.after_request
+def _apply_security_headers(response: Any) -> Any:
+    # These headers protect the locally hosted admin UI without preventing its
+    # inline bootstrap scripts or same-origin slideshow iframe from working.
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; "
+        "frame-ancestors 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; "
+        "media-src 'self' blob:; font-src 'self' data:; connect-src 'self' https:",
+    )
+    return response
 
 
 def _json_response_with_etag(payload: Any) -> Any:
@@ -5422,7 +5492,7 @@ def _load_custom_slides_index() -> Dict[str, Any]:
 
 def _save_custom_slides_index(data: Dict[str, Any]) -> None:
     payload = {"slides": data.get("slides") if isinstance(data.get("slides"), list) else []}
-    CUSTOM_SLIDES_INDEX_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _atomic_write_json(CUSTOM_SLIDES_INDEX_FILE, payload)
 
 
 def _sanitize_custom_slide_id(slide_id: str) -> str:
@@ -5459,7 +5529,7 @@ def _save_custom_slide_config(slide_id: str, data: Dict[str, Any]) -> None:
     slide_folder = _custom_slide_dir(slide_id)
     slide_folder.mkdir(parents=True, exist_ok=True)
     path = _custom_slide_config_path(slide_id)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    _atomic_write_json(path, data)
 
 
 def _get_custom_slide_index_entry(slide_id: str) -> Optional[Dict[str, Any]]:
@@ -6844,8 +6914,9 @@ def log_key_event() -> Any:
 @bp.get("/api/employees")
 def api_list_employees() -> Any:
     summary = str(request.args.get("summary") or "").lower() in {"1", "true", "yes", "cards"}
+    include_vacations = str(request.args.get("include") or "").lower() in {"vacations", "all"}
     etag = employee_store.etag_token()
-    response_etag = f"{etag}-summary" if summary else etag
+    response_etag = f"{etag}-summary{'-vacations' if include_vacations else ''}" if summary else etag
     if request.if_none_match.contains(response_etag):
         response = make_response("", 304)
         response.set_etag(response_etag)
@@ -6853,7 +6924,7 @@ def api_list_employees() -> Any:
         return response
     employees = employee_store.list_employees()
     if summary:
-        employees = [_employee_summary_view(emp) for emp in employees]
+        employees = [_employee_summary_view(emp, include_vacations=include_vacations) for emp in employees]
     body = json.dumps(
         {"employees": employees},
         ensure_ascii=False,

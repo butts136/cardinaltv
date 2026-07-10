@@ -108,7 +108,8 @@
       return variantConfigs[normalizedVariant];
     }
     try {
-      const data = await fetchJSON?.(`api/birthday-slide/config/${normalizedVariant}`);
+      const bypass = force ? "?sw-bypass=1" : "";
+      const data = await fetchJSON?.(`api/birthday-slide/config/${normalizedVariant}${bypass}`);
       const cfg = (data && data.config) || {};
       variantConfigs[normalizedVariant] = normalizeVariantConfig(cfg, normalizedVariant);
     } catch (error) {

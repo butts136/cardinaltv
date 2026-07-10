@@ -3681,7 +3681,7 @@ const loadAutoSlideAvailability = async () => {
 
   if (birthdaySlideSettings?.enabled || teamSlideSettings?.enabled) {
     tasks.push(
-      fetchJSON("api/employees")
+      fetchJSON("api/employees?summary=1")
         .then((data) => {
           const employees = data && Array.isArray(data.employees) ? data.employees : [];
           if (teamSlideSettings?.enabled) {
