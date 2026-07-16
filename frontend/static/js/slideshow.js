@@ -4208,18 +4208,25 @@ const renderTeamCard = (employee) => {
 
   const avatar = document.createElement("div");
   avatar.className = "team-slide-card-avatar";
+  const showNeutralAvatar = () => {
+    avatar.textContent = "";
+    const fallback = document.createElement("img");
+    fallback.src = buildApiUrl("static/img/employee-avatar-neutral-transparent.png");
+    fallback.alt = "Avatar neutre";
+    fallback.addEventListener("error", () => fallback.remove(), { once: true });
+    avatar.appendChild(fallback);
+  };
   const avatarSource = employee.avatar_url || (employee.avatar_base64 ? `data:image/*;base64,${employee.avatar_base64}` : "");
   if (avatarSource) {
     const img = document.createElement("img");
     img.src = avatarSource;
     img.alt = `Avatar de ${employee.name || "Employé"}`;
     img.addEventListener("error", () => {
-      img.remove();
-      avatar.textContent = initialsFromName(employee.name || "");
+      showNeutralAvatar();
     }, { once: true });
     avatar.appendChild(img);
   } else {
-    avatar.textContent = initialsFromName(employee.name || "");
+    showNeutralAvatar();
   }
 
   const info = document.createElement("div");

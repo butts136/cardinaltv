@@ -3,7 +3,7 @@
  * diaporama offline-first, avec revalidation en arrière-plan.
  */
 
-const CACHE_VERSION = "v33";
+const CACHE_VERSION = "v34";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 const API_CACHE = `cardinal-api-${CACHE_VERSION}`;
@@ -33,6 +33,7 @@ const CORE_ASSETS = [
   `${BASE_PATH}/static/fonts/CardinalPoppins-SemiBold.ttf`,
   `${BASE_PATH}/static/fonts/CardinalPoppins-Bold.ttf`,
   `${BASE_PATH}/static/img/favicon.png`,
+  `${BASE_PATH}/static/img/employee-avatar-neutral-transparent.png`,
 ];
 
 const MEDIA_EXTENSIONS = [
