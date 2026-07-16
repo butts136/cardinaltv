@@ -4915,10 +4915,26 @@ def _reject_cross_origin_writes() -> None:
     origin = (request.headers.get("Origin") or "").rstrip("/")
     if not origin:
         return
+    # A reverse proxy/tunnel commonly terminates HTTPS then forwards HTTP to
+    # Waitress. Compare the public host separately from the internal scheme so
+    # a same-origin admin page such as https://…usbx.me is not rejected.
+    try:
+        origin_host = urllib.parse.urlsplit(origin).netloc.lower()
+    except Exception:
+        origin_host = ""
+    forwarded_host = (request.headers.get("X-Forwarded-Host") or "").split(",")[0].strip()
+    allowed_hosts = {request.host.lower()}
+    if forwarded_host:
+        allowed_hosts.add(forwarded_host.lower())
     allowed = {request.host_url.rstrip("/")}
     configured = os.environ.get("CARDINALTV_TRUSTED_ORIGINS", "")
     allowed.update(value.strip().rstrip("/") for value in configured.split(",") if value.strip())
-    if origin not in allowed:
+    configured_hosts = {
+        urllib.parse.urlsplit(value).netloc.lower()
+        for value in allowed
+        if urllib.parse.urlsplit(value).netloc
+    }
+    if origin not in allowed and origin_host not in allowed_hosts and origin_host not in configured_hosts:
         abort(403, description="Origine non autorisée.")
 
 
