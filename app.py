@@ -8266,6 +8266,18 @@ NEWS_SCRAPER_PATTERNS = (
     "anchor_links",
 )
 
+# Curated presets avoid asking staff to find fragile feed URLs. RSS is used
+# when a publisher exposes one; the generic structured-data scraper remains
+# available for every other newsroom and for custom sources.
+NEWS_SOURCE_PRESETS = (
+    {"id": "journal-de-montreal", "name": "Journal de Montréal", "kind": "scraper", "url": "https://www.journaldemontreal.com/", "pattern": "ld_json", "logo_url": "https://www.journaldemontreal.com/favicon.ico"},
+    {"id": "journal-de-quebec", "name": "Journal de Québec", "kind": "scraper", "url": "https://www.journaldequebec.com/", "pattern": "ld_json", "logo_url": "https://www.journaldequebec.com/favicon.ico"},
+    {"id": "la-presse", "name": "La Presse", "kind": "scraper", "url": "https://www.lapresse.ca/actualites/", "pattern": "ld_json", "logo_url": "https://www.lapresse.ca/favicon.ico"},
+    {"id": "radio-canada", "name": "Radio-Canada", "kind": "rss", "url": "https://ici.radio-canada.ca/rss/4159", "logo_url": "https://ici.radio-canada.ca/favicon.ico"},
+    {"id": "tva-nouvelles", "name": "TVA Nouvelles", "kind": "scraper", "url": "https://www.tvanouvelles.ca/", "pattern": "ld_json", "logo_url": "https://www.tvanouvelles.ca/favicon.ico"},
+    {"id": "noovo-info", "name": "Noovo Info", "kind": "scraper", "url": "https://www.noovo.info/", "pattern": "ld_json", "logo_url": "https://www.noovo.info/favicon.ico"},
+)
+
 DEFAULT_WEATHER_SECRETS = {
     "api_key": "",
 }
@@ -9100,6 +9112,7 @@ def _fetch_scraper_items(scraper: Dict[str, Any], config: Dict[str, Any], force:
             **item,
             "link": link,
             "source": source_name,
+            "source_logo": _normalize_news_logo_url(scraper.get("logo_url"), url),
         }
         if not entry.get("pubdate_ts"):
             entry["pubdate_ts"] = now.timestamp() - idx
@@ -9109,6 +9122,24 @@ def _fetch_scraper_items(scraper: Dict[str, Any], config: Dict[str, Any], force:
         NEWS_SCRAPER_CACHE[scraper_id] = {"items": normalized, "fetched_at": now}
 
     return normalized
+
+
+def _normalize_news_logo_url(value: Any, fallback_url: str = "") -> str:
+    """Keep only safe remote logo URLs and derive a favicon for custom sources."""
+    candidate = str(value or "").strip()
+    if not candidate and fallback_url:
+        try:
+            host = urllib.parse.urlsplit(fallback_url).netloc
+            candidate = f"https://{host}/favicon.ico" if host else ""
+        except (TypeError, ValueError):
+            candidate = ""
+    try:
+        parsed = urllib.parse.urlsplit(candidate)
+    except (TypeError, ValueError):
+        return ""
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or len(candidate) > 2048:
+        return ""
+    return candidate
 
 
 def _load_news_config() -> Dict[str, Any]:
@@ -9140,6 +9171,10 @@ def _load_news_config() -> Dict[str, Any]:
                 normalized = _normalize_feed_url(url)
                 if normalized and normalized != url:
                     feed["url"] = normalized
+                    changed = True
+                logo_url = _normalize_news_logo_url(feed.get("logo_url"), normalized or url)
+                if feed.get("logo_url") != logo_url:
+                    feed["logo_url"] = logo_url
                     changed = True
         scraper_defaults = default.get("scraper_defaults") or {}
         default_interval = _normalize_scraper_interval(scraper_defaults.get("refresh_interval", NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES))
@@ -9173,8 +9208,10 @@ def _load_news_config() -> Dict[str, Any]:
             scraper_id = scraper.get("id") or uuid.uuid4().hex[:8]
             normalized_scrapers.append({
                 "id": scraper_id,
+                "preset_id": scraper.get("preset_id") or "",
                 "name": scraper.get("name") or url,
                 "url": url,
+                "logo_url": _normalize_news_logo_url(scraper.get("logo_url"), url),
                 "pattern": pattern,
                 "enabled": scraper.get("enabled", True) is not False,
                 "refresh_interval": refresh_interval,
@@ -9226,7 +9263,7 @@ def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
         url = _normalize_feed_url(feed.get("url", ""))
         if not url:
             continue
-        feed_jobs.append({"url": url, "name": feed.get("name", "RSS")})
+        feed_jobs.append({"url": url, "name": feed.get("name", "RSS"), "logo_url": _normalize_news_logo_url(feed.get("logo_url"), url)})
 
     scraper_jobs = [
         scraper
@@ -9241,6 +9278,7 @@ def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
             items = _parse_rss_feed(feed_job["url"], max_items)
             for item in items:
                 item["source"] = feed_job["name"]
+                item["source_logo"] = feed_job["logo_url"]
             all_items.extend(items)
         for scraper in scraper_jobs:
             all_items.extend(_fetch_scraper_items(scraper, config, force=force))
@@ -9249,7 +9287,7 @@ def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
             futures: Dict[concurrent.futures.Future, Dict[str, Any]] = {}
             for feed_job in feed_jobs:
                 future = executor.submit(_parse_rss_feed, feed_job["url"], max_items)
-                futures[future] = {"kind": "feed", "name": feed_job["name"]}
+                futures[future] = {"kind": "feed", "name": feed_job["name"], "logo_url": feed_job["logo_url"]}
             for scraper in scraper_jobs:
                 future = executor.submit(_fetch_scraper_items, scraper, config, force)
                 futures[future] = {"kind": "scraper"}
@@ -9267,6 +9305,7 @@ def _fetch_news_items(force: bool = False) -> List[Dict[str, Any]]:
                     source_name = meta.get("name", "RSS")
                     for item in result_items:
                         item["source"] = source_name
+                        item["source_logo"] = meta.get("logo_url", "")
                 all_items.extend(result_items)
 
     # Deduplicate by link or title
@@ -9347,7 +9386,11 @@ def api_news_slide_update() -> Any:
             if not isinstance(feed, dict):
                 continue
             url = _normalize_feed_url(feed.get("url", ""))
-            normalized_feeds.append({**feed, "url": url})
+            normalized_feeds.append({
+                **feed,
+                "url": url,
+                "logo_url": _normalize_news_logo_url(feed.get("logo_url"), url),
+            })
         config["rss_feeds"] = normalized_feeds
     if "card_style" in payload and isinstance(payload["card_style"], dict):
         config["card_style"] = {**config.get("card_style", {}), **payload["card_style"]}
@@ -9431,6 +9474,7 @@ def api_news_add_feed() -> Any:
         "id": uuid.uuid4().hex[:8],
         "name": name,
         "url": url,
+        "logo_url": _normalize_news_logo_url(payload.get("logo_url"), url),
         "enabled": True,
     }
     feeds.append(new_feed)
@@ -9439,6 +9483,78 @@ def api_news_add_feed() -> Any:
     _invalidate_news_cache()
 
     return jsonify({"feed": new_feed, "config": config})
+
+
+@bp.get("/api/news-slide/presets")
+def api_news_source_presets() -> Any:
+    """Return the supported newsroom catalogue without enabling anything."""
+    config = _load_news_config()
+    configured = {
+        str(entry.get("preset_id"))
+        for entry in [*(config.get("rss_feeds") or []), *(config.get("scrapers") or [])]
+        if isinstance(entry, dict) and entry.get("preset_id")
+    }
+    configured_urls = {
+        str(entry.get("url") or "").rstrip("/")
+        for entry in [*(config.get("rss_feeds") or []), *(config.get("scrapers") or [])]
+        if isinstance(entry, dict)
+    }
+    return jsonify({
+        "presets": [
+            {**preset, "added": preset["id"] in configured or preset["url"].rstrip("/") in configured_urls}
+            for preset in NEWS_SOURCE_PRESETS
+        ],
+    })
+
+
+@bp.post("/api/news-slide/presets")
+def api_news_add_source_presets() -> Any:
+    """Add selected newsroom presets; existing sources are left untouched."""
+    payload = request.get_json(silent=True) or {}
+    preset_ids = payload.get("ids")
+    if not isinstance(preset_ids, list):
+        abort(400, description="La liste des sources est requise.")
+    wanted = {str(value) for value in preset_ids}
+    config = _load_news_config()
+    feeds = list(config.get("rss_feeds") or [])
+    scrapers = list(config.get("scrapers") or [])
+    existing = {
+        str(entry.get("preset_id"))
+        for entry in [*feeds, *scrapers]
+        if isinstance(entry, dict) and entry.get("preset_id")
+    }
+    existing_urls = {
+        str(entry.get("url") or "").rstrip("/")
+        for entry in [*feeds, *scrapers]
+        if isinstance(entry, dict)
+    }
+    added = []
+    for preset in NEWS_SOURCE_PRESETS:
+        if preset["id"] not in wanted or preset["id"] in existing or preset["url"].rstrip("/") in existing_urls:
+            continue
+        base = {
+            "id": uuid.uuid4().hex[:8],
+            "preset_id": preset["id"],
+            "name": preset["name"],
+            "url": preset["url"],
+            "logo_url": _normalize_news_logo_url(preset.get("logo_url"), preset["url"]),
+            "enabled": True,
+        }
+        if preset["kind"] == "rss":
+            feeds.append(base)
+        else:
+            scrapers.append({
+                **base,
+                "pattern": preset.get("pattern", "ld_json"),
+                "refresh_interval": config.get("scraper_defaults", {}).get("refresh_interval", NEWS_SCRAPER_DEFAULT_INTERVAL_MINUTES),
+                "max_items": config.get("scraper_defaults", {}).get("max_items", NEWS_SCRAPER_MAX_ITEMS_DEFAULT),
+            })
+        added.append(preset["id"])
+    config["rss_feeds"] = feeds
+    config["scrapers"] = scrapers
+    _save_news_config(config)
+    _invalidate_news_cache()
+    return jsonify({"added": added, "config": config})
 
 
 @bp.delete("/api/news-slide/feeds/<feed_id>")
@@ -9521,6 +9637,7 @@ def api_news_add_scraper() -> Any:
         "id": uuid.uuid4().hex[:8],
         "name": (payload.get("name") or url).strip(),
         "url": url,
+        "logo_url": _normalize_news_logo_url(payload.get("logo_url"), url),
         "pattern": pattern,
         "enabled": payload.get("enabled", True) is not False,
         "refresh_interval": interval,
@@ -9566,6 +9683,8 @@ def api_news_update_scraper(scraper_id: str) -> Any:
             if not updated_url:
                 abort(400, description="URL de source invalide.")
             scraper["url"] = updated_url
+        if "logo_url" in payload:
+            scraper["logo_url"] = _normalize_news_logo_url(payload.get("logo_url"), scraper.get("url") or "")
         if "pattern" in payload:
             pattern = payload.get("pattern") or scraper.get("pattern") or "ld_json"
             if pattern not in NEWS_SCRAPER_PATTERNS:

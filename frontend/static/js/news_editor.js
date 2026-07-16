@@ -36,6 +36,7 @@
   const saveBtn = document.getElementById('news-save');
   const statusEl = document.getElementById('news-status');
   const feedsList = document.getElementById('feeds-list');
+  const presetsList = document.getElementById('news-presets-list');
   const newsPreview = document.getElementById('news-preview');
   const addFeedBtn = document.getElementById('add-feed-btn');
   const refreshNewsBtn = document.getElementById('refresh-news-btn');
@@ -68,6 +69,7 @@
   const confirmFeedBtn = document.getElementById('confirm-feed-btn');
   const newFeedName = document.getElementById('new-feed-name');
   const newFeedUrl = document.getElementById('new-feed-url');
+  const newFeedLogoUrl = document.getElementById('new-feed-logo-url');
 
   function showStatus(message, isError = false) {
     if (!statusEl) return;
@@ -156,6 +158,7 @@
       renderFeeds();
       renderScrapers();
       renderNewsPreview();
+      void loadSourcePresets();
       postSlidePreviewUpdate();
     } catch (error) {
       console.error('Erreur lors du chargement de la config:', error);
@@ -222,6 +225,7 @@
             <span class="visibility-toggle-label visibility-toggle-label-off">Inactif</span>
           </label>
           <div class="feed-details">
+            ${feed.logo_url ? `<img class="news-source-logo" src="${escapeHtml(feed.logo_url)}" alt="" loading="lazy" onerror="this.remove()" />` : ''}
             <strong class="feed-name">${escapeHtml(feed.name)}</strong>
             <span class="feed-url">${escapeHtml(feed.url)}</span>
           </div>
@@ -237,6 +241,43 @@
     feedsList.querySelectorAll('.delete-feed-btn').forEach(btn => {
       btn.addEventListener('click', handleDeleteFeed);
     });
+  }
+
+  async function loadSourcePresets() {
+    if (!presetsList) return;
+    try {
+      const data = await fetchJson(`${API_BASE}/presets`);
+      const presets = Array.isArray(data.presets) ? data.presets : [];
+      presetsList.innerHTML = presets.map((preset) => `
+        <article class="news-preset-card ${preset.added ? 'is-added' : ''}">
+          ${preset.logo_url ? `<img class="news-source-logo" src="${escapeHtml(preset.logo_url)}" alt="" loading="lazy" onerror="this.remove()" />` : ''}
+          <div><strong>${escapeHtml(preset.name)}</strong><span>${preset.kind === 'rss' ? 'Flux RSS' : 'Source web'}</span></div>
+          <button type="button" class="secondary-button news-preset-add" data-preset-id="${escapeHtml(preset.id)}" ${preset.added ? 'disabled' : ''}>${preset.added ? 'Ajoutée' : 'Ajouter'}</button>
+        </article>`).join('') || '<p class="playlist-subtitle">Aucune source prédéfinie.</p>';
+      presetsList.querySelectorAll('.news-preset-add').forEach((button) => {
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          try {
+            const updated = await fetchJson(`${API_BASE}/presets`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: [button.dataset.presetId] }),
+            });
+            config = updated.config || config;
+            renderFeeds();
+            renderScrapers();
+            await loadSourcePresets();
+            await refreshNews();
+            showStatus('Source ajoutée');
+          } catch (error) {
+            button.disabled = false;
+            showStatus(error.message || 'Erreur lors de l’ajout', true);
+          }
+        });
+      });
+    } catch (error) {
+      presetsList.innerHTML = '<p class="playlist-subtitle error">Catalogue de sources indisponible.</p>';
+    }
   }
 
   function renderNewsPreview() {
@@ -268,6 +309,7 @@
               <span class="news-card-time">${escapeHtml(item.time)}</span>
             ` : ''}
             <span class="news-card-source">
+              ${item.source_logo ? `<img class="news-source-logo" src="${escapeHtml(item.source_logo)}" alt="" loading="lazy" onerror="this.remove()" />` : ''}
               ${item.source ? escapeHtml(item.source) : ''}
               <span class="${badgeClass}">${badgeIcon} ${isRss ? 'RSS' : 'Web'}</span>
             </span>
@@ -370,7 +412,7 @@
       const data = await fetchJson(`${API_BASE}/feeds`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, url }),
+        body: JSON.stringify({ name, url, logo_url: newFeedLogoUrl?.value?.trim() || '' }),
       });
       config = data.config || config;
       renderFeeds();
@@ -380,6 +422,7 @@
       // Clear inputs
       if (newFeedName) newFeedName.value = '';
       if (newFeedUrl) newFeedUrl.value = '';
+      if (newFeedLogoUrl) newFeedLogoUrl.value = '';
     } catch (error) {
       console.error('Erreur lors de l\'ajout:', error);
       showStatus(error.message || 'Erreur d\'ajout', true);
@@ -561,7 +604,7 @@
       return `
       <div class="scraper-item" data-scraper-id="${scraper.id}">
         <div class="scraper-info">
-          <span class="scraper-icon">🌐</span>
+          ${scraper.logo_url ? `<img class="news-source-logo" src="${escapeHtml(scraper.logo_url)}" alt="" loading="lazy" onerror="this.remove()" />` : '<span class="scraper-icon">🌐</span>'}
           <div class="scraper-details">
             <strong class="scraper-name">${escapeHtml(scraper.name)}</strong>
             <span class="scraper-url">${escapeHtml(scraper.url)}</span>

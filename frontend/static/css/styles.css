@@ -3470,6 +3470,18 @@ input[type="datetime-local"]:focus {
 .news-slide-cards .news-slide-card .news-card-source {
   font-size: var(--news-source-size, 0.9rem);
   color: rgba(148, 163, 184, 0.7);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+}
+
+.news-card-source-logo {
+  width: 1.25em;
+  height: 1.25em;
+  object-fit: contain;
+  border-radius: 0.2em;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.08em;
 }
 
 .news-slide-empty {

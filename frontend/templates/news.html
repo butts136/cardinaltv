@@ -56,6 +56,18 @@
     </div>
   </section>
 
+  <section class="card news-presets-section" id="news-presets-section">
+    <div class="section-header">
+      <div>
+        <h2>Sources québécoises</h2>
+        <p class="playlist-subtitle">Ajoutez en un clic les médias les plus demandés. Les sources restent modifiables ou supprimables ensuite.</p>
+      </div>
+    </div>
+    <div class="section-content">
+      <div id="news-presets-list" class="news-presets-list" aria-live="polite"></div>
+    </div>
+  </section>
+
   <section class="card rss-feeds-section" id="rss-feeds-section">
     <div class="section-header">
       <div>
@@ -294,6 +306,11 @@
           <label for="new-feed-url">URL du flux RSS</label>
           <input type="url" id="new-feed-url" placeholder="https://example.com/rss" />
         </div>
+        <div class="form-row">
+          <label for="new-feed-logo-url">Logo de la source (optionnel)</label>
+          <input type="url" id="new-feed-logo-url" placeholder="https://example.com/favicon.ico" />
+          <p class="field-hint">Sans logo, une icône du site est utilisée automatiquement.</p>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="secondary-button" id="cancel-feed-btn">Annuler</button>
@@ -305,5 +322,5 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/news_editor.js') }}?v=20260205-12"></script>
+  <script src="{{ url_for('static', filename='js/news_editor.js') }}?v=20260716-13"></script>
 {% endblock %}

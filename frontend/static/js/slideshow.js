@@ -5836,7 +5836,16 @@ const renderNewsSlide = async (item, { skipClear = false } = {}) => {
       if (newsItem.source) {
         const source = document.createElement("span");
         source.className = "news-card-source";
-        source.textContent = newsItem.source;
+        if (newsItem.source_logo) {
+          const logo = document.createElement("img");
+          logo.className = "news-card-source-logo";
+          logo.src = newsItem.source_logo;
+          logo.alt = "";
+          logo.loading = "lazy";
+          logo.addEventListener("error", () => logo.remove(), { once: true });
+          source.appendChild(logo);
+        }
+        source.append(document.createTextNode(newsItem.source));
         content.appendChild(source);
       }
 
