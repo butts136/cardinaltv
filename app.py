@@ -4919,8 +4919,10 @@ def _reject_cross_origin_writes() -> None:
     # Waitress. Compare the public host separately from the internal scheme so
     # a same-origin admin page such as https://…usbx.me is not rejected.
     try:
-        origin_host = urllib.parse.urlsplit(origin).netloc.lower()
+        parsed_origin = urllib.parse.urlsplit(origin)
+        origin_host = parsed_origin.netloc.lower()
     except Exception:
+        parsed_origin = None
         origin_host = ""
     forwarded_host = (request.headers.get("X-Forwarded-Host") or "").split(",")[0].strip()
     allowed_hosts = {request.host.lower()}
@@ -4934,7 +4936,29 @@ def _reject_cross_origin_writes() -> None:
         for value in allowed
         if urllib.parse.urlsplit(value).netloc
     }
-    if origin not in allowed and origin_host not in allowed_hosts and origin_host not in configured_hosts:
+    # Some public tunnels preserve neither Host nor X-Forwarded-Host. Modern
+    # browsers still send Fetch Metadata and Referer, so accept this narrow,
+    # browser-attested same-origin case without accepting cross-site writes.
+    referer = request.headers.get("Referer") or ""
+    try:
+        referer_origin = urllib.parse.urlsplit(referer)
+        referer_matches_origin = bool(
+            parsed_origin
+            and referer_origin.scheme == parsed_origin.scheme
+            and referer_origin.netloc.lower() == origin_host
+        )
+    except Exception:
+        referer_matches_origin = False
+    browser_same_origin = (
+        request.headers.get("Sec-Fetch-Site", "").lower() == "same-origin"
+        and referer_matches_origin
+    )
+    if (
+        origin not in allowed
+        and origin_host not in allowed_hosts
+        and origin_host not in configured_hosts
+        and not browser_same_origin
+    ):
         abort(403, description="Origine non autorisée.")
 
 
