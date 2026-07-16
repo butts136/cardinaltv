@@ -3476,12 +3476,17 @@ input[type="datetime-local"]:focus {
 }
 
 .news-card-source-logo {
-  width: 1.25em;
-  height: 1.25em;
+  width: 22px !important;
+  min-width: 22px;
+  max-width: 22px;
+  height: 22px !important;
+  min-height: 22px;
+  max-height: 22px;
   object-fit: contain;
   border-radius: 0.2em;
   background: rgba(255, 255, 255, 0.92);
   padding: 0.08em;
+  display: block;
 }
 
 .news-slide-empty {

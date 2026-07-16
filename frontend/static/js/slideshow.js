@@ -4208,10 +4208,15 @@ const renderTeamCard = (employee) => {
 
   const avatar = document.createElement("div");
   avatar.className = "team-slide-card-avatar";
-  if (employee.avatar_base64) {
+  const avatarSource = employee.avatar_url || (employee.avatar_base64 ? `data:image/*;base64,${employee.avatar_base64}` : "");
+  if (avatarSource) {
     const img = document.createElement("img");
-    img.src = `data:image/*;base64,${employee.avatar_base64}`;
+    img.src = avatarSource;
     img.alt = `Avatar de ${employee.name || "Employé"}`;
+    img.addEventListener("error", () => {
+      img.remove();
+      avatar.textContent = initialsFromName(employee.name || "");
+    }, { once: true });
     avatar.appendChild(img);
   } else {
     avatar.textContent = initialsFromName(employee.name || "");
