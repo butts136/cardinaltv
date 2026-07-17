@@ -1897,11 +1897,12 @@ input[type="datetime-local"]:focus {
 .vacations-slide-frame .continuous-week-row .day-grid {
   position: relative;
   inset: auto;
-  min-height: var(--week-row-base-height);
+  /* La zone réservée aux bandes s'ajoute à la hauteur de la semaine. */
+  min-height: calc(var(--week-row-base-height) + var(--continuous-vacation-space));
 }
 
 .vacations-slide-frame .continuous-week-row .continuous-day {
-  min-height: var(--week-row-base-height);
+  min-height: calc(var(--week-row-base-height) + var(--continuous-vacation-space));
   display: flex;
   flex-direction: column;
   align-items: stretch;
