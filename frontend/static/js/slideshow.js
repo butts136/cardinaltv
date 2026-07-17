@@ -6512,13 +6512,7 @@ const renderVacationsSlide = (item) => {
       && entry.eventDate >= visibleRangeStart
       && entry.eventDate <= visibleRangeEnd
     ));
-    const dayVacations = entries.filter((entry) => (
-      date >= entry.startDate
-      && date <= entry.endDate
-      && date >= visibleRangeStart
-      && date <= visibleRangeEnd
-    ));
-    if (dayEvents.length || dayVacations.length) {
+    if (dayEvents.length) {
       const eventBadges = document.createElement("div");
       eventBadges.className = "continuous-day-badges";
       dayEvents.forEach((entry) => {
@@ -6526,14 +6520,6 @@ const renderVacationsSlide = (item) => {
         badge.className = `continuous-day-badge continuous-day-badge--${entry.type}`;
         badge.textContent = entry.label;
         badge.title = entry.label;
-        badge.style.background = entry.color;
-        eventBadges.appendChild(badge);
-      });
-      dayVacations.forEach((entry) => {
-        const badge = document.createElement("div");
-        badge.className = "continuous-day-badge continuous-day-badge--vacation";
-        badge.textContent = entry.employeeName;
-        badge.title = `Vacances : ${entry.employeeName}`;
         badge.style.background = entry.color;
         eventBadges.appendChild(badge);
       });
@@ -6598,16 +6584,48 @@ const renderVacationsSlide = (item) => {
         return right.endIndex - left.endIndex;
       });
   };
-  const makeVacationBars = (segments) => {
+  const getContinuousSegments = (week) => entries
+    .map((entry) => {
+      const segmentStart = new Date(Math.max(
+        entry.startDate.getTime(),
+        week.start.getTime(),
+        visibleRangeStart.getTime(),
+      ));
+      const segmentEnd = new Date(Math.min(
+        entry.endDate.getTime(),
+        week.end.getTime(),
+        visibleRangeEnd.getTime(),
+      ));
+      if (segmentStart > segmentEnd) return null;
+      const startsThisWeek = sameUtcDate(segmentStart, entry.startDate);
+      return {
+        label: entry.employeeName,
+        displayLabel: startsThisWeek ? entry.employeeName : "",
+        fullLabel: entry.employeeName,
+        kind: "vacation",
+        color: entry.color,
+        startIndex: segmentStart.getUTCDay(),
+        endIndex: segmentEnd.getUTCDay(),
+        span: segmentEnd.getUTCDay() - segmentStart.getUTCDay() + 1,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.startIndex !== right.startIndex) return left.startIndex - right.startIndex;
+      return right.endIndex - left.endIndex;
+    });
+  const makeVacationBars = (segments, { insideDayGrid = false } = {}) => {
     const wrapper = document.createElement("div");
-    wrapper.className = "vacation-bars";
+    wrapper.className = `vacation-bars${insideDayGrid ? " vacation-bars--inside-day-grid" : ""}`;
+    const lanes = new Map();
     segments.forEach((segment) => {
       const bar = document.createElement("div");
       bar.className = "vacation-bar";
       if (segment.kind && segment.kind !== "vacation") {
         bar.classList.add("calendar-event-bar", `calendar-event-bar--${segment.kind}`);
       }
-      bar.textContent = segment.label;
+      bar.textContent = insideDayGrid ? (segment.displayLabel ?? segment.label) : segment.label;
+      if (insideDayGrid && !bar.textContent) bar.classList.add("is-continuation");
       if (segment.fullLabel) {
         bar.title = segment.fullLabel;
       }
@@ -6617,8 +6635,24 @@ const renderVacationsSlide = (item) => {
       bar.style.left = `calc(${leftPercent}% + 0.22vw)`;
       bar.style.width = `calc(${widthPercent}% - 0.44vw)`;
       bar.style.setProperty("--bar-lane", String(segment.lane || 0));
-      wrapper.appendChild(bar);
+      if (!insideDayGrid) {
+        wrapper.appendChild(bar);
+        return;
+      }
+      const laneIndex = Number(segment.lane) || 0;
+      let lane = lanes.get(laneIndex);
+      if (!lane) {
+        lane = document.createElement("div");
+        lane.className = "vacation-bar-lane";
+        lanes.set(laneIndex, lane);
+      }
+      lane.appendChild(bar);
     });
+    if (insideDayGrid) {
+      [...lanes.entries()]
+        .sort(([left], [right]) => left - right)
+        .forEach(([, lane]) => wrapper.appendChild(lane));
+    }
     return wrapper;
   };
 
@@ -6663,37 +6697,7 @@ const renderVacationsSlide = (item) => {
         previous.endIndex = weekIndex;
       }
     });
-    const groupByWeekIndex = new Map();
-    monthGroups.forEach((group) => {
-      group.labelIndex = Math.floor((group.startIndex + group.endIndex) / 2);
-      for (let index = group.startIndex; index <= group.endIndex; index += 1) {
-        groupByWeekIndex.set(index, group);
-      }
-    });
-
-    weeks.forEach((week, weekIndex) => {
-      const weekShell = document.createElement("div");
-      weekShell.className = "continuous-week";
-      const group = groupByWeekIndex.get(weekIndex);
-      const monthCell = document.createElement("div");
-      monthCell.className = "continuous-month-cell";
-      if (weekIndex === group?.startIndex) monthCell.classList.add("is-start");
-      if (weekIndex === group?.endIndex) monthCell.classList.add("is-end");
-      monthCell.style.setProperty("--month-band-color", continuousMonthColor(group?.date || week.start));
-      if (weekIndex === group?.labelIndex) {
-        // Le nom dépasse volontairement la hauteur d'une semaine : cette
-        // cellule doit donc passer devant les bandes voisines pour éviter
-        // qu'un mois court masque une partie du libellé vertical.
-        monthCell.classList.add("has-label");
-        const monthName = document.createElement("span");
-        monthName.className = "continuous-month-name";
-        monthName.textContent = capitalizeFrench(vacationsMonthOnlyFormatter.format(group.date));
-        const monthYear = document.createElement("span");
-        monthYear.className = "continuous-month-year";
-        monthYear.textContent = String(group.date.getUTCFullYear());
-        monthCell.append(monthName, monthYear);
-      }
-
+    const makeContinuousWeekRow = (week) => {
       const row = document.createElement("div");
       row.className = "week-row continuous-week-row";
       const monthStartIndex = week.days.findIndex((date) => (
@@ -6711,12 +6715,38 @@ const renderVacationsSlide = (item) => {
         row.style.setProperty("--next-month-color", continuousMonthColor(week.days[monthStartIndex]));
       }
 
+      const segments = getContinuousSegments(week);
+      const laneCount = assignLanes(segments);
+      row.classList.add(`vacation-lanes-${Math.min(laneCount, 4)}`);
       const dayGrid = document.createElement("div");
       dayGrid.className = "day-grid";
       week.days.forEach((date) => dayGrid.appendChild(makeContinuousDayCell(date)));
+      dayGrid.appendChild(makeVacationBars(segments, { insideDayGrid: true }));
       row.appendChild(dayGrid);
-      weekShell.append(monthCell, row);
-      weeksWrap.appendChild(weekShell);
+      return row;
+    };
+
+    monthGroups.forEach((group) => {
+      const groupShell = document.createElement("section");
+      groupShell.className = "continuous-month-group";
+      const monthCell = document.createElement("div");
+      monthCell.className = "continuous-month-cell";
+      monthCell.style.setProperty("--month-band-color", continuousMonthColor(group.date));
+      const monthName = document.createElement("span");
+      monthName.className = "continuous-month-name";
+      monthName.textContent = capitalizeFrench(vacationsMonthOnlyFormatter.format(group.date));
+      const monthYear = document.createElement("span");
+      monthYear.className = "continuous-month-year";
+      monthYear.textContent = String(group.date.getUTCFullYear());
+      monthCell.append(monthName, monthYear);
+
+      const groupWeeks = document.createElement("div");
+      groupWeeks.className = "continuous-month-group-weeks";
+      for (let index = group.startIndex; index <= group.endIndex; index += 1) {
+        groupWeeks.appendChild(makeContinuousWeekRow(weeks[index]));
+      }
+      groupShell.append(monthCell, groupWeeks);
+      weeksWrap.appendChild(groupShell);
     });
 
     continuousCalendar.appendChild(weeksWrap);

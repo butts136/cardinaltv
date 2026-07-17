@@ -1797,7 +1797,7 @@ input[type="datetime-local"]:focus {
 }
 
 .vacations-slide-frame .continuous-calendar-header,
-.vacations-slide-frame .continuous-week {
+.vacations-slide-frame .continuous-month-group {
   display: grid;
   grid-template-columns: var(--continuous-month-rail-width) minmax(0, 1fr);
 }
@@ -1829,9 +1829,13 @@ input[type="datetime-local"]:focus {
   position: relative;
 }
 
-.vacations-slide-frame .continuous-week {
+.vacations-slide-frame .continuous-month-group {
   position: relative;
   align-items: stretch;
+}
+
+.vacations-slide-frame .continuous-month-group-weeks {
+  min-width: 0;
 }
 
 .vacations-slide-frame .continuous-month-cell {
@@ -1840,36 +1844,17 @@ input[type="datetime-local"]:focus {
   min-height: 100%;
   border-right: 1px solid rgba(255, 255, 255, 0.26);
   background: var(--month-band-color, #2563eb);
-  box-shadow: inset -1px 0 rgba(255, 255, 255, 0.18);
-  overflow: visible;
-}
-
-/* Le libellé vertical est plus haut que sa cellule centrale. */
-.vacations-slide-frame .continuous-month-cell.has-label {
-  z-index: 24;
-}
-
-.vacations-slide-frame .continuous-month-cell.is-start {
-  border-radius: 12px 12px 0 0;
-  box-shadow:
-    inset -1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 2px rgba(255, 255, 255, 0.42);
-}
-
-.vacations-slide-frame .continuous-month-cell.is-end {
-  border-radius: 0 0 12px 12px;
-  box-shadow:
-    inset -1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -2px rgba(255, 255, 255, 0.42);
-}
-
-.vacations-slide-frame .continuous-month-cell.is-start.is-end {
   border-radius: 12px;
+  box-shadow:
+    inset -1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 2px rgba(255, 255, 255, 0.42),
+    inset 0 -2px rgba(255, 255, 255, 0.42);
+  overflow: hidden;
 }
 
 .vacations-slide-frame .continuous-month-name {
   position: absolute;
-  z-index: 25;
+  z-index: 1;
   top: 50%;
   left: 50%;
   color: #ffffff;
@@ -1902,6 +1887,7 @@ input[type="datetime-local"]:focus {
   --previous-month-color: #2563eb;
   --next-month-color: #0f766e;
   --boundary-split: 50%;
+  --continuous-vacation-space: 0px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1920,6 +1906,49 @@ input[type="datetime-local"]:focus {
   flex-direction: column;
   align-items: stretch;
   gap: 0.38vh;
+  padding-bottom: calc(0.35vh + var(--continuous-vacation-space));
+}
+
+.vacations-slide-frame .continuous-week-row.vacation-lanes-1 {
+  --continuous-vacation-space: calc(var(--week-bar-height) + 0.65vh);
+}
+
+.vacations-slide-frame .continuous-week-row.vacation-lanes-2 {
+  --continuous-vacation-space: calc((var(--week-bar-height) * 2) + var(--week-bar-gap) + 0.65vh);
+}
+
+.vacations-slide-frame .continuous-week-row.vacation-lanes-3 {
+  --continuous-vacation-space: calc((var(--week-bar-height) * 3) + (var(--week-bar-gap) * 2) + 0.65vh);
+}
+
+.vacations-slide-frame .continuous-week-row.vacation-lanes-4 {
+  --continuous-vacation-space: calc((var(--week-bar-height) * 4) + (var(--week-bar-gap) * 3) + 0.65vh);
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bars--inside-day-grid {
+  top: auto;
+  bottom: 0.35vh;
+  display: grid;
+  grid-auto-rows: var(--week-bar-height);
+  gap: var(--week-bar-gap);
+  z-index: 12;
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bar-lane {
+  position: relative;
+  min-height: var(--week-bar-height);
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bars--inside-day-grid .vacation-bar {
+  top: 0;
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bars--inside-day-grid .vacation-bar.is-continuation {
+  padding: 0;
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bars--inside-day-grid .vacation-bar.is-continuation::before {
+  display: none;
 }
 
 .vacations-slide-frame .continuous-week-row .continuous-day .day-number {
