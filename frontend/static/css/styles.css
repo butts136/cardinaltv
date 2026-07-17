@@ -1785,6 +1785,183 @@ input[type="datetime-local"]:focus {
   padding-left: clamp(56px, 5vw, 96px);
 }
 
+.vacations-slide-frame .continuous-calendar {
+  --continuous-month-rail-width: clamp(68px, 5.4vw, 104px);
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(7, 17, 31, 0.42);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+
+.vacations-slide-frame .continuous-calendar-header,
+.vacations-slide-frame .continuous-week {
+  display: grid;
+  grid-template-columns: var(--continuous-month-rail-width) minmax(0, 1fr);
+}
+
+.vacations-slide-frame .continuous-calendar-header {
+  position: sticky;
+  top: 0;
+  z-index: 26;
+  min-height: 4.15vh;
+  border-radius: 17px 17px 0 0;
+  overflow: hidden;
+  background: rgba(13, 28, 51, 0.98);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+.vacations-slide-frame .continuous-calendar-header .weekday-row {
+  border-bottom: 0;
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.vacations-slide-frame .continuous-month-rail-head {
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.38), rgba(15, 118, 110, 0.38)),
+    #101f36;
+}
+
+.vacations-slide-frame .continuous-weeks {
+  position: relative;
+}
+
+.vacations-slide-frame .continuous-week {
+  position: relative;
+  align-items: stretch;
+}
+
+.vacations-slide-frame .continuous-month-cell {
+  position: relative;
+  z-index: 7;
+  min-height: 100%;
+  border-right: 1px solid rgba(255, 255, 255, 0.26);
+  background: var(--month-band-color, #2563eb);
+  box-shadow: inset -1px 0 rgba(255, 255, 255, 0.18);
+  overflow: visible;
+}
+
+.vacations-slide-frame .continuous-month-cell.is-start {
+  border-radius: 12px 12px 0 0;
+  box-shadow:
+    inset -1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 2px rgba(255, 255, 255, 0.42);
+}
+
+.vacations-slide-frame .continuous-month-cell.is-end {
+  border-radius: 0 0 12px 12px;
+  box-shadow:
+    inset -1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -2px rgba(255, 255, 255, 0.42);
+}
+
+.vacations-slide-frame .continuous-month-cell.is-start.is-end {
+  border-radius: 12px;
+}
+
+.vacations-slide-frame .continuous-month-name {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  color: #ffffff;
+  font-size: var(--vacations-month-font-size, clamp(25px, 1.75vw, 36px));
+  font-weight: 1000;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  transform-origin: center;
+}
+
+.vacations-slide-frame .continuous-month-year {
+  position: absolute;
+  right: 0.3vw;
+  bottom: 0.55vh;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: clamp(10px, 0.62vw, 13px);
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.vacations-slide-frame .continuous-week-row {
+  --month-boundary-color: #2563eb;
+  --previous-month-color: #2563eb;
+  --next-month-color: #0f766e;
+  --boundary-split: 50%;
+  overflow: visible;
+}
+
+.vacations-slide-frame .continuous-week-row.month-boundary-row::before {
+  content: "";
+  position: absolute;
+  z-index: 20;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--month-boundary-color);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7), 0 3px 10px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.vacations-slide-frame .continuous-week-row.month-boundary-split::before,
+.vacations-slide-frame .continuous-week-row.month-boundary-split::after {
+  content: "";
+  position: absolute;
+  z-index: 20;
+  height: 6px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7), 0 3px 10px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.vacations-slide-frame .continuous-week-row.month-boundary-split::before {
+  left: 0;
+  right: calc(100% - var(--boundary-split));
+  bottom: -3px;
+  background: var(--previous-month-color);
+}
+
+.vacations-slide-frame .continuous-week-row.month-boundary-split::after {
+  left: var(--boundary-split);
+  right: 0;
+  top: -3px;
+  background: var(--next-month-color);
+}
+
+.vacations-slide-frame .continuous-day {
+  box-shadow: inset 0 0 0 1px var(--continuous-month-color, rgba(255, 255, 255, 0.12));
+}
+
+.vacations-slide-frame .continuous-day.outside-range {
+  color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.012);
+  box-shadow: none;
+}
+
+.vacations-slide-frame .continuous-day.month-boundary-column::before {
+  content: "";
+  position: absolute;
+  z-index: 22;
+  top: -3px;
+  bottom: -3px;
+  left: -3px;
+  width: 6px;
+  border-radius: 999px;
+  background: var(--continuous-month-color);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7), 3px 0 10px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
 .vacations-slide-frame .month-card {
   overflow: hidden;
   border-radius: 18px;

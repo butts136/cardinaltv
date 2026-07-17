@@ -6375,6 +6375,8 @@ const renderVacationsSlide = (item) => {
     ? settings.layout_mode
     : "two_columns";
   const continuousMonthColors = ["#2563eb", "#0f766e", "#9333ea", "#c2410c", "#be123c", "#4f46e5"];
+  const visibleRangeStart = monthStart;
+  const visibleRangeEnd = endOfUtcMonth(addUtcMonths(monthStart, monthsToShow - 1));
   const entries = (Array.isArray(payload?.entries) ? payload.entries : [])
     .map((entry, index) => {
       const startDate = parseIsoUtcDate(entry.startIso || entry.start_date || entry.start);
@@ -6471,6 +6473,41 @@ const renderVacationsSlide = (item) => {
     cell.appendChild(number);
     return cell;
   };
+  const continuousMonthIndex = (date) => (
+    ((date.getUTCFullYear() - monthStart.getUTCFullYear()) * 12)
+    + date.getUTCMonth()
+    - monthStart.getUTCMonth()
+  );
+  const continuousMonthColor = (date) => {
+    const colorIndex = continuousMonthIndex(date) % continuousMonthColors.length;
+    return continuousMonthColors[(colorIndex + continuousMonthColors.length) % continuousMonthColors.length];
+  };
+  const makeContinuousDayCell = (date) => {
+    const cell = document.createElement("div");
+    const isInRange = date >= visibleRangeStart && date <= visibleRangeEnd;
+    cell.className = "day continuous-day";
+    cell.style.setProperty("--continuous-month-color", continuousMonthColor(date));
+    if (!isInRange) cell.classList.add("outside-range");
+    if ([0, 6].includes(date.getUTCDay())) cell.classList.add("weekend");
+    if (sameUtcDate(date, today)) cell.classList.add("today");
+    if (date.getUTCDate() === 1 && date.getUTCDay() !== 0) {
+      cell.classList.add("month-boundary-column");
+    }
+
+    const number = document.createElement("div");
+    number.className = "day-number";
+    const numberText = document.createElement("span");
+    numberText.textContent = String(date.getUTCDate());
+    number.appendChild(numberText);
+    if (sameUtcDate(date, today)) {
+      const tag = document.createElement("span");
+      tag.className = "today-tag";
+      tag.textContent = "Aujourd’hui";
+      number.appendChild(tag);
+    }
+    cell.appendChild(number);
+    return cell;
+  };
   const assignLanes = (segments) => {
     const laneEnds = [];
     segments.forEach((segment) => {
@@ -6528,6 +6565,56 @@ const renderVacationsSlide = (item) => {
         return right.endIndex - left.endIndex;
       });
   };
+  const getContinuousSegments = (week) => {
+    const vacationSegments = entries
+      .map((entry) => {
+        const segmentStart = new Date(Math.max(
+          entry.startDate.getTime(),
+          week.start.getTime(),
+          visibleRangeStart.getTime(),
+        ));
+        const segmentEnd = new Date(Math.min(
+          entry.endDate.getTime(),
+          week.end.getTime(),
+          visibleRangeEnd.getTime(),
+        ));
+        if (segmentStart > segmentEnd) return null;
+        return {
+          label: entry.employeeName,
+          fullLabel: entry.employeeName,
+          kind: "vacation",
+          priority: 1,
+          color: entry.color,
+          startIndex: segmentStart.getUTCDay(),
+          endIndex: segmentEnd.getUTCDay(),
+          span: segmentEnd.getUTCDay() - segmentStart.getUTCDay() + 1,
+        };
+      })
+      .filter(Boolean);
+    const eventSegments = calendarEvents
+      .filter((entry) => (
+        entry.eventDate >= week.start
+        && entry.eventDate <= week.end
+        && entry.eventDate >= visibleRangeStart
+        && entry.eventDate <= visibleRangeEnd
+      ))
+      .map((entry) => ({
+        label: entry.badgeLabel,
+        fullLabel: entry.label,
+        kind: entry.type,
+        priority: 0,
+        color: entry.color,
+        startIndex: entry.eventDate.getUTCDay(),
+        endIndex: entry.eventDate.getUTCDay(),
+        span: 1,
+      }));
+    return [...eventSegments, ...vacationSegments]
+      .sort((left, right) => {
+        if (left.startIndex !== right.startIndex) return left.startIndex - right.startIndex;
+        if ((left.priority || 0) !== (right.priority || 0)) return (left.priority || 0) - (right.priority || 0);
+        return right.endIndex - left.endIndex;
+      });
+  };
   const makeVacationBars = (segments) => {
     const wrapper = document.createElement("div");
     wrapper.className = "vacation-bars";
@@ -6552,74 +6639,167 @@ const renderVacationsSlide = (item) => {
     return wrapper;
   };
 
+  const renderContinuousCalendar = () => {
+    const continuousCalendar = document.createElement("div");
+    continuousCalendar.className = "continuous-calendar";
+
+    const header = document.createElement("div");
+    header.className = "continuous-calendar-header";
+    const railHead = document.createElement("div");
+    railHead.className = "continuous-month-rail-head";
+    header.append(railHead, makeWeekdayRow());
+    continuousCalendar.appendChild(header);
+
+    const weeksWrap = document.createElement("div");
+    weeksWrap.className = "continuous-weeks";
+    const firstWeek = startOfUtcWeekSunday(visibleRangeStart);
+    const lastWeek = startOfUtcWeekSunday(visibleRangeEnd);
+    const weeks = [];
+    for (let cursor = firstWeek; cursor <= lastWeek; cursor = addUtcDays(cursor, 7)) {
+      const weekStart = startOfUtcDay(cursor);
+      weeks.push({
+        start: weekStart,
+        end: addUtcDays(weekStart, 6),
+        days: Array.from({ length: 7 }, (_, dayIndex) => addUtcDays(weekStart, dayIndex)),
+      });
+    }
+
+    const monthGroups = [];
+    weeks.forEach((week, weekIndex) => {
+      const representativeDate = week.start < visibleRangeStart ? visibleRangeStart : week.start;
+      const key = `${representativeDate.getUTCFullYear()}-${representativeDate.getUTCMonth()}`;
+      const previous = monthGroups[monthGroups.length - 1];
+      if (!previous || previous.key !== key) {
+        monthGroups.push({
+          key,
+          date: representativeDate,
+          startIndex: weekIndex,
+          endIndex: weekIndex,
+        });
+      } else {
+        previous.endIndex = weekIndex;
+      }
+    });
+    const groupByWeekIndex = new Map();
+    monthGroups.forEach((group) => {
+      group.labelIndex = Math.floor((group.startIndex + group.endIndex) / 2);
+      for (let index = group.startIndex; index <= group.endIndex; index += 1) {
+        groupByWeekIndex.set(index, group);
+      }
+    });
+
+    weeks.forEach((week, weekIndex) => {
+      const weekShell = document.createElement("div");
+      weekShell.className = "continuous-week";
+      const group = groupByWeekIndex.get(weekIndex);
+      const monthCell = document.createElement("div");
+      monthCell.className = "continuous-month-cell";
+      if (weekIndex === group?.startIndex) monthCell.classList.add("is-start");
+      if (weekIndex === group?.endIndex) monthCell.classList.add("is-end");
+      monthCell.style.setProperty("--month-band-color", continuousMonthColor(group?.date || week.start));
+      if (weekIndex === group?.labelIndex) {
+        const monthName = document.createElement("span");
+        monthName.className = "continuous-month-name";
+        monthName.textContent = capitalizeFrench(vacationsMonthOnlyFormatter.format(group.date));
+        const monthYear = document.createElement("span");
+        monthYear.className = "continuous-month-year";
+        monthYear.textContent = String(group.date.getUTCFullYear());
+        monthCell.append(monthName, monthYear);
+      }
+
+      const row = document.createElement("div");
+      row.className = "week-row continuous-week-row";
+      const monthStartIndex = week.days.findIndex((date) => (
+        date.getUTCDate() === 1
+        && date >= visibleRangeStart
+        && date <= visibleRangeEnd
+      ));
+      if (monthStartIndex === 0) {
+        row.classList.add("month-boundary-row");
+        row.style.setProperty("--month-boundary-color", continuousMonthColor(week.days[0]));
+      } else if (monthStartIndex > 0) {
+        row.classList.add("month-boundary-split");
+        row.style.setProperty("--boundary-split", `${(monthStartIndex / 7) * 100}%`);
+        row.style.setProperty("--previous-month-color", continuousMonthColor(week.days[monthStartIndex - 1]));
+        row.style.setProperty("--next-month-color", continuousMonthColor(week.days[monthStartIndex]));
+      }
+
+      const segments = getContinuousSegments(week);
+      row.style.setProperty("--lane-count", assignLanes(segments));
+      const dayGrid = document.createElement("div");
+      dayGrid.className = "day-grid";
+      week.days.forEach((date) => dayGrid.appendChild(makeContinuousDayCell(date)));
+      row.append(dayGrid, makeVacationBars(segments));
+      weekShell.append(monthCell, row);
+      weeksWrap.appendChild(weekShell);
+    });
+
+    continuousCalendar.appendChild(weeksWrap);
+    return continuousCalendar;
+  };
+
   const monthsGrid = document.createElement("div");
   monthsGrid.className = `months-grid months-grid--${layoutMode}`;
 
-  for (let index = 0; index < monthsToShow; index += 1) {
-    const labelDate = addUtcMonths(monthStart, index);
-    const card = document.createElement("section");
-    card.className = "month-card";
-    if (layoutMode === "continuous") {
-      card.classList.add("month-card--continuous");
-      card.style.setProperty("--month-band-color", continuousMonthColors[index % continuousMonthColors.length]);
-      const band = document.createElement("div");
-      band.className = "month-continuous-band";
-      band.textContent = capitalizeFrench(vacationsMonthFormatter.format(labelDate));
-      card.appendChild(band);
-    }
-    const monthEvents = calendarEvents
-      .filter((entry) => sameUtcMonth(entry.eventDate, labelDate))
-      .sort((left, right) => {
-        if (left.eventDate.getTime() !== right.eventDate.getTime()) {
-          return left.eventDate.getTime() - right.eventDate.getTime();
-        }
-        return left.label.localeCompare(right.label, "fr", { sensitivity: "base" });
-      });
+  if (layoutMode === "continuous") {
+    content.appendChild(renderContinuousCalendar());
+  } else {
+    for (let index = 0; index < monthsToShow; index += 1) {
+      const labelDate = addUtcMonths(monthStart, index);
+      const card = document.createElement("section");
+      card.className = "month-card";
+      const monthEvents = calendarEvents
+        .filter((entry) => sameUtcMonth(entry.eventDate, labelDate))
+        .sort((left, right) => {
+          if (left.eventDate.getTime() !== right.eventDate.getTime()) {
+            return left.eventDate.getTime() - right.eventDate.getTime();
+          }
+          return left.label.localeCompare(right.label, "fr", { sensitivity: "base" });
+        });
 
-    if (layoutMode !== "continuous") {
       const header = document.createElement("div");
       header.className = "month-header";
       header.textContent = capitalizeFrench(vacationsMonthFormatter.format(labelDate));
       card.appendChild(header);
-    }
-    card.appendChild(makeWeekdayRow());
+      card.appendChild(makeWeekdayRow());
 
-    const weeksWrap = document.createElement("div");
-    weeksWrap.className = "month-weeks";
-    getWeeksForMonth(labelDate).forEach((week) => {
-      const row = document.createElement("div");
-      row.className = "week-row";
-      const segments = getSegments(week, labelDate);
-      const laneCount = assignLanes(segments);
-      row.style.setProperty("--lane-count", laneCount);
+      const weeksWrap = document.createElement("div");
+      weeksWrap.className = "month-weeks";
+      getWeeksForMonth(labelDate).forEach((week) => {
+        const row = document.createElement("div");
+        row.className = "week-row";
+        const segments = getSegments(week, labelDate);
+        const laneCount = assignLanes(segments);
+        row.style.setProperty("--lane-count", laneCount);
 
-      const dayGrid = document.createElement("div");
-      dayGrid.className = "day-grid";
-      week.days.forEach((date) => {
-        dayGrid.appendChild(makeDayCell(date, labelDate));
+        const dayGrid = document.createElement("div");
+        dayGrid.className = "day-grid";
+        week.days.forEach((date) => {
+          dayGrid.appendChild(makeDayCell(date, labelDate));
+        });
+
+        row.append(dayGrid, makeVacationBars(segments));
+        weeksWrap.appendChild(row);
       });
 
-      row.append(dayGrid, makeVacationBars(segments));
-      weeksWrap.appendChild(row);
-    });
-
-    card.appendChild(weeksWrap);
-    if (monthEvents.length) {
-      const footer = document.createElement("div");
-      footer.className = "month-events";
-      monthEvents.forEach((entry) => {
-        const chip = document.createElement("div");
-        chip.className = `month-event-chip month-event-chip--${entry.type}`;
-        chip.textContent = `${formatVacationsEventFooterDate(entry.eventDate)} - ${entry.label}`;
-        chip.title = chip.textContent;
-        footer.appendChild(chip);
-      });
-      card.appendChild(footer);
+      card.appendChild(weeksWrap);
+      if (monthEvents.length) {
+        const footer = document.createElement("div");
+        footer.className = "month-events";
+        monthEvents.forEach((entry) => {
+          const chip = document.createElement("div");
+          chip.className = `month-event-chip month-event-chip--${entry.type}`;
+          chip.textContent = `${formatVacationsEventFooterDate(entry.eventDate)} - ${entry.label}`;
+          chip.title = chip.textContent;
+          footer.appendChild(chip);
+        });
+        card.appendChild(footer);
+      }
+      monthsGrid.appendChild(card);
     }
-    monthsGrid.appendChild(card);
   }
 
-  content.appendChild(monthsGrid);
+  if (layoutMode !== "continuous") content.appendChild(monthsGrid);
   scroller.appendChild(content);
   calendarWindow.append(fadeTop, scroller, fadeBottom);
 
