@@ -6717,7 +6717,12 @@ const renderVacationsSlide = (item) => {
 
       const segments = getContinuousSegments(week);
       const laneCount = assignLanes(segments);
-      row.classList.add(`vacation-lanes-${Math.min(laneCount, 4)}`);
+      if (laneCount > 0) {
+        row.style.setProperty(
+          "--continuous-vacation-space",
+          `calc((var(--week-bar-height) * ${laneCount}) + (var(--week-bar-gap) * ${laneCount - 1}) + var(--continuous-vacation-clearance))`,
+        );
+      }
       const dayGrid = document.createElement("div");
       dayGrid.className = "day-grid";
       week.days.forEach((date) => dayGrid.appendChild(makeContinuousDayCell(date)));
