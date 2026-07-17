@@ -1931,7 +1931,8 @@ input[type="datetime-local"]:focus {
   display: grid;
   grid-auto-rows: var(--week-bar-height);
   gap: var(--week-bar-gap);
-  z-index: 12;
+  /* Les barres restent sous le contenu des cases : jamais sur le jour. */
+  z-index: 9;
 }
 
 .vacations-slide-frame .continuous-week-row .vacation-bar-lane {
@@ -1953,6 +1954,8 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .continuous-week-row .continuous-day .day-number {
   flex: 0 0 auto;
+  position: relative;
+  z-index: 13;
 }
 
 .vacations-slide-frame .continuous-day-badges {
@@ -1962,7 +1965,7 @@ input[type="datetime-local"]:focus {
   width: 100%;
   margin-top: 0.16vh;
   position: relative;
-  z-index: 8;
+  z-index: 13;
 }
 
 .vacations-slide-frame .continuous-day-badge {
