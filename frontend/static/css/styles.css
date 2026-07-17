@@ -1926,7 +1926,7 @@ input[type="datetime-local"]:focus {
   flex: 0 0 auto;
 }
 
-.vacations-slide-frame .continuous-day-event-badges {
+.vacations-slide-frame .continuous-day-badges {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.34vh;
@@ -1936,7 +1936,7 @@ input[type="datetime-local"]:focus {
   z-index: 8;
 }
 
-.vacations-slide-frame .continuous-day-event-badge {
+.vacations-slide-frame .continuous-day-badge {
   width: 100%;
   min-height: 2.35vh;
   display: block;
@@ -1951,31 +1951,6 @@ input[type="datetime-local"]:focus {
   overflow-wrap: anywhere;
   white-space: normal;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
-}
-
-.vacations-slide-frame .continuous-week-row .vacation-bars--continuous {
-  position: relative;
-  inset: auto;
-  z-index: 6;
-  display: grid;
-  grid-auto-rows: var(--week-bar-height);
-  gap: var(--week-bar-gap);
-  width: 100%;
-  min-height: 0;
-  padding: 0.38vh 0;
-}
-
-.vacations-slide-frame .continuous-week-row .vacation-bars--continuous:empty {
-  display: none;
-}
-
-.vacations-slide-frame .continuous-week-row .vacation-bar-lane {
-  position: relative;
-  min-height: var(--week-bar-height);
-}
-
-.vacations-slide-frame .continuous-week-row .vacation-bars--continuous .vacation-bar {
-  top: 0;
 }
 
 .vacations-slide-frame .continuous-week-row.month-boundary-row::before {

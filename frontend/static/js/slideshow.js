@@ -6512,14 +6512,28 @@ const renderVacationsSlide = (item) => {
       && entry.eventDate >= visibleRangeStart
       && entry.eventDate <= visibleRangeEnd
     ));
-    if (dayEvents.length) {
+    const dayVacations = entries.filter((entry) => (
+      date >= entry.startDate
+      && date <= entry.endDate
+      && date >= visibleRangeStart
+      && date <= visibleRangeEnd
+    ));
+    if (dayEvents.length || dayVacations.length) {
       const eventBadges = document.createElement("div");
-      eventBadges.className = "continuous-day-event-badges";
+      eventBadges.className = "continuous-day-badges";
       dayEvents.forEach((entry) => {
         const badge = document.createElement("div");
-        badge.className = `continuous-day-event-badge continuous-day-event-badge--${entry.type}`;
+        badge.className = `continuous-day-badge continuous-day-badge--${entry.type}`;
         badge.textContent = entry.label;
         badge.title = entry.label;
+        badge.style.background = entry.color;
+        eventBadges.appendChild(badge);
+      });
+      dayVacations.forEach((entry) => {
+        const badge = document.createElement("div");
+        badge.className = "continuous-day-badge continuous-day-badge--vacation";
+        badge.textContent = entry.employeeName;
+        badge.title = `Vacances : ${entry.employeeName}`;
         badge.style.background = entry.color;
         eventBadges.appendChild(badge);
       });
@@ -6584,42 +6598,9 @@ const renderVacationsSlide = (item) => {
         return right.endIndex - left.endIndex;
       });
   };
-  const getContinuousSegments = (week) => {
-    const vacationSegments = entries
-      .map((entry) => {
-        const segmentStart = new Date(Math.max(
-          entry.startDate.getTime(),
-          week.start.getTime(),
-          visibleRangeStart.getTime(),
-        ));
-        const segmentEnd = new Date(Math.min(
-          entry.endDate.getTime(),
-          week.end.getTime(),
-          visibleRangeEnd.getTime(),
-        ));
-        if (segmentStart > segmentEnd) return null;
-        return {
-          label: entry.employeeName,
-          fullLabel: entry.employeeName,
-          kind: "vacation",
-          priority: 1,
-          color: entry.color,
-          startIndex: segmentStart.getUTCDay(),
-          endIndex: segmentEnd.getUTCDay(),
-          span: segmentEnd.getUTCDay() - segmentStart.getUTCDay() + 1,
-        };
-      })
-      .filter(Boolean);
-    return vacationSegments
-      .sort((left, right) => {
-        if (left.startIndex !== right.startIndex) return left.startIndex - right.startIndex;
-        return right.endIndex - left.endIndex;
-      });
-  };
-  const makeVacationBars = (segments, { flow = false } = {}) => {
+  const makeVacationBars = (segments) => {
     const wrapper = document.createElement("div");
-    wrapper.className = `vacation-bars${flow ? " vacation-bars--continuous" : ""}`;
-    const lanes = new Map();
+    wrapper.className = "vacation-bars";
     segments.forEach((segment) => {
       const bar = document.createElement("div");
       bar.className = "vacation-bar";
@@ -6636,24 +6617,8 @@ const renderVacationsSlide = (item) => {
       bar.style.left = `calc(${leftPercent}% + 0.22vw)`;
       bar.style.width = `calc(${widthPercent}% - 0.44vw)`;
       bar.style.setProperty("--bar-lane", String(segment.lane || 0));
-      if (!flow) {
-        wrapper.appendChild(bar);
-        return;
-      }
-      const laneIndex = Number(segment.lane) || 0;
-      let lane = lanes.get(laneIndex);
-      if (!lane) {
-        lane = document.createElement("div");
-        lane.className = "vacation-bar-lane";
-        lanes.set(laneIndex, lane);
-      }
-      lane.appendChild(bar);
+      wrapper.appendChild(bar);
     });
-    if (flow) {
-      [...lanes.entries()]
-        .sort(([left], [right]) => left - right)
-        .forEach(([, lane]) => wrapper.appendChild(lane));
-    }
     return wrapper;
   };
 
@@ -6746,12 +6711,10 @@ const renderVacationsSlide = (item) => {
         row.style.setProperty("--next-month-color", continuousMonthColor(week.days[monthStartIndex]));
       }
 
-      const segments = getContinuousSegments(week);
-      row.style.setProperty("--lane-count", assignLanes(segments));
       const dayGrid = document.createElement("div");
       dayGrid.className = "day-grid";
       week.days.forEach((date) => dayGrid.appendChild(makeContinuousDayCell(date)));
-      row.append(dayGrid, makeVacationBars(segments, { flow: true }));
+      row.appendChild(dayGrid);
       weekShell.append(monthCell, row);
       weeksWrap.appendChild(weekShell);
     });

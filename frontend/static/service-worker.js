@@ -3,7 +3,7 @@
  * diaporama offline-first, avec revalidation en arrière-plan.
  */
 
-const CACHE_VERSION = "v37";
+const CACHE_VERSION = "v38";
 const STATIC_CACHE = `cardinal-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `cardinal-media-${CACHE_VERSION}`;
 const API_CACHE = `cardinal-api-${CACHE_VERSION}`;
