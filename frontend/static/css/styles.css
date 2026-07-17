@@ -1844,6 +1844,11 @@ input[type="datetime-local"]:focus {
   overflow: visible;
 }
 
+/* Le libellé vertical est plus haut que sa cellule centrale. */
+.vacations-slide-frame .continuous-month-cell.has-label {
+  z-index: 24;
+}
+
 .vacations-slide-frame .continuous-month-cell.is-start {
   border-radius: 12px 12px 0 0;
   box-shadow:
@@ -1864,7 +1869,7 @@ input[type="datetime-local"]:focus {
 
 .vacations-slide-frame .continuous-month-name {
   position: absolute;
-  z-index: 3;
+  z-index: 25;
   top: 50%;
   left: 50%;
   color: #ffffff;
@@ -1875,6 +1880,7 @@ input[type="datetime-local"]:focus {
   text-transform: uppercase;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   white-space: nowrap;
+  pointer-events: none;
   transform: translate(-50%, -50%) rotate(-90deg);
   transform-origin: center;
 }

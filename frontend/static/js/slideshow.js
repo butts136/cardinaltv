@@ -6698,6 +6698,10 @@ const renderVacationsSlide = (item) => {
       if (weekIndex === group?.endIndex) monthCell.classList.add("is-end");
       monthCell.style.setProperty("--month-band-color", continuousMonthColor(group?.date || week.start));
       if (weekIndex === group?.labelIndex) {
+        // Le nom dépasse volontairement la hauteur d'une semaine : cette
+        // cellule doit donc passer devant les bandes voisines pour éviter
+        // qu'un mois court masque une partie du libellé vertical.
+        monthCell.classList.add("has-label");
         const monthName = document.createElement("span");
         monthName.className = "continuous-month-name";
         monthName.textContent = capitalizeFrench(vacationsMonthOnlyFormatter.format(group.date));
