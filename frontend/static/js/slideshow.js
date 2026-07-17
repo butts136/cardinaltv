@@ -6597,10 +6597,11 @@ const renderVacationsSlide = (item) => {
         visibleRangeEnd.getTime(),
       ));
       if (segmentStart > segmentEnd) return null;
-      const startsThisWeek = sameUtcDate(segmentStart, entry.startDate);
       return {
         label: entry.employeeName,
-        displayLabel: startsThisWeek ? entry.employeeName : "",
+        // Une absence prolongée est découpée par semaines : garder le nom
+        // sur chaque segment pour qu'il reste identifiable pendant le défilement.
+        displayLabel: entry.employeeName,
         fullLabel: entry.employeeName,
         kind: "vacation",
         color: entry.color,
