@@ -1902,7 +1902,80 @@ input[type="datetime-local"]:focus {
   --previous-month-color: #2563eb;
   --next-month-color: #0f766e;
   --boundary-split: 50%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: visible;
+}
+
+.vacations-slide-frame .continuous-week-row .day-grid {
+  position: relative;
+  inset: auto;
+  min-height: var(--week-row-base-height);
+}
+
+.vacations-slide-frame .continuous-week-row .continuous-day {
+  min-height: var(--week-row-base-height);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.38vh;
+}
+
+.vacations-slide-frame .continuous-week-row .continuous-day .day-number {
+  flex: 0 0 auto;
+}
+
+.vacations-slide-frame .continuous-day-event-badges {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.34vh;
+  width: 100%;
+  margin-top: 0.16vh;
+  position: relative;
+  z-index: 8;
+}
+
+.vacations-slide-frame .continuous-day-event-badge {
+  width: 100%;
+  min-height: 2.35vh;
+  display: block;
+  box-sizing: border-box;
+  padding: 0.34vh 0.44vw;
+  border-radius: 0.7vh;
+  color: #ffffff;
+  font-size: var(--vacations-badge-font-size, clamp(17px, 1.12vw, 26px));
+  font-weight: 950;
+  line-height: 1.12;
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bars--continuous {
+  position: relative;
+  inset: auto;
+  z-index: 6;
+  display: grid;
+  grid-auto-rows: var(--week-bar-height);
+  gap: var(--week-bar-gap);
+  width: 100%;
+  min-height: 0;
+  padding: 0.38vh 0;
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bars--continuous:empty {
+  display: none;
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bar-lane {
+  position: relative;
+  min-height: var(--week-bar-height);
+}
+
+.vacations-slide-frame .continuous-week-row .vacation-bars--continuous .vacation-bar {
+  top: 0;
 }
 
 .vacations-slide-frame .continuous-week-row.month-boundary-row::before {
